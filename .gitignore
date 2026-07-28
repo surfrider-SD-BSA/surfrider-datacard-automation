@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+.DS_Store
+*.log
+
+# Scanned cards and completed datasheets contain volunteer handwriting and
+# event data. Keep them local; they are inputs for evaluation, not artifacts.
+assets/scans/
+assets/ground-truth/
