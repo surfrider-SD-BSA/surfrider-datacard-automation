@@ -18,7 +18,7 @@ blocked on inputs that do not exist yet — see **Blockers** below.
 | `src/lib/taxonomy.ts` | **Done.** Generated from the template; 83 items, 11 sections. |
 | `src/lib/schema.ts` | **Done.** Card/event schemas, review threshold, export gate. |
 | `src/lib/xlsx/` | **Done and verified** against the real template (25/25 checks). |
-| `src/lib/cells.ts` | Structure done. **Coordinates blocked** on a blank-card scan. |
+| `src/lib/cells.ts` | Structure done, two-column layout modelled. **Coordinates blocked** on a proper scan. |
 | `src/lib/pdf.ts`, `register.ts`, `recognize.ts`, `tally.ts` | Not started — blocked. |
 | UI (Phase 4) | Not started. Plan says build no UI until Phase 3 passes. |
 
@@ -36,8 +36,8 @@ To unblock, three separate things are needed:
 
 - **A blank card, scanned front and back at 300 DPI.** This is the registration
   template. Every cell coordinate is measured from it, so the whole pipeline
-  depends on it. This one is the long pole — nothing in Phase 2 can start
-  without it.
+  depends on it. The sample card received so far is neither blank nor
+  full-resolution — see Blocker 2.
 - **The scanned event PDFs** named in the accuracy report
   (`8.2.25_Ocean-Beach_CH54.pdf`, `6.13.25_Seaport-Village_CH54.pdf`) plus the
   14 un-entered ones. Include the ugly cases: tally-only, crossed-out
@@ -50,23 +50,19 @@ Drop scans in `assets/scans/` and completed datasheets in
 `assets/ground-truth/`. Both are gitignored — they contain volunteer
 handwriting and event data.
 
-### 2. No Node.js toolchain on this machine
+### 2. The sample scan is 72 DPI — we need the original
 
-No `node`, no `npm`, no Homebrew. The TypeScript is written but cannot be
-typechecked, tested, or bundled here yet.
+`assets/reference/sample-card.pdf` is 613x793 px per page and its handwritten
+digits are **7-9 px tall**. Its metadata (`Skia/PDF`, `Mozilla`,
+`"... - Google Docs"`) shows it was produced by opening the file in a browser
+preview and using Print -> Save as PDF, which rasterizes at screen resolution.
 
-Everything verified so far was verified with stdlib Python for exactly this
-reason. Tell me and I'll set Node up.
+The original scan is still in Google Drive. It needs to come across as the
+original file, downloaded rather than printed. See `docs/card-findings.md` §5 —
+this probably matters more to Phase 3 than any modelling decision.
 
-### 3. One open question the plan flags as high-impact
-
-> Does the card give each digit its own printed box, or is the number
-> free-written in a cell?
-
-Boxed digits make segmentation nearly free; free-written numbers make it a real
-failure mode. This single fact moves the Phase 3 estimate more than anything
-else. It needs an eyeball on a physical blank card — it is not answerable from
-any file here.
+Node is now installed (`~/.local/node`, on PATH via `~/.zshrc`); typecheck and
+tests run.
 
 ---
 
@@ -105,6 +101,13 @@ boundaries come from the template's own shared-formula blocks.
 
 Also worth noting: the item count is **83**, not the ~100 quoted in the plan
 and `CLAUDE.md`.
+
+**The card layout doc was wrong in three ways.** `docs/data-card-layout.md` was
+written from the spreadsheet, not the card. Reading the actual card showed each
+page is two independent columns with their own TOTAL columns (not one grid),
+Smoking is on the back (not the front), and the TOTAL cells are open — digits
+are free-written, not boxed. `docs/card-findings.md` records all of it; the
+taxonomy now carries a `column` field and the corrected front/back split.
 
 **Cell coordinates are measured data, not source code.** `cells.ts` loads them
 from a calibration file and refuses to start without one. Hand-written pixel

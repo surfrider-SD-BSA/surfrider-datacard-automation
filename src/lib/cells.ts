@@ -20,7 +20,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { itemForRow, type CardSide } from "./taxonomy";
+import { itemForRow, type CardColumn, type CardSide } from "./taxonomy";
 
 /**
  * A rectangle in *reference-template space*: pixel coordinates on the blank
@@ -37,6 +37,8 @@ export interface Rect {
 export interface CellBoxes {
   /** Template row this cell belongs to. */
   row: number;
+  /** Which of the side's two printed columns this row sits in. */
+  column: CardColumn;
   /** The TOTAL column box, where a numeric total is written. */
   total: Rect;
   /** The tally area to the left of the TOTAL column. */
@@ -89,6 +91,12 @@ export function validateCellMap(map: CellMap): void {
           `card but appears in the ${map.side} cell map`,
       );
     }
+    if (item.column !== cell.column) {
+      throw new CellMapError(
+        `row ${cell.row} (${item.name}) is printed in the ${item.column} column ` +
+          `but was calibrated in the ${cell.column} one`,
+      );
+    }
     if (seen.has(cell.row)) {
       throw new CellMapError(`row ${cell.row} appears twice in the cell map`);
     }
@@ -109,15 +117,24 @@ export function validateCellMap(map: CellMap): void {
     }
   }
 
-  const byTop = [...map.cells].sort((a, b) => a.total.y - b.total.y);
-  for (let i = 1; i < byTop.length; i++) {
-    const prev = byTop[i - 1].total;
-    const cur = byTop[i].total;
-    if (cur.y < prev.y + prev.height * 0.5) {
-      throw new CellMapError(
-        `TOTAL boxes for rows ${byTop[i - 1].row} and ${byTop[i].row} overlap ` +
-          `by more than half a row height - recalibrate`,
-      );
+  // Only compare boxes within the same printed column: the card prints two
+  // independent columns per side, so a left-column row and a right-column row
+  // legitimately share a vertical band.
+  for (const column of ["left", "right"] as const) {
+    const byTop = map.cells
+      .filter((c) => c.column === column)
+      .sort((a, b) => a.total.y - b.total.y);
+
+    for (let i = 1; i < byTop.length; i++) {
+      const prev = byTop[i - 1];
+      const cur = byTop[i];
+      if (!prev || !cur) continue;
+      if (cur.total.y < prev.total.y + prev.total.height * 0.5) {
+        throw new CellMapError(
+          `TOTAL boxes for rows ${prev.row} and ${cur.row} (${column} column) ` +
+            `overlap by more than half a row height - recalibrate`,
+        );
+      }
     }
   }
 }

@@ -38,19 +38,18 @@ export function fillTemplate(
 
   const decoder = new TextDecoder();
   const textParts = new Map<string, string>();
-  for (const name of Object.keys(entries)) {
+  const out: Record<string, Uint8Array> = {};
+
+  for (const [name, bytes] of Object.entries(entries)) {
+    out[name] = bytes;
     if (TEXT_PARTS.has(name)) {
-      textParts.set(name, decoder.decode(entries[name]));
+      textParts.set(name, decoder.decode(bytes));
     }
   }
 
   const filled = fillWorkbookParts(textParts, input);
 
   const encoder = new TextEncoder();
-  const out: Record<string, Uint8Array> = {};
-  for (const name of Object.keys(entries)) {
-    out[name] = entries[name];
-  }
   // Overwrite the parts we changed, and add any part the fill created
   // (the provenance worksheet).
   for (const [name, xml] of filled) {

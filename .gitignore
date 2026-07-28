@@ -8,3 +8,4 @@ out/
 # event data. Keep them local; they are inputs for evaluation, not artifacts.
 assets/scans/
 assets/ground-truth/
+package-lock.json.bak
