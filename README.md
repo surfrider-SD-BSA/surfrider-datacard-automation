@@ -18,7 +18,8 @@ blocked on inputs that do not exist yet — see **Blockers** below.
 | `src/lib/taxonomy.ts` | **Done.** Generated from the template; 83 items, 11 sections. |
 | `src/lib/schema.ts` | **Done.** Card/event schemas, review threshold, export gate. |
 | `src/lib/xlsx/` | **Done and verified** against the real template (25/25 checks). |
-| `src/lib/cells.ts` | Structure done, two-column layout modelled. **Coordinates blocked** on a proper scan. |
+| `src/lib/cells.ts` | Structure done, two-column layout modelled. Coordinates ready to measure. |
+| `assets/reference/blank-*.png` | **Done.** Registration template synthesized from real cards. |
 | `src/lib/pdf.ts`, `register.ts`, `recognize.ts`, `tally.ts` | Not started — blocked. |
 | UI (Phase 4) | Not started. Plan says build no UI until Phase 3 passes. |
 
@@ -50,7 +51,18 @@ Drop scans in `assets/scans/` and completed datasheets in
 `assets/ground-truth/`. Both are gitignored — they contain volunteer
 handwriting and event data.
 
-### 2. The sample scan is 72 DPI — we need the original
+### RESOLVED — blank card and full-resolution scan
+
+`9.27.25_Pacific-Beach_CH54.pdf` is a real ScanSnap iX1600 scan at **200 DPI**
+(1700x2192), 114 pages = 57 cards. Digits are 40-60px tall, comfortably
+recognizable.
+
+No blank card was available, so `scripts/build-reference.mjs` synthesizes one:
+the printed form is identical on every card and only the handwriting differs,
+so a per-pixel **median** across 41 aligned pages keeps the form and discards
+the writing. Output: `assets/reference/blank-{front,back}.png`.
+
+### 2. (historical) The first sample was 72 DPI
 
 `assets/reference/sample-card.pdf` is 613x793 px per page and its handwritten
 digits are **7-9 px tall**. Its metadata (`Skia/PDF`, `Mozilla`,
