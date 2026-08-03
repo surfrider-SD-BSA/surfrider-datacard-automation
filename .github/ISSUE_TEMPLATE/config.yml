@@ -1,0 +1,11 @@
+# Blank issues are disabled so every report lands on a template.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security or privacy problem
+    url: https://github.com/surfrider-SD-BSA/surfrider-datacard-automation/security/advisories/new
+    about: Report privately. Never open a public issue for this — see SECURITY.md.
+
+  - name: Setup help
+    url: https://github.com/surfrider-SD-BSA/surfrider-datacard-automation/blob/main/README.md
+    about: Start with the README. If it did not answer your question, file a bug — that is a documentation bug.

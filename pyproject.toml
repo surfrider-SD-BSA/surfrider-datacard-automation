@@ -1,0 +1,24 @@
+# Tool configuration only. This project is a set of scripts, not an installable
+# package, so there is no [project] table or build backend.
+
+[tool.ruff]
+# Volunteers run this on stock macOS Python, which lags well behind the latest
+# release. Keep the floor low until the README says otherwise.
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # import sorting
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "PTH", # prefer pathlib
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

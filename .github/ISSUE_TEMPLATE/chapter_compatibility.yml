@@ -1,0 +1,57 @@
+name: Chapter compatibility
+description: The tool does not match your chapter's data card or Excel template
+labels: ["compatibility", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Chapters use different card layouts, debris categories, and template row orders. Telling us
+        what does not line up on yours is the most useful report we get.
+
+        **No real volunteer data.** A photo of a blank card is fine. A filled one is not.
+
+  - type: checkboxes
+    id: no-data
+    attributes:
+      label: Volunteer data
+      options:
+        - label: Any card image I attach is blank or filled with fake data
+          required: true
+
+  - type: input
+    id: chapter
+    attributes:
+      label: Chapter and code
+      placeholder: Santa Cruz (CH12)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mismatch
+    attributes:
+      label: What does not line up
+      multiple: true
+      options:
+        - Debris categories on the card differ
+        - Template row order differs
+        - Card has a different number of pages per volunteer
+        - Header fields are in different places
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Details
+      description: Which items or rows, and what they should be instead.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: attachments
+    attributes:
+      label: Can you share these?
+      options:
+        - label: A blank copy of our chapter's data card
+        - label: An empty copy of our chapter's Excel template

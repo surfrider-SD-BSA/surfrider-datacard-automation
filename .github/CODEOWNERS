@@ -1,0 +1,23 @@
+# Code owners are requested for review automatically on every pull request.
+# When "Require review from Code Owners" is enabled in the branch ruleset, their
+# approval is required to merge.
+#
+# This uses a team rather than individual handles so that adding or removing a
+# maintainer is a team-membership change, not a pull request against this file.
+#
+# PREREQUISITE: the @surfrider-SD-BSA/maintainers team must exist AND have write
+# access to this repository. If it does not, every line here is invalid, GitHub
+# requests no reviews, and — if Code Owners review is required — nothing can be
+# merged. See docs/repo-setup.md section 1.
+#
+# Check syntax any time by opening .github/CODEOWNERS on github.com; GitHub
+# flags invalid owners inline.
+
+# Default owner for everything in the repository.
+*                       @surfrider-SD-BSA/maintainers
+
+# Governance files — changes here should get extra eyes.
+/.github/               @surfrider-SD-BSA/maintainers
+/LICENSE                @surfrider-SD-BSA/maintainers
+/SECURITY.md            @surfrider-SD-BSA/maintainers
+/CODE_OF_CONDUCT.md     @surfrider-SD-BSA/maintainers

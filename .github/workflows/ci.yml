@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Read-only by default. Any job needing more asks for it explicitly.
+permissions:
+  contents: read
+
+# A new push to a PR cancels the run still going for the old one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: ruff check
+        run: ruff check --output-format=github .
+
+      - name: ruff format --check
+        run: ruff format --check .
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is the floor because volunteers run this on stock macOS Python.
+        # Keep this list in sync with pyproject.toml and the README.
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        # TEMPORARY: the repository has no tests yet. Delete this guard and call
+        # pytest directly as soon as the first test lands, so a missing tests/
+        # directory can never pass silently.
+        run: |
+          if [ -d tests ]; then
+            pytest
+          else
+            echo "::warning::No tests/ directory yet — test step skipped."
+          fi
+
+  shell:
+    name: Shell (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run shellcheck
+        run: |
+          git ls-files -z '*.sh' > sh-files.list
+          if [ ! -s sh-files.list ]; then
+            echo "::warning::No shell scripts found — shellcheck step skipped."
+            exit 0
+          fi
+          echo "Checking:"
+          tr '\0' '\n' < sh-files.list
+          xargs -0 shellcheck < sh-files.list
+
+  no-volunteer-data:
+    name: No volunteer data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail if input/ or output/ files are tracked
+        run: |
+          tracked=$(git ls-files 'input/*' 'output/*' | grep -v '/\.gitkeep$' || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::Volunteer data files are tracked in Git:"
+            echo "$tracked"
+            echo "See SECURITY.md — do not just delete them in a new commit."
+            exit 1
+          fi
+          echo "No tracked files under input/ or output/."
