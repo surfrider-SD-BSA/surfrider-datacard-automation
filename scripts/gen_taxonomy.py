@@ -180,10 +180,23 @@ def main():
         )
     lines.append("] as const;")
     lines.append("")
-    lines.append("/** Header field -> row in column B of the template. */")
+    lines.append("/**")
+    lines.append(" * Header fields.")
+    lines.append(" *")
+    lines.append(" * The label sits in column A and its VALUE goes in column A on the row")
+    lines.append(" * BELOW it -- verified against a real completed datasheet from the chapter")
+    lines.append(" * (A1 \"Data Entry Volunteer Name\" / A2 \"Sophia Holtam\", A7 \"Shoreline\" /")
+    lines.append(" * A8 \"Ocean Beach\"). Column B is not used for headers at all.")
+    lines.append(" *")
+    lines.append(" * The prototype's write_spreadsheet.py wrote these into column B on the")
+    lines.append(" * label's own row, which would have put every header in the wrong cell.")
+    lines.append(" */")
     lines.append("export const HEADER_ROWS = {")
     for key, row, label in HEADER_ROWS:
-        lines.append(f"  {key}: {{ row: {row}, label: {ts_string(label)} }},")
+        lines.append(
+            f"  {key}: {{ labelRow: {row}, valueRow: {row + 1}, "
+            f"label: {ts_string(label)} }},"
+        )
     lines.append("} as const;")
     lines.append("")
     lines.append("export type HeaderField = keyof typeof HEADER_ROWS;")

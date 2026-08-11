@@ -153,21 +153,30 @@ CARDS = [
      "values": [(18, 1, 0.99)]},
 ]
 
-HEADER_ROWS = {
-    "dataEntryVolunteer": 1, "club": 3, "date": 5,
-    "shoreline": 7, "volunteers": 9, "pounds": 11, "duration": 13,
+# Header VALUES go in column A on the row below the label -- verified against a
+# completed datasheet from the chapter (A1 label / A2 value).
+HEADER_VALUE_ROWS = {
+    "dataEntryVolunteer": 2, "club": 4, "date": 6,
+    "shoreline": 8, "volunteers": 10, "pounds": 12, "duration": 14,
 }
+
+
+def chapter_date(iso):
+    """2025-08-02 -> 8.2.25, the chapter's own format."""
+    y, m, d = iso.split("-")
+    return f"{int(m)}.{int(d)}.{y[2:]}"
 
 
 def build_edits():
     edits = {}
-    edits[f"B{HEADER_ROWS['dataEntryVolunteer']}"] = ("text", EVENT["dataEntryVolunteer"])
-    edits[f"B{HEADER_ROWS['club']}"] = ("text", EVENT["club"])
-    edits[f"B{HEADER_ROWS['date']}"] = ("text", EVENT["date"])
-    edits[f"B{HEADER_ROWS['shoreline']}"] = ("text", EVENT["shoreline"])
-    edits[f"B{HEADER_ROWS['volunteers']}"] = ("number", EVENT["volunteers"])
-    edits[f"B{HEADER_ROWS['pounds']}"] = ("number", EVENT["pounds"])
-    edits[f"B{HEADER_ROWS['duration']}"] = ("text", f"{EVENT['durationHours']} hours")
+    R = HEADER_VALUE_ROWS
+    edits[f"A{R['dataEntryVolunteer']}"] = ("text", EVENT["dataEntryVolunteer"])
+    edits[f"A{R['club']}"] = ("text", EVENT["club"])
+    edits[f"A{R['date']}"] = ("text", chapter_date(EVENT["date"]))
+    edits[f"A{R['shoreline']}"] = ("text", EVENT["shoreline"])
+    edits[f"A{R['volunteers']}"] = ("number", EVENT["volunteers"])
+    edits[f"A{R['pounds']}"] = ("number", EVENT["pounds"])
+    edits[f"A{R['duration']}"] = ("text", f"{EVENT['durationHours']} hours")
     for card in CARDS:
         col = column_name(3 + card["cardNumber"] - 1)
         for row, value, _conf in card["values"]:
@@ -292,10 +301,14 @@ def main():
     check(cells.get("D18") == ("v", "100", None), "volunteer 2 cigarette butts -> D18 = 100")
     check(cells.get("C36") == ("v", "11", None), "the '11 vs ||' value -> C36 = 11")
     check(cells.get("BZ18") == ("v", "1", None), "76th volunteer lands in BZ (last column)")
-    check(cells.get("B5") == ("is", "2025-08-02", None), "event date -> B5")
-    check(cells.get("B9") == ("v", "5", None), "volunteer count -> B9")
-    check(cells.get("B3") == ("is", "San Diego CH54 <test@example.org>", None),
+    check(cells.get("A6") == ("is", "8.2.25", None),
+          "event date -> A6 in the chapter's format")
+    check(cells.get("A8") == ("is", "Ocean Beach", None), "shoreline -> A8")
+    check(cells.get("A10") == ("v", "5", None), "volunteer count -> A10")
+    check(cells.get("A4") == ("is", "San Diego CH54 <test@example.org>", None),
           "XML-escaped club field round-trips")
+    check(not any(f"B{r}" in edits for r in range(1, 17)),
+          "no header value written into column B")
 
     # Style preservation: C18 had s="10" in the template.
     m = re.search(r'<c r="C18"[^>]*>', sheet)

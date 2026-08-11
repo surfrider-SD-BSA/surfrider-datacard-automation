@@ -351,6 +351,33 @@ function sectionsOf(items) {
   return out;
 }
 
+
+/**
+ * Where a row's tally space begins: just right of its printed caption.
+ *
+ * Captions vary in width row to row ("Nets" against "Non-Beverage Bottles"),
+ * so this is measured per row on the blank reference rather than assumed. The
+ * rightmost inked column within the caption zone is the end of the text; the
+ * clear space after it is where a volunteer's tally marks go.
+ */
+function tallyStart(page, colX0, totalLeft, top, bottom) {
+  const searchTo = Math.round(colX0 + (totalLeft - colX0) * 0.62);
+  let lastInk = colX0;
+
+  for (let x = colX0 + 4; x < searchTo; x++) {
+    let dark = 0;
+    for (let y = top + 2; y < bottom - 2; y++) {
+      if (page.gray[y * page.width + x] < INK) dark++;
+    }
+    // A column is part of the caption if a few pixels of it are inked; one
+    // stray pixel is scanner noise.
+    if (dark >= 3) lastInk = x;
+  }
+
+  const gap = 14; // clear of descenders and the caption's right edge
+  return Math.min(lastInk + gap, totalLeft - 30);
+}
+
 function detectSide(side) {
   const page = loadGray(join(REF, `lines-${side}.png`));
   const { width, height } = page;
@@ -436,10 +463,20 @@ function detectSide(side) {
             width: totalWidth - inset * 2,
             height: Math.max(4, band.bottom - band.top - inset * 2),
           },
+          // The tally area starts AFTER the printed item label, measured per
+          // row on the blank reference.
+          //
+          // Spanning the whole block from its left edge -- the obvious thing --
+          // makes every row's "tally ink" include the printed caption, so every
+          // row on every card reads as having tally marks. In the first
+          // end-to-end run that flagged essentially the entire card.
           tally: {
-            x: col.x0 + inset,
+            x: tallyStart(page, col.x0, totalLeft, band.top, band.bottom),
             y: band.top + inset,
-            width: totalLeft - col.x0 - inset * 2,
+            width: Math.max(
+              20,
+              totalLeft - inset - tallyStart(page, col.x0, totalLeft, band.top, band.bottom),
+            ),
             height: Math.max(4, band.bottom - band.top - inset * 2),
           },
         });

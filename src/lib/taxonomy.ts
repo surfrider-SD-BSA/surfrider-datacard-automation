@@ -109,15 +109,25 @@ export const TAXONOMY: readonly TaxonomyItem[] = [
   { row: 110, name: "Other (do not write in the item name, just a number)", section: "Other Materials", side: "back", column: "right" },
 ] as const;
 
-/** Header field -> row in column B of the template. */
+/**
+ * Header fields.
+ *
+ * The label sits in column A and its VALUE goes in column A on the row
+ * BELOW it -- verified against a real completed datasheet from the chapter
+ * (A1 "Data Entry Volunteer Name" / A2 "Sophia Holtam", A7 "Shoreline" /
+ * A8 "Ocean Beach"). Column B is not used for headers at all.
+ *
+ * The prototype's write_spreadsheet.py wrote these into column B on the
+ * label's own row, which would have put every header in the wrong cell.
+ */
 export const HEADER_ROWS = {
-  dataEntryVolunteer: { row: 1, label: "Data Entry Volunteer Name" },
-  club: { row: 3, label: "Club & Email Contact" },
-  date: { row: 5, label: "Date" },
-  shoreline: { row: 7, label: "Shoreline" },
-  volunteers: { row: 9, label: "Number of volunteers" },
-  pounds: { row: 11, label: "Pounds of Trash" },
-  duration: { row: 13, label: "Duration" },
+  dataEntryVolunteer: { labelRow: 1, valueRow: 2, label: "Data Entry Volunteer Name" },
+  club: { labelRow: 3, valueRow: 4, label: "Club & Email Contact" },
+  date: { labelRow: 5, valueRow: 6, label: "Date" },
+  shoreline: { labelRow: 7, valueRow: 8, label: "Shoreline" },
+  volunteers: { labelRow: 9, valueRow: 10, label: "Number of volunteers" },
+  pounds: { labelRow: 11, valueRow: 12, label: "Pounds of Trash" },
+  duration: { labelRow: 13, valueRow: 14, label: "Duration" },
 } as const;
 
 export type HeaderField = keyof typeof HEADER_ROWS;

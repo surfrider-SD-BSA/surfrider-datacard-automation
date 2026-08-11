@@ -85,6 +85,19 @@ function escapeXml(s: string): string {
 }
 
 /**
+ * ISO date -> the chapter's own format, e.g. "2025-09-06" -> "9.6.25".
+ *
+ * Taken from a completed datasheet ("9.6.25" in A6). Anything that is not an
+ * ISO date is passed through untouched rather than mangled.
+ */
+export function chapterDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  const [, y, mo, d] = m;
+  return `${Number(mo)}.${Number(d)}.${y!.slice(2)}`;
+}
+
+/**
  * Build the cell edits for the data sheet.
  *
  * Exported so tests can assert on the edit set -- in particular that column B
@@ -102,7 +115,9 @@ export function buildCellEdits(input: ExportInput): Map<string, CellValue> {
         : undefined,
     ],
     ["club", event.club ? { kind: "text", value: event.club } : undefined],
-    ["date", { kind: "text", value: event.date }],
+    // The chapter writes dates as "9.6.25", not ISO. Matching their convention
+    // keeps completed sheets consistent with the ones already on file.
+    ["date", { kind: "text", value: chapterDate(event.date) }],
     ["shoreline", { kind: "text", value: event.shoreline }],
     ["volunteers", { kind: "number", value: event.volunteers }],
     [
@@ -117,10 +132,18 @@ export function buildCellEdits(input: ExportInput): Map<string, CellValue> {
     ],
   ];
 
-  // Header values live in column B of rows 1-13, which carry no formulas.
+  // Header values go in column A, on the row BELOW their label.
+  //
+  // Verified against a completed datasheet from the chapter: A1 holds the
+  // label "Data Entry Volunteer Name" and A2 the name, A7 "Shoreline" and A8
+  // the beach. Column B is not used for headers at all.
+  //
+  // The prototype's write_spreadsheet.py wrote column B on the label's own row,
+  // which put every header value in an empty cell beside its label instead of
+  // where the chapter actually reads it.
   for (const [field, value] of headers) {
     if (value === undefined) continue;
-    edits.set(`B${HEADER_ROWS[field].row}`, value);
+    edits.set(`A${HEADER_ROWS[field].valueRow}`, value);
   }
 
   const seenCardNumbers = new Set<number>();

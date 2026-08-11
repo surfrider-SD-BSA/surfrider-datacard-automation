@@ -90,11 +90,19 @@ describe("buildCellEdits", () => {
     expect(edits.get("E80")).toEqual({ kind: "number", value: 2 });
   });
 
-  it("writes header metadata into column B of the header rows", () => {
+  it("writes header values into column A, on the row below the label", () => {
     const edits = buildCellEdits(baseInput);
-    expect(edits.get("B5")).toEqual({ kind: "text", value: "2025-08-02" });
-    expect(edits.get("B9")).toEqual({ kind: "number", value: 3 });
-    expect(edits.get("B13")).toEqual({ kind: "text", value: "2 hours" });
+    // Verified against a real completed datasheet from the chapter: the label
+    // is in A5 ("Date") and the value in A6.
+    expect(edits.get("A6")).toEqual({ kind: "text", value: "8.2.25" });
+    expect(edits.get("A8")).toEqual({ kind: "text", value: "Ocean Beach" });
+    expect(edits.get("A10")).toEqual({ kind: "number", value: 3 });
+    expect(edits.get("A14")).toEqual({ kind: "text", value: "2 hours" });
+  });
+
+  it("does not write header values into column B at all", () => {
+    const edits = buildCellEdits(baseInput);
+    for (let row = 1; row <= 16; row++) expect(edits.has(`B${row}`)).toBe(false);
   });
 
   it("never targets column B on an item row", () => {
@@ -240,6 +248,12 @@ describe("fillTemplate against the real template", () => {
     const sheet = text(after["xl/worksheets/sheet1.xml"]);
     expect(sheet).toContain('<c r="C18" s="10"><v>46</v></c>');
     expect(sheet).toContain('<v>100</v>');
+  });
+
+  it("puts the event date and beach where the chapter reads them", () => {
+    const sheet = text(after["xl/worksheets/sheet1.xml"]);
+    expect(sheet).toMatch(/<c r="A6"[^>]*t="inlineStr"><is><t[^>]*>8\.2\.25</);
+    expect(sheet).toMatch(/<c r="A8"[^>]*t="inlineStr"><is><t[^>]*>Ocean Beach</);
   });
 
   it("forces recalculation so column B totals are not stale", () => {
