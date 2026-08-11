@@ -9,3 +9,6 @@ out/
 assets/scans/
 assets/ground-truth/
 package-lock.json.bak
+
+# Matched (scan, spreadsheet) pairs used for training. Volunteer data.
+assets/pairs/
