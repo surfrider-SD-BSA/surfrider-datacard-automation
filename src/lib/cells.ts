@@ -51,8 +51,15 @@ export interface CellMap {
   referenceSize: { width: number; height: number };
   /** DPI of the reference scan, recorded so crops can be resampled sanely. */
   referenceDpi: number;
-  /** Anchor marks used to register a page against this template. */
-  anchors: Rect[];
+  /**
+   * Regions that must never be sampled, in reference coordinates.
+   *
+   * The front carries a pre-printed example box showing tallies and the totals
+   * 74/16/3/8. It is printed, not written -- proven by surviving a median
+   * across 41 different volunteers' cards -- and sits directly above the real
+   * grid, so any sweep of the page would read it as four items on every card.
+   */
+  exclusions: Rect[];
   cells: CellBoxes[];
 }
 
@@ -70,11 +77,13 @@ export function validateCellMap(map: CellMap): void {
   if (!(width > 0 && height > 0)) {
     throw new CellMapError("referenceSize must be positive");
   }
-  if (map.anchors.length < 2) {
-    throw new CellMapError(
-      "at least 2 anchor marks are needed to register a page",
-    );
-  }
+  // No anchor marks are required. Registration aligns an incoming page to the
+  // reference by deskewing it and correlating its row/column darkness profiles
+  // against the template's -- the same method that built the reference from 41
+  // real scans, where it corrected shifts of up to 14px and rotations up to
+  // 1 degree. Corner anchors would be a second, weaker mechanism for the same
+  // job, and the card offers no high-contrast mark that volunteers reliably
+  // leave clear.
   if (map.cells.length === 0) {
     throw new CellMapError("cell map is empty");
   }

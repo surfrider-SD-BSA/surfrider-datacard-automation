@@ -269,17 +269,31 @@ function medianComposite(pages, width, height, refProfiles) {
       `max ${absSkew[absSkew.length - 1].toFixed(2)}deg`,
   );
 
-  const out = new Uint8Array(width * height);
-  const scratch = new Uint8Array(count);
-  const mid = count >> 1;
+  // Two composites from the same aligned stack, at different quantiles of
+  // brightness.
+  //
+  //   q=0.50 (median)  -- the blank card a human reads. Handwriting is gone,
+  //                       but the printed hairlines are averaged down to
+  //                       barely above the paper, because sub-pixel alignment
+  //                       differences smear a 1px rule across 2-3px.
+  //   q=0.20           -- keeps a pixel dark unless it is light in 80% of
+  //                       scans. A printed rule is dark in every scan and
+  //                       survives at full strength; a pen stroke appears on
+  //                       one card in forty and still vanishes. This is the
+  //                       image the grid detector measures.
   const plane = width * height;
+  const scratch = new Uint8Array(count);
+  const quantiles = [0.5, 0.2];
+  const outputs = quantiles.map(() => new Uint8Array(plane));
 
   for (let i = 0; i < plane; i++) {
     for (let k = 0; k < count; k++) scratch[k] = stack[k * plane + i];
     scratch.sort();
-    out[i] = scratch[mid];
+    quantiles.forEach((q, qi) => {
+      outputs[qi][i] = scratch[Math.min(count - 1, Math.floor(count * q))];
+    });
   }
-  return out;
+  return { blank: outputs[0], lines: outputs[1] };
 }
 
 function writeGrayPng(path, gray, width, height) {
@@ -369,10 +383,11 @@ function main() {
     // The alignment reference must itself be level, or every page inherits
     // page 0's skew.
     const ref = profiles(rotated(pages[0], estimateSkew(pages[0])));
-    const composite = medianComposite(pages, width, height, ref);
-    const out = join(OUT_DIR, `blank-${side}.png`);
-    writeGrayPng(out, composite, width, height);
-    console.log(`    wrote ${out}`);
+    const { blank, lines } = medianComposite(pages, width, height, ref);
+
+    writeGrayPng(join(OUT_DIR, `blank-${side}.png`), blank, width, height);
+    writeGrayPng(join(OUT_DIR, `lines-${side}.png`), lines, width, height);
+    console.log(`    wrote blank-${side}.png and lines-${side}.png`);
   }
 }
 

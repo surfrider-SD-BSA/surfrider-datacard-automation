@@ -18,10 +18,11 @@ blocked on inputs that do not exist yet — see **Blockers** below.
 | `src/lib/taxonomy.ts` | **Done.** Generated from the template; 83 items, 11 sections. |
 | `src/lib/schema.ts` | **Done.** Card/event schemas, review threshold, export gate. |
 | `src/lib/xlsx/` | **Done and verified** against the real template (25/25 checks). |
-| `src/lib/cells.ts` | Structure done, two-column layout modelled. Coordinates ready to measure. |
+| `src/lib/cells.ts` | **Done.** Loads and validates the measured cell map. |
 | `assets/reference/blank-*.png` | **Done.** Registration template synthesized from real cards. |
-| `src/lib/pdf.ts`, `register.ts`, `recognize.ts`, `tally.ts` | Not started — blocked. |
-| UI (Phase 4) | Not started. Plan says build no UI until Phase 3 passes. |
+| `assets/reference/cells.*.json` | **Done.** All 83 TOTAL boxes located and verified against the overlay. |
+| `src/lib/pdf.ts`, `register.ts`, `recognize.ts`, `tally.ts` | Not started. |
+| UI (Phase 4) | Not started. |
 
 ---
 
@@ -165,3 +166,43 @@ Tally-only cards are the weak spot for *every* approach — they were 64%
 detection and 28% false positives even with Claude vision. One line in the
 pre-cleanup briefing moves ~87% of cards into the 95–100% band. It costs
 nothing and it helps whichever way this build goes.
+
+
+---
+
+## The cell map
+
+`assets/reference/cells.{front,back}.json` holds the pixel rectangle of every
+TOTAL box and tally area, keyed to its spreadsheet row. Everything downstream
+depends on it.
+
+```bash
+node scripts/build-reference.mjs <dir-of-page-jpegs>   # synthesize the blank card
+node scripts/detect-cells.mjs --debug                  # locate the cells
+```
+
+Check `assets/reference/debug-grid-{front,back}.png` by eye after regenerating.
+Each item should have a blue box on its caption and a red box on its TOTAL
+cell, on the same row.
+
+**Why the overlay matters.** Rows are assigned to spreadsheet rows positionally,
+so a map short by one row does not lose one value — it shifts every value below
+it onto the wrong debris item, and the spreadsheet still looks normal. The
+script therefore refuses to write anything unless all 83 rows match, and the
+overlay is rendered *after* overrides so it shows what actually ships.
+
+**Detection strategy.** Not the printed ruling: compositing 41 scans to erase
+the handwriting also averages the 1px hairlines down to near-invisible, and
+every threshold that fixed one block broke another. Instead it anchors on the
+section banners — solid bars that ink ~90% of a block's width against a
+caption's ~10%, a 9:1 separation needing no tuning — and then uses the
+taxonomy's own item-per-section counts to constrain how the captions inside
+each section are grouped.
+
+**Overrides.** 81 of 83 rows resolve automatically. Two at the foot of the
+back-left block do not, because a small light "Other (write-in):" caption sits
+between a wrapped caption and the table's closing border, and no
+threshold/merge pair separates all three without breaking a wrapped caption
+elsewhere in the same section. Those two are measured by hand in
+`assets/reference/cells-overrides.json`, with the measurements and reasoning
+recorded in the file. Every applied override prints a line when the script runs.
