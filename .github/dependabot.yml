@@ -11,6 +11,20 @@ updates:
       include: scope
     labels:
       - dependencies
+    # This project supports Python 3.9 because the tool has to run on the
+    # Python that ships with macOS (see CONTRIBUTING.md, "Code style"). The
+    # versions below dropped 3.9, so they cannot be adopted without raising the
+    # floor in pyproject.toml, the README, and the CI matrix together.
+    #
+    # Remove these entries when the minimum Python version moves to 3.10.
+    ignore:
+      # pytest 9.x requires Python >=3.10. Newest 3.9-compatible: 8.4.2.
+      - dependency-name: "pytest"
+        versions: [">=9.0.0"]
+      # pre-commit 4.4+ requires Python >=3.10. 4.0-4.3 still support 3.9,
+      # so only the 4.4 line onward is blocked.
+      - dependency-name: "pre-commit"
+        versions: [">=4.4.0"]
 
   - package-ecosystem: github-actions
     directory: "/"

@@ -46,4 +46,8 @@ count as breaking.
 - Dependabot for pip and GitHub Actions updates.
 - Branch protection runbook at `docs/repo-setup.md`.
 
+### Changed
+
+- Pinned the pre-commit ruff hook to v0.16.2 so it matches the ruff version CI installs.
+
 [Unreleased]: https://github.com/surfrider-SD-BSA/surfrider-datacard-automation/commits/main
