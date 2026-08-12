@@ -1,0 +1,25 @@
+{
+  "hash": "1a054225",
+  "configHash": "d210fe0f",
+  "lockfileHash": "8ae28923",
+  "browserHash": "693f165e",
+  "optimized": {
+    "pdfjs-dist": {
+      "src": "../../node_modules/pdfjs-dist/build/pdf.mjs",
+      "file": "pdfjs-dist.js",
+      "fileHash": "1e35753c",
+      "needsInterop": false
+    },
+    "fflate": {
+      "src": "../../node_modules/fflate/esm/browser.js",
+      "file": "fflate.js",
+      "fileHash": "11d5a36b",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-5Z66FT5C": {
+      "file": "chunk-5Z66FT5C.js"
+    }
+  }
+}
