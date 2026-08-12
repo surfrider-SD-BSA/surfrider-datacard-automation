@@ -39,3 +39,28 @@ htmlcov/
 !.env.example
 *.pem
 *.key
+
+# === Node / the browser tool ===
+node_modules/
+package-lock.json.bak
+*.log
+
+# === Volunteer data — never commit (browser tool paths) ===
+# Scanned cards and completed datasheets live here. They are OUTSIDE assets/
+# deliberately: vite.config.ts sets publicDir: "assets", which copies that whole
+# tree into dist/ verbatim, so anything parked under assets/ is published by a
+# build whether it is gitignored or not. Keeping scans here makes the two
+# protections independent, and scripts/check-dist.mjs enforces the second.
+/scans/
+
+# Working output: page rasters, crops, caches, diagnostics.
+out/
+
+# Vite's dev-server dependency cache.
+.vite/
+
+# Calibration debug renders. Regenerate with `node scripts/detect-cells.mjs --debug`.
+# They live under assets/, which vite copies into the build verbatim, so leaving
+# them there put 7.5MB of dev artifacts into every bundle.
+assets/reference/debug-grid-*.png
+assets/reference/lines-*.png

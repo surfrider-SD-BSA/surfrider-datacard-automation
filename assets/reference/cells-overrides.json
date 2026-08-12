@@ -1,0 +1,39 @@
+{
+  "_comment": [
+    "Hand-measured corrections applied on top of the automatic cell detection.",
+    "",
+    "The detector resolves 81 of 83 rows from the card's structure. These two it",
+    "cannot, and the reason is specific: the last section of the back-left block",
+    "ends with 'Other (write-in):', a caption set smaller and lighter than the",
+    "rest, sitting between the 'Mini Toiletry Bottles' caption above it and the",
+    "table's closing border below. No combination of ink threshold and merge",
+    "distance separates all three -- every setting that splits the caption from",
+    "the border also shatters a wrapped caption elsewhere in the section.",
+    "",
+    "Rather than keep bending the detector around one row, the two bands are",
+    "measured directly and pinned here. Values are y-coordinates in the",
+    "reference image (assets/reference/blank-back.png, 1682x2188).",
+    "",
+    "Measured ink positions: 'Mini Toiletry Bottles' caption spans y 1934-1978;",
+    "'Other (write-in):' spans y 2002-2026; the closing border sits at y 2086.",
+    "The row boundary is the midpoint of the whitespace between the captions.",
+    "",
+    "Re-measure these if the card is ever redesigned. detect-cells.mjs prints a",
+    "warning for every override it applies, so they cannot rot silently."
+  ],
+  "back": [
+    {
+      "row": 77,
+      "reason": "was absorbing the 'Other (write-in)' caption below it (143px tall)",
+      "total": { "y": 1907, "height": 83 },
+      "tally": { "y": 1907, "height": 83 }
+    },
+    {
+      "row": 78,
+      "reason": "was landing on the table's closing border, below the caption",
+      "total": { "y": 1992, "height": 58 },
+      "tally": { "y": 1992, "height": 58 }
+    }
+  ],
+  "front": []
+}
