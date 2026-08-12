@@ -27,6 +27,12 @@ count as breaking.
   pre-filled box needs before it stops being a liability. See `HANDOFF.md`.
 - CI job for the browser tool: typecheck, tests, and a build that fails if
   anything data-shaped reaches the bundle.
+- Contribution guide, code of conduct, and security/privacy policy.
+- Issue and pull request templates.
+- Continuous integration: ruff lint and format checks, pytest, shellcheck.
+- Pre-commit hooks, including a check that blocks committing volunteer data.
+- Dependabot for pip and GitHub Actions updates.
+- Branch protection runbook at `docs/repo-setup.md`.
 
 ### Fixed
 
@@ -38,13 +44,9 @@ count as breaking.
 - The volunteer head count is optional. It appears on the leader's card and
   often on no other, so requiring it blocked exports over a number that was
   never written down.
-
-- Contribution guide, code of conduct, and security/privacy policy.
-- Issue and pull request templates.
-- Continuous integration: ruff lint and format checks, pytest, shellcheck.
-- Pre-commit hooks, including a check that blocks committing volunteer data.
-- Dependabot for pip and GitHub Actions updates.
-- Branch protection runbook at `docs/repo-setup.md`.
+- The CI guard for Python tests looked for `tests/**/*.py`, a git pathspec that
+  skips `tests/test_foo.py`, so a Python suite added in the conventional place
+  would have been silently skipped.
 
 ### Changed
 
