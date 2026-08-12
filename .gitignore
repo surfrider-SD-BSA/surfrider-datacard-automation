@@ -55,3 +55,12 @@ package-lock.json.bak
 
 # Working output: page rasters, crops, caches, diagnostics.
 out/
+
+# Vite's dev-server dependency cache.
+.vite/
+
+# Calibration debug renders. Regenerate with `node scripts/detect-cells.mjs --debug`.
+# They live under assets/, which vite copies into the build verbatim, so leaving
+# them there put 7.5MB of dev artifacts into every bundle.
+assets/reference/debug-grid-*.png
+assets/reference/lines-*.png

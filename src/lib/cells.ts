@@ -158,7 +158,13 @@ export async function loadCellMap(
   side: CardSide,
   fetchJson: (url: string) => Promise<unknown> = defaultFetchJson,
 ): Promise<CellMap> {
-  const url = `assets/reference/cells.${side}.json`;
+  // `reference/...`, not `assets/reference/...`. vite.config.ts sets
+  // publicDir: "assets", so that directory IS the web root: assets/reference/x
+  // is served at /reference/x. The dev server also happens to serve the project
+  // directory, so the longer path worked there and only the built bundle 404ed
+  // -- which is how this survived until someone ran `npm run build` and opened
+  // the result.
+  const url = `reference/cells.${side}.json`;
   let raw: unknown;
   try {
     raw = await fetchJson(url);

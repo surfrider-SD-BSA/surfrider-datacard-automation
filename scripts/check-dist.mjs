@@ -61,10 +61,6 @@ const ALLOWED_FILES = new Set([
   "template/data-entry-template.xlsx",
 
   "reference/cells-overrides.json",
-  "reference/debug-grid-front.png",
-  "reference/debug-grid-back.png",
-  "reference/lines-front.png",
-  "reference/lines-back.png",
   "reference/labels-pacific-beach.json",
 ]);
 
