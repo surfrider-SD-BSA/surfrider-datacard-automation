@@ -101,11 +101,17 @@ Every change to `main` goes through a pull request. Direct pushes are blocked.
 To merge, a PR needs:
 
 - All CI checks passing.
-- One approving review from a maintainer.
 - No unresolved conversations.
 - A branch up to date with `main`.
 
-Maintainers are not exempt — the same rules apply to our own PRs.
+Review is requested automatically from the maintainers team on every pull request. An approving
+review is **not** currently enforced by branch protection: the project has few enough active
+maintainers that requiring a second person would stall it. Outside contributions still get reviewed
+before merge — that is a commitment from the maintainers, not something the platform enforces. The
+requirement moves to one approval once there are enough active reviewers for it not to be a
+bottleneck.
+
+Maintainers are not exempt from the rest — the same rules apply to our own PRs.
 
 We squash-merge, so your PR title becomes the commit message on `main`. Write it accordingly.
 

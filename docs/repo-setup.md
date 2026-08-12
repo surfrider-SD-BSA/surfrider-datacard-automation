@@ -33,8 +33,8 @@ flipped to private, expect these protections to switch off.
 
 ## 1. Organization setup
 
-Do this first. Section 2's Code Owners rule depends on the team existing, and the org-level
-defaults here apply to every repo the chapter adds later.
+Do this first. CODEOWNERS routing depends on the team existing, and the org-level defaults here
+apply to every repo the chapter adds later.
 
 ### Require two-factor authentication
 
@@ -78,9 +78,10 @@ gh api -X PUT "orgs/$ORG/teams/maintainers/memberships/callmeleach" -f role=main
 ```
 
 > **This is the step that makes CODEOWNERS work.** If the team does not exist, or exists without
-> write access to the repo, every line in `.github/CODEOWNERS` is invalid. GitHub then requests no
-> reviews — and once "Require review from Code Owners" is on in section 2, nothing can be merged at
-> all. Verify by opening `.github/CODEOWNERS` on github.com; invalid owners are flagged inline.
+> write access to the repo, every line in `.github/CODEOWNERS` is invalid and GitHub requests no
+> reviews. Today that costs you review routing only, since Code Owners approval is not required
+> (section 3). If it is ever turned on while the team is missing, nothing can be merged at all.
+> Verify by opening `.github/CODEOWNERS` on github.com; invalid owners are flagged inline.
 
 ### Set security defaults for new repos
 
@@ -130,9 +131,8 @@ classic branch protection still works and is included below as a fallback.
 | Rule | Why |
 |---|---|
 | Pull request required | No direct pushes to `main`, including from admins |
-| 1 approving review | A second pair of eyes on every change |
+| 0 required approvals *(for now)* | See the note below — this is the one rule deliberately left loose |
 | Dismiss stale approvals on push | An approval covers the code that was approved, not what came after |
-| Require review from Code Owners | Governance files get maintainer eyes |
 | Require conversation resolution | Review comments cannot be merged past |
 | Require status checks to pass | CI is a gate, not a suggestion |
 | Require branches to be up to date | Catches "passes alone, breaks together" |
@@ -140,16 +140,41 @@ classic branch protection still works and is included below as a fallback.
 | Block force pushes | History on `main` stays trustworthy |
 | Block deletion | Nobody deletes `main` by accident |
 
-> **Two things to get right before turning this on.**
+> **Why approvals are set to 0, and what to change when that stops being right.**
 >
-> "1 approving review" means you cannot merge your own pull request. With two people in the
-> `maintainers` team that is fine and is the point. If realistically one person is active, set the
-> approval count to `0` for now — the PR requirement and the CI gate still hold, which is most of
-> the value — and raise it to 1 once a second maintainer is actually reviewing.
+> Requiring an approval means no maintainer can merge their own pull request. On a volunteer
+> project with two maintainers, that reliably turns into "the protection is in the way" and then
+> into someone switching it off. So the approval count is `0`: a pull request is still required, CI
+> still gates it, conversations still have to resolve, and force-push and deletion are still
+> blocked. What is not enforced is a second human. Reviews are still requested automatically from
+> the maintainers team, and reviewing outside contributions before merge is a maintainer
+> commitment — it just is not the platform stopping you.
 >
-> "Require review from Code Owners" depends on `@surfrider-SD-BSA/maintainers` existing with write
-> access (section 1). Enable it before the team exists and every pull request is unmergeable,
+> **"Require review from Code Owners" is off, and must stay off while approvals are 0.** Turning it
+> on requires a code owner's approval regardless of the approval count, which puts the block right
+> back. The two move together: when you raise approvals to 1, enable Code Owners review in the same
+> change.
+>
+> Code Owners also depends on `@surfrider-SD-BSA/maintainers` existing with write access
+> (section 1). Enable it while the team is missing and every pull request becomes unmergeable,
 > including the one that would fix it.
+>
+> To tighten later, once there are enough active reviewers:
+>
+> ```bash
+> RULESET_ID=$(gh api "repos/$REPO/rulesets" --jq '.[] | select(.name=="main protection") | .id')
+> gh api -X PUT "repos/$REPO/rulesets/$RULESET_ID" --input - <<'JSON'
+> { "rules": [ { "type": "pull_request", "parameters": {
+>     "required_approving_review_count": 1,
+>     "require_code_owner_review": true,
+>     "dismiss_stale_reviews_on_push": true,
+>     "require_last_push_approval": true,
+>     "required_review_thread_resolution": true } } ] }
+> JSON
+> ```
+>
+> Update `CONTRIBUTING.md` and the `.github/CODEOWNERS` header in the same pull request, or the
+> docs start lying about how the repo actually behaves.
 
 ### UI
 
@@ -162,9 +187,10 @@ Settings → Rules → Rulesets → **New ruleset** → New branch ruleset
 - Enable: Restrict deletions, Block force pushes, Require linear history,
   Require a pull request before merging, Require status checks to pass
 
-Under the pull request rule: required approvals **1**, dismiss stale reviews **on**, require
-Code Owners review **on**, require approval of the most recent push **on**, require conversation
-resolution **on**.
+Under the pull request rule: required approvals **0**, dismiss stale reviews **on**, require
+Code Owners review **off**, require approval of the most recent push **off**, require conversation
+resolution **on**. (The two "off" settings both force a second approver regardless of the approval
+count — see the note above.)
 
 Under the status checks rule: require branches to be up to date **on**, then add these checks:
 
@@ -201,10 +227,10 @@ gh api -X POST "repos/$REPO/rulesets" --input - <<'JSON'
     {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 1,
+        "required_approving_review_count": 0,
         "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": true,
-        "require_last_push_approval": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
         "required_review_thread_resolution": true
       }
     },
@@ -255,9 +281,9 @@ gh api -X PUT "repos/$REPO/branches/main/protection" --input - <<'JSON'
   "enforce_admins": true,
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": true,
-    "required_approving_review_count": 1,
-    "require_last_push_approval": true
+    "require_code_owner_reviews": false,
+    "required_approving_review_count": 0,
+    "require_last_push_approval": false
   },
   "required_conversation_resolution": true,
   "required_linear_history": true,
@@ -416,6 +442,6 @@ bypass list.
 
 **Content decisions**
 
-- [ ] `CONTACT_EMAIL` replaced in `SECURITY.md` and `CODE_OF_CONDUCT.md`
-- [ ] Approval count set (0 or 1)
+- [x] Contact address set to eleach@sandiego.surfrider.org in `SECURITY.md` and `CODE_OF_CONDUCT.md`
+- [x] Approval count set to 0; Code Owners review off (raise both together later)
 - [ ] License question resolved (GPL-3.0 vs. the chapters-only restriction)

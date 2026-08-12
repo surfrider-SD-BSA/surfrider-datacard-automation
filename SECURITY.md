@@ -1,9 +1,5 @@
 # Security and Privacy Policy
 
-<!-- TODO(maintainers): replace CONTACT_EMAIL below with a real, monitored address,
-     and enable private vulnerability reporting under
-     Settings → Code security → Private vulnerability reporting. -->
-
 ## Supported versions
 
 This project is pre-release. Only the `main` branch is supported. Once versioned releases begin,
@@ -17,7 +13,7 @@ Use one of these instead:
 
 1. **GitHub private vulnerability reporting** — the Security tab of this repository,
    "Report a vulnerability." This is the preferred route.
-2. **Email** — **CONTACT_EMAIL**.
+2. **Email** — **eleach@sandiego.surfrider.org**.
 
 Please include what you found, how to reproduce it, and what you think the impact is. If a
 reproduction requires a data card, build a fake one — do not send real volunteer data.

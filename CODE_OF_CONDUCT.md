@@ -1,9 +1,5 @@
 # Contributor Covenant Code of Conduct
 
-<!-- TODO(maintainers): replace CONTACT_EMAIL below with a real, monitored address
-     before making this repository public. A shared chapter address is better than
-     a personal one. -->
-
 ## Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our community a
@@ -55,8 +51,8 @@ as an appointed representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the
-community leaders responsible for enforcement at **CONTACT_EMAIL**. All complaints will be
-reviewed and investigated promptly and fairly.
+community leaders responsible for enforcement at **eleach@sandiego.surfrider.org**. All complaints
+will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any
 incident.
