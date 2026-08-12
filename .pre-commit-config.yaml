@@ -1,0 +1,43 @@
+# Install once with: pre-commit install
+# Refresh pinned versions with: pre-commit autoupdate
+#
+# These hooks catch locally what CI would otherwise fail on.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: local
+    hooks:
+      # Backstop for .gitignore. Only fires if someone force-adds a file.
+      - id: no-volunteer-data
+        name: Block volunteer data files
+        language: fail
+        entry: >-
+          Volunteer data must never be committed. Unstage this file.
+          If it has already been pushed, see SECURITY.md — deleting it in a
+          later commit does not remove it from history.
+        files: '^(input|output)/(?!\.gitkeep$).+'

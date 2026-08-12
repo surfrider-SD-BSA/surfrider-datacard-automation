@@ -1,0 +1,76 @@
+name: Bug report
+description: Something does not work the way it should
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not attach real data cards or generated spreadsheets.** They contain volunteer names
+        and sometimes contact details. Use a redacted screenshot, a fake sample card, or just the
+        row and column numbers. See [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: checkboxes
+    id: no-data
+    attributes:
+      label: Volunteer data
+      options:
+        - label: I have confirmed there is no real volunteer data in this report or its attachments
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you see?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Put a card PDF in input/
+        2. Ran "Process my data cards"
+        3. Opened the generated .xlsx
+        4. Row 34 was blank but the card had a value
+    validations:
+      required: true
+
+  - type: input
+    id: chapter
+    attributes:
+      label: Chapter
+      description: Which Surfrider chapter's data card and template are you using?
+      placeholder: San Diego (CH54)
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.2
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Run `python3 --version` in Terminal and paste the output.
+      placeholder: Python 3.9.6
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: Paste any error message. This is rendered as code, no backticks needed.
+      render: shell

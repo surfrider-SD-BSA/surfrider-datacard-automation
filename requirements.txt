@@ -1,0 +1,2 @@
+# Runtime dependencies.
+openpyxl>=3.1.0

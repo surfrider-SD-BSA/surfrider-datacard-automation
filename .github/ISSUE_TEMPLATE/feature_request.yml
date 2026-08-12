@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a change or an addition
+labels: ["enhancement", "needs triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard or slow today? Describe the situation, not the solution.
+      placeholder: Reviewing flagged values means opening the PDF and the review file side by side.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have tried or considered instead
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Who does this help?
+      options:
+        - Just my chapter
+        - Any chapter using a modified data card
+        - Every chapter
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to work on this
