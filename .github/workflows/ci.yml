@@ -57,15 +57,45 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run tests
-        # TEMPORARY: the repository has no tests yet. Delete this guard and call
-        # pytest directly as soon as the first test lands, so a missing tests/
-        # directory can never pass silently.
+        # The tests/ directory holds the browser tool's vitest suite, which the
+        # Node job below runs. Look for Python tests specifically, so that
+        # directory existing can neither fail this job nor let a missing Python
+        # suite pass silently.
+        #
+        # 'tests/*.py' and not 'tests/**/*.py': a git pathspec is not a shell
+        # glob, and its '*' already spans '/', so 'tests/*.py' matches at any
+        # depth while 'tests/**/*.py' demands two separators and therefore skips
+        # tests/test_foo.py -- the one path pyproject.toml's testpaths points at.
         run: |
-          if [ -d tests ]; then
+          if git ls-files -z 'tests/*.py' 'test_*.py' '*_test.py' | grep -qz .; then
             pytest
           else
-            echo "::warning::No tests/ directory yet — test step skipped."
+            echo "::warning::No Python tests yet — step skipped."
           fi
+
+  web:
+    name: Browser tool (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      # Also runs scripts/check-dist.mjs, which fails if anything that looks
+      # like volunteer data has found its way into the built bundle.
+      - name: Build
+        run: npm run build
 
   shell:
     name: Shell (shellcheck)
@@ -90,13 +120,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Fail if input/ or output/ files are tracked
+      - name: Fail if volunteer data is tracked
         run: |
-          tracked=$(git ls-files 'input/*' 'output/*' | grep -v '/\.gitkeep$' || true)
+          # scans/ and out/ are the browser tool's equivalents of input/ and
+          # output/: scanned cards go in one, page rasters and crops come out of
+          # the other. Both hold volunteer handwriting.
+          tracked=$(git ls-files 'input/*' 'output/*' 'scans/*' 'out/*' | grep -v '/\.gitkeep$' || true)
           if [ -n "$tracked" ]; then
             echo "::error::Volunteer data files are tracked in Git:"
             echo "$tracked"
             echo "See SECURITY.md — do not just delete them in a new commit."
             exit 1
           fi
-          echo "No tracked files under input/ or output/."
+          echo "No tracked files under input/, output/, scans/ or out/."
