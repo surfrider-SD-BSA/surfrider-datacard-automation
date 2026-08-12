@@ -4,11 +4,15 @@ out/
 .DS_Store
 *.log
 
-# Scanned cards and completed datasheets contain volunteer handwriting and
-# event data. Keep them local; they are inputs for evaluation, not artifacts.
-assets/scans/
-assets/ground-truth/
 package-lock.json.bak
 
-# Matched (scan, spreadsheet) pairs used for training. Volunteer data.
-assets/pairs/
+# Scanned cards and completed datasheets contain volunteer handwriting and
+# event data. Keep them local; they are inputs for evaluation, not artifacts.
+#
+# These live OUTSIDE assets/ deliberately. vite.config.ts sets
+# publicDir: "assets", which copies that whole tree into dist/ verbatim -- so
+# anything parked under assets/ is published by `npm run build`, gitignored or
+# not. Putting scans here instead means the two protections are independent:
+# .gitignore keeps them out of the repository, and being outside publicDir
+# keeps them out of the build. scripts/check-dist.mjs enforces the second.
+/scans/

@@ -2,75 +2,51 @@
  * Build and measure the digit classifier.
  *
  * Approach: nearest-neighbour over normalized 28x28 bitmaps. Not a CNN, and
- * deliberately so -- there is no ML toolchain on this machine, the training set
- * is 152 digits rather than 60,000, and with a set that small a nearest-
- * neighbour model is competitive while being inspectable: every prediction can
- * be traced to the specific training digit it matched, which matters when the
- * whole design rests on knowing when NOT to trust a reading.
+ * deliberately so -- there is no ML toolchain on this machine, and with a few
+ * thousand training digits a nearest-neighbour model is competitive while being
+ * inspectable: every prediction can be traced to the specific training digit it
+ * matched, which matters when the whole design rests on knowing when NOT to
+ * trust a reading.
  *
- * Labels are derived rather than hand-assigned per digit: a cell known to read
- * "163" that segments into exactly 3 pieces gives labels 1, 6, 3 in order. Cells
- * whose segment count disagrees with their value length are dropped, since
- * their digit boundaries are by definition wrong.
+ * ---------------------------------------------------------------------------
+ * What this is FOR, which decides how it is measured.
  *
- * Accuracy is measured leave-one-out: each digit is classified using every
- * other digit as training data. With a set this small an ordinary train/test
- * split would be dominated by which examples happened to land in the test half.
+ * The recognizer does not replace the human. It pre-fills a box that a person
+ * is looking at anyway, beside a picture of the handwriting. So the number that
+ * matters is not accuracy over all digits -- it is PRECISION ON THE ONES IT
+ * CHOOSES TO ANSWER. A cell it declines to fill costs a keystroke the human was
+ * going to make regardless. A cell it fills wrongly costs far more, because it
+ * invites agreement, and a wrong number that looks confident is the one failure
+ * this project is arranged to avoid.
+ *
+ * So the output below is a precision/coverage curve, not a single accuracy
+ * figure, and the threshold is chosen for precision with coverage as whatever
+ * falls out.
+ * ---------------------------------------------------------------------------
+ *
+ * Measured leave-one-SCAN-out: the model is trained on 17 events and tested on
+ * the 18th, then rotated. Anything less flatters the result -- digits from one
+ * event share a handful of volunteers, one pen each, and one scanner session,
+ * so a digit from the same card (or even the same event) is a much easier test
+ * than the real one, which is a new event by new people next month.
+ *
+ * Labels come from `label-from-spreadsheet.mjs`; see out/training/.
  *
  * Usage:
  *   node scripts/train-digits.mjs            measure
  *   node scripts/train-digits.mjs --emit     also write the model
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CROPS = join(ROOT, "out", "crops");
+const TRAINING = join(ROOT, "out", "training");
 const REF = join(ROOT, "assets", "reference");
 
 /** Neighbours polled per prediction. */
 const K = 5;
-
-function loadTrainingSet() {
-  const cells = JSON.parse(readFileSync(join(CROPS, "cells.json"), "utf8"));
-  const digits = JSON.parse(readFileSync(join(CROPS, "digits.json"), "utf8"));
-  const labels = JSON.parse(
-    readFileSync(join(REF, "labels-pacific-beach.json"), "utf8"),
-  ).labels;
-
-  const byCell = new Map();
-  for (const d of digits) {
-    if (!byCell.has(d.cellId)) byCell.set(d.cellId, []);
-    byCell.get(d.cellId).push(d);
-  }
-
-  const samples = [];
-  let dropped = 0;
-
-  for (const cell of cells) {
-    const value = labels[String(cell.id)];
-    if (typeof value !== "number") continue;
-
-    const text = String(value);
-    const parts = (byCell.get(cell.id) ?? []).sort((a, b) => a.index - b.index);
-
-    if (parts.length !== text.length) {
-      dropped++;
-      continue;
-    }
-    parts.forEach((p, i) => {
-      samples.push({
-        label: Number(text[i]),
-        bitmap: unitNorm(p.bitmap),
-        cellId: cell.id,
-        card: cell.card,
-      });
-    });
-  }
-  return { samples, dropped };
-}
 
 /**
  * Scale a bitmap to unit length.
@@ -80,7 +56,7 @@ function loadTrainingSet() {
  * Normalizing leaves only the shape.
  */
 function unitNorm(bitmap) {
-  const out = Float64Array.from(bitmap);
+  const out = Float32Array.from(bitmap);
   let norm = 0;
   for (const v of out) norm += v * v;
   norm = Math.sqrt(norm) || 1;
@@ -88,7 +64,26 @@ function unitNorm(bitmap) {
   return out;
 }
 
-/** L2 distance between two bitmaps, with early exit. */
+function loadTrainingSet() {
+  const samples = [];
+  for (const file of readdirSync(TRAINING).filter((f) => f.endsWith(".json"))) {
+    const data = JSON.parse(readFileSync(join(TRAINING, file), "utf8"));
+    for (const s of data.samples ?? []) {
+      samples.push({
+        label: s.label,
+        bitmap: unitNorm(s.bitmap),
+        source: s.source ?? data.source ?? file.replace(/\.json$/, ""),
+        // A cell is identified by scan + card + row; its digits stand or fall
+        // together when a value is judged.
+        cell: `${s.source}:${s.card}:${s.row}`,
+        value: s.value,
+      });
+    }
+  }
+  return samples;
+}
+
+/** Squared L2 distance, with early exit once it cannot make the poll. */
 function distance(a, b, cutoff) {
   let sum = 0;
   for (let i = 0; i < a.length; i++) {
@@ -103,14 +98,12 @@ function distance(a, b, cutoff) {
  * Classify by polling the K nearest training digits.
  *
  * Confidence is the share of the poll won by the top class, weighted by
- * closeness. It is reported so the caller can decline to auto-fill a reading it
- * should not trust -- a wrong number typed in silently is the failure this whole
- * design is arranged to avoid.
+ * closeness. It is what the pre-fill is gated on, so it is checked below that
+ * it actually tracks correctness rather than merely correlating with it.
  */
-function classify(bitmap, train, k = K, excludeCell = -1) {
+function classify(bitmap, train, k = K) {
   const best = [];
   for (const s of train) {
-    if (s.cellId === excludeCell) continue;
     const cutoff = best.length < k ? Infinity : best[best.length - 1].d;
     const d = distance(bitmap, s.bitmap, cutoff);
     if (d === Infinity) continue;
@@ -143,38 +136,71 @@ function classify(bitmap, train, k = K, excludeCell = -1) {
 }
 
 function main() {
-  const { samples, dropped } = loadTrainingSet();
-  console.log(`training digits: ${samples.length}`);
-  console.log(`cells dropped (segment count != value length): ${dropped}`);
+  const samples = loadTrainingSet();
+  const scans = [...new Set(samples.map((s) => s.source))];
 
+  console.log(`training digits: ${samples.length} from ${scans.length} events`);
   const perClass = new Array(10).fill(0);
   for (const s of samples) perClass[s.label]++;
   console.log(`per class: ${perClass.map((n, i) => `${i}:${n}`).join("  ")}`);
 
-  // Leave-one-CELL-out: excluding only the digit itself would leave its
-  // siblings from the same handwriting in the training set, which flatters the
-  // score. A whole unseen cell is the honest test.
-  let correct = 0;
-  const confusion = Array.from({ length: 10 }, () => new Array(10).fill(0));
-  const byConfidence = [];
+  // ---- leave-one-scan-out ----
+  const results = [];
+  for (const held of scans) {
+    const train = samples.filter((s) => s.source !== held);
+    const test = samples.filter((s) => s.source === held);
+    for (const s of test) {
+      const { label, confidence } = classify(s.bitmap, train);
+      results.push({ ...s, predicted: label, confidence, correct: label === s.label });
+    }
+    process.stdout.write(`\r  tested ${results.length}/${samples.length}   `);
+  }
+  process.stdout.write("\n");
 
-  for (const s of samples) {
-    const { label, confidence } = classify(s.bitmap, samples, K, s.cellId);
-    if (label === s.label) correct++;
-    if (label !== null) confusion[s.label][label]++;
-    byConfidence.push({ correct: label === s.label, confidence });
+  const acc = results.filter((r) => r.correct).length / results.length;
+  console.log(`\nper-digit accuracy, all digits: ${(acc * 100).toFixed(1)}%`);
+
+  // ---- the number that decides the design: precision where it answers ----
+  console.log("\nprecision/coverage by confidence threshold:");
+  console.log("  threshold   answered   precision   cells fully right");
+  for (const t of [0, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0]) {
+    const answered = results.filter((r) => r.confidence >= t);
+    if (answered.length === 0) continue;
+    const right = answered.filter((r) => r.correct).length;
+
+    // A value is only usable if EVERY digit in it was answered and right --
+    // "2" and "21" are different numbers of debris.
+    const byCell = new Map();
+    for (const r of results) {
+      if (!byCell.has(r.cell)) byCell.set(r.cell, []);
+      byCell.get(r.cell).push(r);
+    }
+    let fullCells = 0;
+    let wholeCells = 0;
+    for (const digits of byCell.values()) {
+      if (!digits.every((d) => d.confidence >= t)) continue;
+      wholeCells++;
+      if (digits.every((d) => d.correct)) fullCells++;
+    }
+
+    console.log(
+      `  >= ${t.toFixed(2)}    ` +
+        `${String(answered.length).padStart(5)} (${String(Math.round((answered.length / results.length) * 100)).padStart(3)}%)   ` +
+        `${((right / answered.length) * 100).toFixed(1)}%      ` +
+        `${wholeCells ? ((fullCells / wholeCells) * 100).toFixed(1) : "-"}% of ${wholeCells} cells`,
+    );
   }
 
-  const acc = correct / samples.length;
-  console.log(`\nper-digit accuracy (leave-one-cell-out): ${(acc * 100).toFixed(1)}%`);
+  // ---- what it gets wrong, so the failures are known rather than assumed ----
+  const confusion = Array.from({ length: 10 }, () => new Array(10).fill(0));
+  for (const r of results) if (r.predicted !== null) confusion[r.label][r.predicted]++;
 
   console.log("\nconfusion (row = truth, col = predicted):");
-  console.log("     " + [...Array(10).keys()].map((i) => String(i).padStart(4)).join(""));
+  console.log("     " + [...Array(10).keys()].map((i) => String(i).padStart(5)).join(""));
   confusion.forEach((row, i) => {
-    console.log(`  ${i}: ` + row.map((n) => String(n || "").padStart(4)).join(""));
+    console.log(`  ${i}: ` + row.map((n) => String(n || "").padStart(5)).join(""));
   });
 
-  console.log("\nworst confusions:");
   const pairs = [];
   confusion.forEach((row, t) =>
     row.forEach((n, p) => {
@@ -182,18 +208,27 @@ function main() {
     }),
   );
   pairs.sort((a, b) => b.n - a.n);
-  for (const { t, p, n } of pairs.slice(0, 6)) console.log(`  ${t} read as ${p}: ${n}`);
+  console.log("\nworst confusions:");
+  for (const { t, p, n } of pairs.slice(0, 8)) console.log(`  ${t} read as ${p}: ${n}`);
 
-  // Does confidence actually track correctness? If it does not, auto-filling
-  // high-confidence readings is unsafe no matter what the headline accuracy is.
-  console.log("\ncalibration:");
-  for (const [lo, hi] of [[0, 0.5], [0.5, 0.7], [0.7, 0.9], [0.9, 1.01]]) {
-    const bucket = byConfidence.filter((b) => b.confidence >= lo && b.confidence < hi);
-    if (bucket.length === 0) continue;
-    const right = bucket.filter((b) => b.correct).length;
+  console.log("\nper class recall:");
+  for (let d = 0; d < 10; d++) {
+    const of = results.filter((r) => r.label === d);
+    if (!of.length) continue;
+    const right = of.filter((r) => r.correct).length;
     console.log(
-      `  confidence ${lo.toFixed(2)}-${hi.toFixed(2)}: ` +
-        `${bucket.length} digits, ${((right / bucket.length) * 100).toFixed(0)}% correct`,
+      `  ${d}: ${String(right).padStart(4)}/${String(of.length).padEnd(4)} ` +
+        `${((right / of.length) * 100).toFixed(0)}%`,
+    );
+  }
+
+  console.log("\nper event (a whole unseen event each time):");
+  for (const scan of scans) {
+    const of = results.filter((r) => r.source === scan);
+    const right = of.filter((r) => r.correct).length;
+    console.log(
+      `  ${scan.padEnd(16)} ${String(right).padStart(4)}/${String(of.length).padEnd(4)} ` +
+        `${((right / of.length) * 100).toFixed(0)}%`,
     );
   }
 
@@ -202,9 +237,12 @@ function main() {
     const model = {
       kind: "knn-28x28",
       k: K,
-      note: "Nearest-neighbour digit model. Bitmaps are 28x28, ink 0-255, " +
-        "scaled to fit 20x20 and centred by centre of mass (MNIST convention).",
-      accuracy: Number(acc.toFixed(4)),
+      note:
+        "Nearest-neighbour digit model. Bitmaps are 28x28, ink 0-255, scaled " +
+        "to fit 20x20 and centred by centre of mass (MNIST convention). " +
+        "Exemplars are unit-normalized already.",
+      digitAccuracy: Number(acc.toFixed(4)),
+      trainedOn: scans,
       samples: samples.map((s) => ({ label: s.label, b: Array.from(s.bitmap) })),
     };
     const path = join(REF, "digit-model.json");

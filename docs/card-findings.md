@@ -1,6 +1,6 @@
 # What the physical card actually looks like
 
-Measured from `assets/reference/sample-card.pdf` (Moonlight Beach, 2/21/26).
+Measured from `scans/sample-card.pdf` (Moonlight Beach, 2/21/26).
 These supersede `data-card-layout.md`, which was written from the spreadsheet
 rather than from the card, and got several things wrong.
 

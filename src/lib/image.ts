@@ -48,46 +48,129 @@ export function colProfile(img: GrayImage, y0 = 0, y1 = img.height): Float64Arra
   return out;
 }
 
-function normalize(a: Float64Array): Float64Array {
-  let mean = 0;
-  for (const v of a) mean += v;
-  mean /= a.length;
+/** How the page's coordinates map onto the reference's, along one axis. */
+export interface AxisFit {
+  /** reference index i corresponds to page index `scale * i + offset`. */
+  scale: number;
+  offset: number;
+  /** Normalized cross-correlation at that fit, over the window. Higher is better. */
+  score: number;
+}
 
-  const out = new Float64Array(a.length);
-  let norm = 0;
-  for (let i = 0; i < a.length; i++) {
-    const v = a[i]! - mean;
-    out[i] = v;
-    norm += v * v;
+/** Box-average a profile down by `factor`, for the coarse pass. */
+function decimate(a: Float64Array, factor: number): Float64Array {
+  const n = Math.floor(a.length / factor);
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (let k = 0; k < factor; k++) sum += a[i * factor + k]!;
+    out[i] = sum / factor;
   }
-  norm = Math.sqrt(norm) || 1;
-  for (let i = 0; i < out.length; i++) out[i] = out[i]! / norm;
   return out;
 }
 
 /**
- * Integer shift of `b` that best matches `a`, by normalized cross-correlation.
+ * Correlate `ref[i0..i1)` against `page` sampled at `scale * i + offset`.
  *
- * Sheet-fed scanning offsets each page by a few pixels; across the 82 reference
- * pages this ran from -14 to +9.
+ * Returns -1 when the window does not mostly land on the page, so a fit that
+ * "wins" by hanging off the edge and correlating a handful of samples cannot be
+ * chosen.
  */
-export function bestShift(a: Float64Array, b: Float64Array, maxShift = 60): number {
-  const A = normalize(a);
-  const B = normalize(b);
-  let best = 0;
-  let bestScore = -Infinity;
+function fitScore(
+  ref: Float64Array,
+  page: Float64Array,
+  i0: number,
+  i1: number,
+  scale: number,
+  offset: number,
+): number {
+  let n = 0;
+  let sumA = 0;
+  let sumB = 0;
+  let sumAA = 0;
+  let sumBB = 0;
+  let sumAB = 0;
 
-  for (let s = -maxShift; s <= maxShift; s++) {
-    let score = 0;
-    const start = Math.max(0, -s);
-    const end = Math.min(A.length, B.length - s);
-    for (let i = start; i < end; i++) score += A[i]! * B[i + s]!;
-    if (score > bestScore) {
-      bestScore = score;
-      best = s;
+  for (let i = i0; i < i1; i++) {
+    const t = scale * i + offset;
+    const t0 = Math.floor(t);
+    if (t0 < 0 || t0 + 1 >= page.length) continue;
+    const f = t - t0;
+    const b = page[t0]! * (1 - f) + page[t0 + 1]! * f;
+    const a = ref[i]!;
+    n++;
+    sumA += a;
+    sumB += b;
+    sumAA += a * a;
+    sumBB += b * b;
+    sumAB += a * b;
+  }
+
+  if (n < (i1 - i0) * 0.6) return -1;
+  const cov = sumAB - (sumA * sumB) / n;
+  const va = sumAA - (sumA * sumA) / n;
+  const vb = sumBB - (sumB * sumB) / n;
+  const denom = Math.sqrt(va * vb);
+  return denom > 0 ? cov / denom : -1;
+}
+
+/** Decimation for the coarse pass: 4x is 16x less work and still resolves a row. */
+const COARSE = 4;
+
+/**
+ * Find the scale and offset mapping a page's darkness profile onto the
+ * reference's, over a window of the reference.
+ *
+ * Three things here are deliberate, and each fixes an observed failure:
+ *
+ * **Scale, not just translation.** Scans of the same card differ in size by up
+ * to 2.5% -- enough to move the bottom row of the grid by 30px, which is half a
+ * row. No translation fixes that; cells land on row boundaries instead of TOTAL
+ * boxes.
+ *
+ * **A window, not the whole page.** Correlating the full page averages regions
+ * that do not move together. On the Imperial Beach scans the card's grid sits
+ * ~105px lower relative to its masthead than on the scan the reference was
+ * built from, so a whole-page fit splits the difference and lands the grid
+ * ~50px out. Restricting the window to the grid -- the only part cells are
+ * cropped from -- takes the fit from 0.72 to 0.98.
+ *
+ * **Coarse to fine.** The grid is periodic, so a fine search over a wide offset
+ * range has near-equal optima one row apart. The coarse pass runs on a 4x
+ * decimated profile where a single row is blurred away and the section banners
+ * dominate, which picks the right basin; the fine pass then only has to refine
+ * within it.
+ */
+export function fitAxis(
+  refProfile: Float64Array,
+  pageProfile: Float64Array,
+  i0: number,
+  i1: number,
+  { maxScaleDeviation = 0.06, maxOffset = 360 } = {},
+): AxisFit {
+  const refCoarse = decimate(refProfile, COARSE);
+  const pageCoarse = decimate(pageProfile, COARSE);
+  const c0 = Math.floor(i0 / COARSE);
+  const c1 = Math.floor(i1 / COARSE);
+
+  let best: AxisFit = { scale: 1, offset: 0, score: -1 };
+
+  for (let scale = 1 - maxScaleDeviation; scale <= 1 + maxScaleDeviation + 1e-9; scale += 0.004) {
+    for (let offset = -maxOffset; offset <= maxOffset; offset += COARSE) {
+      const score = fitScore(refCoarse, pageCoarse, c0, c1, scale, offset / COARSE);
+      if (score > best.score) best = { scale, offset, score };
     }
   }
-  return best;
+
+  // Refine at full resolution, within the basin the coarse pass chose.
+  let refined = { ...best, score: -1 };
+  for (let scale = best.scale - 0.005; scale <= best.scale + 0.005 + 1e-9; scale += 0.0005) {
+    for (let offset = best.offset - 8; offset <= best.offset + 8 + 1e-9; offset += 0.5) {
+      const score = fitScore(refProfile, pageProfile, i0, i1, scale, offset);
+      if (score > refined.score) refined = { scale, offset, score };
+    }
+  }
+  return refined;
 }
 
 /**
@@ -139,6 +222,43 @@ export function estimateSkew(img: GrayImage, maxDeg = 2, step = 0.1): number {
 }
 
 /** Rotate about the image centre with bilinear sampling. */
+/**
+ * Turn an image by a whole number of quarter-turns clockwise.
+ *
+ * Separate from `rotate`, which shears a page by a fraction of a degree to
+ * undo scanner skew and keeps its dimensions. A quarter turn swaps width and
+ * height and loses nothing, so it is exact -- which matters, because this runs
+ * before registration decides whether a page is usable at all.
+ */
+export function quarterTurn(img: GrayImage, turns: number): GrayImage {
+  const t = ((turns % 4) + 4) % 4;
+  if (t === 0) return img;
+
+  const { width: w, height: h, data } = img;
+  const width = t === 2 ? w : h;
+  const height = t === 2 ? h : w;
+  const out = new Uint8Array(width * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sx: number;
+      let sy: number;
+      if (t === 1) {
+        sx = y;
+        sy = h - 1 - x;
+      } else if (t === 2) {
+        sx = w - 1 - x;
+        sy = h - 1 - y;
+      } else {
+        sx = w - 1 - y;
+        sy = x;
+      }
+      out[y * width + x] = data[sy * w + sx]!;
+    }
+  }
+  return { width, height, data: out };
+}
+
 export function rotate(img: GrayImage, deg: number): GrayImage {
   if (Math.abs(deg) < 1e-6) return img;
 
@@ -174,6 +294,116 @@ export function rotate(img: GrayImage, deg: number): GrayImage {
     }
   }
   return { width, height, data: out };
+}
+
+/** An axis fit for each axis: the full page-to-reference mapping. */
+export interface PageTransform {
+  x: AxisFit;
+  y: AxisFit;
+}
+
+/**
+ * Resample a page into the reference's coordinate space.
+ *
+ * Bilinear, because the scale is not an integer ratio: nearest-neighbour
+ * sampling at a 1.02 scale drops or doubles a scan line every 50 rows, which
+ * thins pencil strokes unevenly across the page and is exactly the kind of
+ * damage the digit segmenter is sensitive to.
+ */
+export function resampleToReference(
+  page: GrayImage,
+  width: number,
+  height: number,
+  t: PageTransform,
+): GrayImage {
+  const out = new Uint8Array(width * height);
+
+  for (let y = 0; y < height; y++) {
+    const sy = t.y.scale * y + t.y.offset;
+    const y0 = Math.floor(sy);
+    const fy = sy - y0;
+    const dst = y * width;
+
+    if (y0 < 0 || y0 + 1 >= page.height) {
+      out.fill(255, dst, dst + width); // off the edge of the scan is paper
+      continue;
+    }
+
+    const rowA = y0 * page.width;
+    const rowB = rowA + page.width;
+
+    for (let x = 0; x < width; x++) {
+      const sx = t.x.scale * x + t.x.offset;
+      const x0 = Math.floor(sx);
+      if (x0 < 0 || x0 + 1 >= page.width) {
+        out[dst + x] = 255;
+        continue;
+      }
+      const fx = sx - x0;
+      out[dst + x] =
+        page.data[rowA + x0]! * (1 - fx) * (1 - fy) +
+        page.data[rowA + x0 + 1]! * fx * (1 - fy) +
+        page.data[rowB + x0]! * (1 - fx) * fy +
+        page.data[rowB + x0 + 1]! * fx * fy;
+    }
+  }
+  return { width, height, data: out };
+}
+
+/** Median pixel value: the page's paper level, by histogram rather than sorting. */
+export function paperLevel(img: GrayImage): number {
+  const hist = new Uint32Array(256);
+  for (const v of img.data) hist[v]!++;
+  const half = img.data.length >> 1;
+  let seen = 0;
+  for (let v = 0; v < 256; v++) {
+    seen += hist[v]!;
+    if (seen > half) return v;
+  }
+  return 255;
+}
+
+/**
+ * Which rows of a block are section banners: mostly ink, right across it.
+ *
+ * The banners are the one part of the card a volunteer cannot change. They ink
+ * ~90% of a block's width; the densest thing anyone writes -- a full row of
+ * tally marks -- reaches about 25%, because tallies are strokes with paper
+ * between them. So this reads the printed card through the handwriting, which
+ * is what makes it usable as a check on alignment.
+ *
+ * The threshold is taken from the page's own paper level, since scans vary from
+ * white to distinctly gray.
+ */
+export function bannerRows(
+  img: GrayImage,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+): Uint8Array {
+  const ink = Math.max(60, paperLevel(img) - 60);
+  const span = x1 - x0;
+  const out = new Uint8Array(y1 - y0);
+
+  for (let y = y0; y < y1; y++) {
+    const off = y * img.width;
+    let dark = 0;
+    for (let x = x0; x < x1; x++) if (img.data[off + x]! < ink) dark++;
+    out[y - y0] = dark > span * 0.5 ? 1 : 0;
+  }
+  return out;
+}
+
+/** Intersection over union of two binary masks. */
+export function maskOverlap(a: Uint8Array, b: Uint8Array): number {
+  let intersection = 0;
+  let union = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]! && b[i]!) intersection++;
+    if (a[i]! || b[i]!) union++;
+  }
+  return union ? intersection / union : 1;
 }
 
 /** Fraction of pixels darker than `threshold` in a rectangle. */

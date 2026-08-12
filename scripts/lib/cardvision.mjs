@@ -15,7 +15,16 @@ import { readFileSync } from "node:fs";
 import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
-const MAX_SHIFT = 40;
+import { boxMarked as boxMarkedImpl, stripMarked as stripMarkedImpl } from "../../src/lib/marks.ts";
+
+/**
+ * Banner overlap below this is not trusted; see MIN_BANNER_OVERLAP in
+ * src/lib/register.ts for the measurements behind the number.
+ */
+const MIN_BANNER_OVERLAP = 0.75;
+
+/** Decimation for the coarse alignment pass. */
+const COARSE = 4;
 
 
 function decodeGray(path) {
@@ -62,51 +71,186 @@ function classify(page) {
   return { side: byBanner, agree: byBanner === byFooter };
 }
 
-function profiles({ width, height, gray }) {
-  const cols = new Float64Array(width);
-  const rows = new Float64Array(height);
+/** Mean darkness of each row, over an optional horizontal window. */
+function rowProfile({ width, height, gray }, x0 = 0, x1 = width) {
+  const out = new Float64Array(height);
   for (let y = 0; y < height; y++) {
     const off = y * width;
-    for (let x = 0; x < width; x++) {
-      const dark = 255 - gray[off + x];
-      cols[x] += dark;
-      rows[y] += dark;
-    }
+    let sum = 0;
+    for (let x = x0; x < x1; x++) sum += 255 - gray[off + x];
+    out[y] = sum / (x1 - x0);
   }
-  return { cols, rows };
-}
-
-function normalize(a) {
-  let mean = 0;
-  for (const v of a) mean += v;
-  mean /= a.length;
-  const out = new Float64Array(a.length);
-  let norm = 0;
-  for (let i = 0; i < a.length; i++) {
-    out[i] = a[i] - mean;
-    norm += out[i] * out[i];
-  }
-  norm = Math.sqrt(norm) || 1;
-  for (let i = 0; i < out.length; i++) out[i] /= norm;
   return out;
 }
 
-function bestShift(a, b) {
-  const A = normalize(a);
-  const B = normalize(b);
-  let best = 0;
-  let bestScore = -Infinity;
-  for (let s = -MAX_SHIFT; s <= MAX_SHIFT; s++) {
-    let score = 0;
-    const start = Math.max(0, -s);
-    const end = Math.min(A.length, B.length - s);
-    for (let i = start; i < end; i++) score += A[i] * B[i + s];
-    if (score > bestScore) {
-      bestScore = score;
-      best = s;
+/** Mean darkness of each column, over an optional vertical window. */
+function colProfile({ width, height, gray }, y0 = 0, y1 = height) {
+  const out = new Float64Array(width);
+  for (let y = y0; y < y1; y++) {
+    const off = y * width;
+    for (let x = 0; x < width; x++) out[x] += 255 - gray[off + x];
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= y1 - y0;
+  return out;
+}
+
+function decimate(a, factor) {
+  const n = Math.floor(a.length / factor);
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (let k = 0; k < factor; k++) sum += a[i * factor + k];
+    out[i] = sum / factor;
+  }
+  return out;
+}
+
+function fitScore(ref, page, i0, i1, scale, offset) {
+  let n = 0;
+  let sumA = 0;
+  let sumB = 0;
+  let sumAA = 0;
+  let sumBB = 0;
+  let sumAB = 0;
+  for (let i = i0; i < i1; i++) {
+    const t = scale * i + offset;
+    const t0 = Math.floor(t);
+    if (t0 < 0 || t0 + 1 >= page.length) continue;
+    const f = t - t0;
+    const b = page[t0] * (1 - f) + page[t0 + 1] * f;
+    const a = ref[i];
+    n++;
+    sumA += a;
+    sumB += b;
+    sumAA += a * a;
+    sumBB += b * b;
+    sumAB += a * b;
+  }
+  if (n < (i1 - i0) * 0.6) return -1;
+  const cov = sumAB - (sumA * sumB) / n;
+  const va = sumAA - (sumA * sumA) / n;
+  const vb = sumBB - (sumB * sumB) / n;
+  const denom = Math.sqrt(va * vb);
+  return denom > 0 ? cov / denom : -1;
+}
+
+/** Scale and offset mapping a page profile onto the reference's, coarse to fine. */
+function fitAxis(refProfile, pageProfile, i0, i1, { maxScaleDeviation = 0.06, maxOffset = 360 } = {}) {
+  const refCoarse = decimate(refProfile, COARSE);
+  const pageCoarse = decimate(pageProfile, COARSE);
+  const c0 = Math.floor(i0 / COARSE);
+  const c1 = Math.floor(i1 / COARSE);
+
+  let best = { scale: 1, offset: 0, score: -1 };
+  for (let scale = 1 - maxScaleDeviation; scale <= 1 + maxScaleDeviation + 1e-9; scale += 0.004) {
+    for (let offset = -maxOffset; offset <= maxOffset; offset += COARSE) {
+      const score = fitScore(refCoarse, pageCoarse, c0, c1, scale, offset / COARSE);
+      if (score > best.score) best = { scale, offset, score };
     }
   }
-  return best;
+
+  let refined = { ...best, score: -1 };
+  for (let scale = best.scale - 0.005; scale <= best.scale + 0.005 + 1e-9; scale += 0.0005) {
+    for (let offset = best.offset - 8; offset <= best.offset + 8 + 1e-9; offset += 0.5) {
+      const score = fitScore(refProfile, pageProfile, i0, i1, scale, offset);
+      if (score > refined.score) refined = { scale, offset, score };
+    }
+  }
+  return refined;
+}
+
+/** Median pixel value: the page's paper level, by histogram rather than sorting. */
+function paperLevel({ gray }) {
+  const hist = new Uint32Array(256);
+  for (const v of gray) hist[v]++;
+  const half = gray.length >> 1;
+  let seen = 0;
+  for (let v = 0; v < 256; v++) {
+    seen += hist[v];
+    if (seen > half) return v;
+  }
+  return 255;
+}
+
+/** Which rows of a block are section banner: mostly ink, right across it. */
+function bannerRows(img, x0, x1, y0, y1) {
+  const ink = Math.max(60, paperLevel(img) - 60);
+  const span = x1 - x0;
+  const out = new Uint8Array(y1 - y0);
+  for (let y = y0; y < y1; y++) {
+    const off = y * img.width;
+    let dark = 0;
+    for (let x = x0; x < x1; x++) if (img.gray[off + x] < ink) dark++;
+    out[y - y0] = dark > span * 0.5 ? 1 : 0;
+  }
+  return out;
+}
+
+/** Intersection over union of two binary masks. */
+function maskOverlap(a, b) {
+  let intersection = 0;
+  let union = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] && b[i]) intersection++;
+    if (a[i] || b[i]) union++;
+  }
+  return union ? intersection / union : 1;
+}
+
+/** The x-span of each of a side's two printed blocks, from the cell map. */
+function blocksOf(map) {
+  const out = [];
+  for (const column of ["left", "right"]) {
+    const cells = map.cells.filter((c) => c.column === column);
+    if (!cells.length) continue;
+    out.push({
+      x0: Math.min(...cells.map((c) => c.tally.x)),
+      x1: Math.max(...cells.map((c) => c.total.x + c.total.width)),
+    });
+  }
+  return out;
+}
+
+/** Build a registration target -- blank card, fit window, and banner mask. */
+function referenceTarget(image, map) {
+  const window = alignmentWindow(map);
+  const blocks = blocksOf(map);
+  return {
+    image,
+    window,
+    blocks,
+    banners: blocks.map((b) => bannerRows(image, b.x0, b.x1, window.y, window.y + window.height)),
+  };
+}
+
+/**
+ * How well a registered page's section banners match the template's.
+ *
+ * A block with no banner in the reference cannot vouch for anything and is
+ * skipped; if no block can, the answer is 0, not 1. See bannerOverlap in
+ * src/lib/register.ts.
+ */
+function bannerOverlap(registered, target) {
+  const { window, blocks, banners } = target;
+  let worst = 1;
+  let checked = 0;
+  blocks.forEach((b, i) => {
+    if (!banners[i].some((v) => v)) return;
+    const rows = bannerRows(registered, b.x0, b.x1, window.y, window.y + window.height);
+    worst = Math.min(worst, maskOverlap(banners[i], rows));
+    checked++;
+  });
+  return checked > 0 ? worst : 0;
+}
+
+/** The region alignment is judged on: the cells, plus the banner above them. */
+function alignmentWindow(map) {
+  const boxes = map.cells.flatMap((c) => [c.total, c.tally]);
+  const x0 = Math.max(0, Math.min(...boxes.map((b) => b.x)) - 8);
+  const y0 = Math.max(0, Math.min(...boxes.map((b) => b.y)) - 72);
+  const x1 = Math.min(map.referenceSize.width, Math.max(...boxes.map((b) => b.x + b.width)) + 8);
+  const y1 = Math.min(map.referenceSize.height, Math.max(...boxes.map((b) => b.y + b.height)) + 8);
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
 function estimateSkew({ width, height, gray }, maxDeg = 2, step = 0.1) {
@@ -176,26 +320,144 @@ function rotate(page, deg) {
   return { width, height, gray: out };
 }
 
-function registerTo(page, reference) {
+/**
+ * Deskew a page and resample it into the reference's coordinate space.
+ *
+ * `target` is `{ image, window }` -- the blank card and the region of it that
+ * the fit is judged on, from `alignmentWindow`. Returns the registered page and
+ * the alignment score, which the caller must check: below MIN_ALIGNMENT the
+ * cells would be cropped from the wrong part of the card.
+ */
+function registerTo(page, target) {
+  const reference = target.image;
+  const window = target.window;
   const levelled = rotate(page, estimateSkew(page));
-  const pr = profiles(levelled);
-  const rr = profiles(reference);
-  const dx = bestShift(rr.cols, pr.cols);
-  const dy = bestShift(rr.rows, pr.rows);
+
+  const y = fitAxis(
+    rowProfile(reference, window.x, window.x + window.width),
+    rowProfile(levelled),
+    window.y,
+    window.y + window.height,
+  );
+
+  const pageY0 = Math.max(0, Math.round(y.scale * window.y + y.offset));
+  const pageY1 = Math.min(levelled.height, Math.round(y.scale * (window.y + window.height) + y.offset));
+  const x =
+    pageY1 - pageY0 > 32
+      ? fitAxis(
+          colProfile(reference, window.y, window.y + window.height),
+          colProfile(levelled, pageY0, pageY1),
+          window.x,
+          window.x + window.width,
+          { maxScaleDeviation: 0.03, maxOffset: 200 },
+        )
+      : { scale: 1, offset: 0, score: -1 };
 
   const out = new Uint8Array(reference.width * reference.height);
-  for (let y = 0; y < reference.height; y++) {
-    const sy = y + dy;
-    const dst = y * reference.width;
-    for (let x = 0; x < reference.width; x++) {
-      const sx = x + dx;
-      out[dst + x] =
-        sy >= 0 && sy < levelled.height && sx >= 0 && sx < levelled.width
-          ? levelled.gray[sy * levelled.width + sx]
-          : 255;
+  for (let yy = 0; yy < reference.height; yy++) {
+    const sy = y.scale * yy + y.offset;
+    const y0 = Math.floor(sy);
+    const fy = sy - y0;
+    const dst = yy * reference.width;
+    if (y0 < 0 || y0 + 1 >= levelled.height) {
+      out.fill(255, dst, dst + reference.width);
+      continue;
+    }
+    const rowA = y0 * levelled.width;
+    const rowB = rowA + levelled.width;
+    for (let xx = 0; xx < reference.width; xx++) {
+      const sx = x.scale * xx + x.offset;
+      const x0 = Math.floor(sx);
+      if (x0 < 0 || x0 + 1 >= levelled.width) {
+        out[dst + xx] = 255;
+        continue;
+      }
+      const fx = sx - x0;
+      out[dst + xx] =
+        levelled.gray[rowA + x0] * (1 - fx) * (1 - fy) +
+        levelled.gray[rowA + x0 + 1] * fx * (1 - fy) +
+        levelled.gray[rowB + x0] * (1 - fx) * fy +
+        levelled.gray[rowB + x0 + 1] * fx * fy;
     }
   }
-  return { width: reference.width, height: reference.height, gray: out };
+
+  const image = { width: reference.width, height: reference.height, gray: out };
+
+  return {
+    image,
+    transform: { x, y },
+    // Checked against the printed banners, not against the correlation that
+    // placed it: the correlation falls with how much a volunteer wrote rather
+    // than with how far the page is out.
+    bannerOverlap: bannerOverlap(image, target),
+  };
+}
+
+/**
+ * Register against whichever side the page actually is.
+ *
+ * The banner/footer classifier chooses which reference to try first; alignment
+ * decides. See registerAgainstBestSide in src/lib/register.ts.
+ */
+/** Turn an image by whole quarter-turns clockwise. Mirrors quarterTurn in src/lib/image.ts. */
+function quarterTurn(img, turns) {
+  const t = ((turns % 4) + 4) % 4;
+  if (t === 0) return img;
+  const { width: w, height: h, gray } = img;
+  const width = t === 2 ? w : h;
+  const height = t === 2 ? h : w;
+  const out = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sx, sy;
+      if (t === 1) { sx = y; sy = h - 1 - x; }
+      else if (t === 2) { sx = w - 1 - x; sy = h - 1 - y; }
+      else { sx = w - 1 - y; sy = x; }
+      out[y * width + x] = gray[sy * w + sx];
+    }
+  }
+  return { width, height, gray: out };
+}
+
+function registerBestSide(page, targets) {
+  const cls = classify(page);
+  const other = cls.side === "front" ? "back" : "front";
+
+  let side = cls.side;
+  let fit = registerTo(page, targets[side]);
+
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
+    const alternative = registerTo(page, targets[other]);
+    if (alternative.bannerOverlap > fit.bannerOverlap) {
+      side = other;
+      fit = alternative;
+    }
+  }
+
+  // A card fed in sideways is readable, just turned. Only tried for a page that
+  // has already failed. See registerAgainstBestSide in src/lib/register.ts.
+  let quarterTurns = 0;
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
+    for (const turns of [1, 2, 3]) {
+      const turned = quarterTurn(page, turns);
+      for (const candidate of ["front", "back"]) {
+        const attempt = registerTo(turned, targets[candidate]);
+        if (attempt.bannerOverlap > fit.bannerOverlap) {
+          side = candidate;
+          quarterTurns = turns;
+          fit = attempt;
+        }
+      }
+    }
+  }
+
+  return {
+    side,
+    ...fit,
+    quarterTurns,
+    trusted: fit.bannerOverlap >= MIN_BANNER_OVERLAP,
+    classifierAgreed: cls.agree,
+  };
 }
 
 function cropCell(page, r) {
@@ -219,149 +481,21 @@ function inkFraction(img, threshold = 170) {
 }
 
 /**
- * Extract every written-in TOTAL box from a scanned event, and segment each
- * into individual digit images.
+ * Is there handwriting in this TOTAL box? In this tally strip?
  *
- * This is the offline half of recognition: it produces the training material
- * and the contact sheets used to check that segmentation actually works before
- * anything is built on top of it. The plan flags segmentation as the real risk
- * -- the card's TOTAL cells are open boxes with free-written numbers, not
- * per-digit combs -- so it gets looked at directly rather than assumed.
- *
- * Usage:
- *   node scripts/extract-crops.mjs <dir-of-page-jpegs> [--limit N]
- *
- * Writes to out/crops/:
- *   cells.json         one record per written cell (card, row, item, page)
- *   digits.json        one record per segmented digit, keyed to its cell
- *   contact-cells-N.png    grids of whole TOTAL boxes
- *   contact-digits-N.png   grids of segmented digits
+ * The real work is in src/lib/marks.ts, imported rather than mirrored. Three
+ * earlier attempts lived here as offline-only copies and every one of them was
+ * measured on a scan and then never wired into the app, which is exactly how
+ * two implementations of the same idea drift apart. There is one now, and these
+ * are the adapters that let it read this file's `{ gray }` images.
  */
+function boxMarked(img, options) {
+  return boxMarkedImpl({ width: img.width, height: img.height, data: img.gray }, options);
+}
 
-
-
-
-
-/**
- * Extract every written-in TOTAL box from a scanned event, and segment each
- * into individual digit images.
- *
- * This is the offline half of recognition: it produces the training material
- * and the contact sheets used to check that segmentation actually works before
- * anything is built on top of it. The plan flags segmentation as the real risk
- * -- the card's TOTAL cells are open boxes with free-written numbers, not
- * per-digit combs -- so it gets looked at directly rather than assumed.
- *
- * Usage:
- *   node scripts/extract-crops.mjs <dir-of-page-jpegs> [--limit N]
- *
- * Writes to out/crops/:
- *   cells.json         one record per written cell (card, row, item, page)
- *   digits.json        one record per segmented digit, keyed to its cell
- *   contact-cells-N.png    grids of whole TOTAL boxes
- *   contact-digits-N.png   grids of segmented digits
- */
-
-
-
-
-
-/**
- * Extract every written-in TOTAL box from a scanned event, and segment each
- * into individual digit images.
- *
- * This is the offline half of recognition: it produces the training material
- * and the contact sheets used to check that segmentation actually works before
- * anything is built on top of it. The plan flags segmentation as the real risk
- * -- the card's TOTAL cells are open boxes with free-written numbers, not
- * per-digit combs -- so it gets looked at directly rather than assumed.
- *
- * Usage:
- *   node scripts/extract-crops.mjs <dir-of-page-jpegs> [--limit N]
- *
- * Writes to out/crops/:
- *   cells.json         one record per written cell (card, row, item, page)
- *   digits.json        one record per segmented digit, keyed to its cell
- *   contact-cells-N.png    grids of whole TOTAL boxes
- *   contact-digits-N.png   grids of segmented digits
- */
-
-
-
-
-
-/**
- * Extract every written-in TOTAL box from a scanned event, and segment each
- * into individual digit images.
- *
- * This is the offline half of recognition: it produces the training material
- * and the contact sheets used to check that segmentation actually works before
- * anything is built on top of it. The plan flags segmentation as the real risk
- * -- the card's TOTAL cells are open boxes with free-written numbers, not
- * per-digit combs -- so it gets looked at directly rather than assumed.
- *
- * Usage:
- *   node scripts/extract-crops.mjs <dir-of-page-jpegs> [--limit N]
- *
- * Writes to out/crops/:
- *   cells.json         one record per written cell (card, row, item, page)
- *   digits.json        one record per segmented digit, keyed to its cell
- *   contact-cells-N.png    grids of whole TOTAL boxes
- *   contact-digits-N.png   grids of segmented digits
- */
-
-
-
-
-
-/**
- * Extract every written-in TOTAL box from a scanned event, and segment each
- * into individual digit images.
- *
- * This is the offline half of recognition: it produces the training material
- * and the contact sheets used to check that segmentation actually works before
- * anything is built on top of it. The plan flags segmentation as the real risk
- * -- the card's TOTAL cells are open boxes with free-written numbers, not
- * per-digit combs -- so it gets looked at directly rather than assumed.
- *
- * Usage:
- *   node scripts/extract-crops.mjs <dir-of-page-jpegs> [--limit N]
- *
- * Writes to out/crops/:
- *   cells.json         one record per written cell (card, row, item, page)
- *   digits.json        one record per segmented digit, keyed to its cell
- *   contact-cells-N.png    grids of whole TOTAL boxes
- *   contact-digits-N.png   grids of segmented digits
- */
-
-
-
-
-
-/**
- * Extract every written-in TOTAL box from a scanned event, and segment each
- * into individual digit images.
- *
- * This is the offline half of recognition: it produces the training material
- * and the contact sheets used to check that segmentation actually works before
- * anything is built on top of it. The plan flags segmentation as the real risk
- * -- the card's TOTAL cells are open boxes with free-written numbers, not
- * per-digit combs -- so it gets looked at directly rather than assumed.
- *
- * Usage:
- *   node scripts/extract-crops.mjs <dir-of-page-jpegs> [--limit N]
- *
- * Writes to out/crops/:
- *   cells.json         one record per written cell (card, row, item, page)
- *   digits.json        one record per segmented digit, keyed to its cell
- *   contact-cells-N.png    grids of whole TOTAL boxes
- *   contact-digits-N.png   grids of segmented digits
- */
-
-
-
-
-
+function stripMarked(img, options) {
+  return stripMarkedImpl({ width: img.width, height: img.height, data: img.gray }, options);
+}
 
 /**
  * Otsu's threshold: the cut that best separates ink from paper for THIS crop.
@@ -579,10 +713,19 @@ function normalizeDigit(img, box) {
       // to carry rather than its shape, and the first classifier read 2, 3, 5
       // and 7 as 0 because 0 has the most ink of all. Coverage is scale-free
       // and gives a clean 0-1 signal regardless of how hard someone pressed.
-      const sx0 = box.minX + Math.floor((x * w) / tw);
-      const sx1 = box.minX + Math.max(sx0 + 1, Math.floor(((x + 1) * w) / tw));
-      const sy0 = box.minY + Math.floor((y * h) / th);
-      const sy1 = box.minY + Math.max(sy0 + 1, Math.floor(((y + 1) * h) / th));
+      // The window is computed in coordinates RELATIVE to the box and only
+      // then offset by its origin. Mixing the two -- taking max() of an
+      // already-offset start against a relative end -- makes the window run
+      // box.minX pixels too far right, so most of what gets averaged is the
+      // paper beside the digit. That washed every bitmap out: 77% of training
+      // digits peaked below half intensity, distances stopped discriminating
+      // shape, and everything collapsed onto the commonest class.
+      const rx0 = Math.floor((x * w) / tw);
+      const ry0 = Math.floor((y * h) / th);
+      const sx0 = box.minX + rx0;
+      const sx1 = box.minX + Math.max(rx0 + 1, Math.floor(((x + 1) * w) / tw));
+      const sy0 = box.minY + ry0;
+      const sy1 = box.minY + Math.max(ry0 + 1, Math.floor(((y + 1) * h) / th));
 
       let ink = 0;
       let n = 0;
@@ -625,13 +768,25 @@ function normalizeDigit(img, box) {
 }
 
 export {
+  MIN_BANNER_OVERLAP,
   decodeGray,
   loadPng,
   classify,
+  alignmentWindow,
+  referenceTarget,
+  bannerOverlap,
+  fitAxis,
+  rowProfile,
+  colProfile,
   registerTo,
+  registerBestSide,
+  quarterTurn,
   cropCell,
   inkFraction,
   inkThreshold,
+  components,
+  boxMarked,
+  stripMarked,
   segmentDigits,
   normalizeDigit,
 };

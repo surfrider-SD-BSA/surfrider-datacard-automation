@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { unzipSync } from "fflate";
 import { TAXONOMY } from "/Users/mateobesse/surfrider-datacard-web/src/lib/taxonomy.ts";
-import { classify, cropCell, decodeGray, inkFraction, loadPng, registerTo }
+import { cropCell, decodeGray, inkFraction, loadPng, referenceTarget, registerBestSide }
   from "/Users/mateobesse/surfrider-datacard-web/scripts/lib/cardvision.mjs";
 
 const REF="/Users/mateobesse/surfrider-datacard-web/assets/reference";
@@ -25,9 +25,10 @@ function readSheet(path){
 }
 
 const [dir,xlsx]=process.argv.slice(2);
-const refs={front:loadPng(join(REF,"blank-front.png")),back:loadPng(join(REF,"blank-back.png"))};
 const maps={front:JSON.parse(readFileSync(join(REF,"cells.front.json"),"utf8")),
             back:JSON.parse(readFileSync(join(REF,"cells.back.json"),"utf8"))};
+const targets={front:referenceTarget(loadPng(join(REF,"blank-front.png")),maps.front),
+               back:referenceTarget(loadPng(join(REF,"blank-back.png")),maps.back)};
 const sheet=readSheet(xlsx);
 const files=readdirSync(dir).filter(f=>/\.jpe?g$/i.test(f))
   .sort((a,b)=>(parseInt(a.replace(/\D/g,""),10)||0)-(parseInt(b.replace(/\D/g,""),10)||0));
@@ -36,14 +37,13 @@ const files=readdirSync(dir).filter(f=>/\.jpe?g$/i.test(f))
 const cardInk=[];
 for(let i=0;i+1<files.length;i+=2){
   const rows=new Set();
-  for(const [k,side] of [[i,"front"],[i+1,"back"]]){
-    const pg=decodeGray(join(dir,files[k]));
-    const cls=classify(pg);
-    const reg=registerTo(pg,refs[cls.side]);
-    for(const cell of maps[cls.side].cells){
-      const ex=(maps[cls.side].exclusions||[]).some(e=>cell.total.x<e.x+e.width&&cell.total.x+cell.total.width>e.x&&cell.total.y<e.y+e.height&&cell.total.y+cell.total.height>e.y);
+  for(const k of [i,i+1]){
+    const reg=registerBestSide(decodeGray(join(dir,files[k])),targets);
+    if(!reg.trusted)continue; // a page that would not align tells us nothing
+    for(const cell of maps[reg.side].cells){
+      const ex=(maps[reg.side].exclusions||[]).some(e=>cell.total.x<e.x+e.width&&cell.total.x+cell.total.width>e.x&&cell.total.y<e.y+e.height&&cell.total.y+cell.total.height>e.y);
       if(ex)continue;
-      if(inkFraction(cropCell(reg,cell.total))>=INK) rows.add(cell.row);
+      if(inkFraction(cropCell(reg.image,cell.total))>=INK) rows.add(cell.row);
     }
   }
   cardInk.push(rows);
