@@ -61,8 +61,13 @@ jobs:
         # Node job below runs. Look for Python tests specifically, so that
         # directory existing can neither fail this job nor let a missing Python
         # suite pass silently.
+        #
+        # 'tests/*.py' and not 'tests/**/*.py': a git pathspec is not a shell
+        # glob, and its '*' already spans '/', so 'tests/*.py' matches at any
+        # depth while 'tests/**/*.py' demands two separators and therefore skips
+        # tests/test_foo.py -- the one path pyproject.toml's testpaths points at.
         run: |
-          if git ls-files -z 'test_*.py' '*_test.py' 'tests/**/*.py' | grep -qz .; then
+          if git ls-files -z 'tests/*.py' 'test_*.py' '*_test.py' | grep -qz .; then
             pytest
           else
             echo "::warning::No Python tests yet — step skipped."
