@@ -24,22 +24,29 @@ export interface RasterPage {
   /** 1-based page number in the source PDF. */
   pageNumber: number;
   image: GrayImage;
-}
-
-export interface RasterProgress {
-  done: number;
+  /** Pages in the document, known from the first page onward. */
   total: number;
 }
 
+/**
+ * Rasterize a PDF, handing each page to `onPage` as it is rendered.
+ *
+ * A callback rather than an array of pages, which is what this returned until a
+ * 116-page scan was measured at 840MB of browser heap. A letter page at 200 DPI
+ * is 3.7MB of grayscale; accumulating them held 430MB before a single cell had
+ * been cropped, and the caller then held the registered copies as well. Handing
+ * each page over and forgetting it lets the caller keep only what it needs.
+ *
+ * `onPage` may be async; the page is not released until it resolves.
+ */
 export async function rasterizePdf(
   file: File,
-  onProgress?: (p: RasterProgress) => void,
+  onPage: (page: RasterPage) => void | Promise<void>,
   signal?: AbortSignal,
-): Promise<RasterPage[]> {
+): Promise<number> {
   const buffer = await file.arrayBuffer();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
 
-  const pages: RasterPage[] = [];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
@@ -59,21 +66,21 @@ export async function rasterizePdf(
 
       await page.render({ canvasContext: ctx, viewport }).promise;
       const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-      pages.push({
-        pageNumber: n,
-        image: toGray(rgba, canvas.width, canvas.height),
-      });
+      const image = toGray(rgba, canvas.width, canvas.height);
       page.cleanup();
 
-      onProgress?.({ done: n, total: doc.numPages });
+      await onPage({ pageNumber: n, image, total: doc.numPages });
 
       // Yield so the progress bar can paint.
       await new Promise((r) => setTimeout(r, 0));
     }
   } finally {
+    // Release the last canvas backing store rather than leaving a full page of
+    // pixels attached to a detached element.
+    canvas.width = 0;
+    canvas.height = 0;
     await doc.destroy();
   }
 
-  return pages;
+  return doc.numPages;
 }

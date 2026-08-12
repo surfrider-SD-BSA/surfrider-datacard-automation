@@ -1,16 +1,31 @@
 :root {
-  --bg: #fbfaf8;
-  --panel: #fff;
-  --ink: #1c1f24;
-  --muted: #5d646e;
-  --line: #dfe1e5;
-  --accent: #0f6ea8;
-  --warn: #8a5a00;
-  --warn-bg: #fff6e0;
-  --bad: #a32020;
-  --bad-bg: #fdeceb;
-  --ok: #1c6b3c;
+  /*
+   * Dark, and only dark -- no light theme and no prefers-color-scheme switch.
+   *
+   * One exception, and it is deliberate: the scanned crops stay on white.
+   * They are photographs of paper, and the job in front of the reviewer is
+   * reading faint pencil. Inverting or dimming them would cost contrast
+   * exactly where it is scarcest, and would misrepresent what is on the card.
+   * They are framed instead, so they read as pictures rather than glare.
+   */
+  --bg: #14171c;
+  --panel: #1b1f26;
+  --ink: #e7e9ee;
+  --muted: #99a1ae;
+  --line: #2e343e;
+  --accent: #4ea3dc;
+  --accent-ink: #0c1116;
+  --warn: #f0c675;
+  --warn-bg: #2e2517;
+  --warn-line: #4b3d20;
+  --bad: #f19a94;
+  --bad-bg: #2f1c1b;
+  --bad-line: #4d2a28;
+  --ok: #6fce9a;
   --radius: 8px;
+
+  /* Render native controls -- the date picker, number spinners -- dark too. */
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -48,7 +63,7 @@ h3 { font-size: 15px; margin: 0; }
 /* ---------- drop zone ---------- */
 
 #drop {
-  border: 2px dashed #c4c8ce;
+  border: 2px dashed var(--line);
   border-radius: 12px;
   padding: 56px 24px;
   text-align: center;
@@ -56,14 +71,14 @@ h3 { font-size: 15px; margin: 0; }
   cursor: pointer;
   transition: border-color .15s, background .15s;
 }
-#drop.over { border-color: var(--accent); background: #f0f7fc; }
+#drop.over { border-color: var(--accent); background: #1d2733; }
 #drop strong { display: block; font-size: 18px; margin-bottom: 6px; }
 
 /* ---------- progress ---------- */
 
 .bar {
   height: 8px;
-  background: #e9ebee;
+  background: #262c35;
   border-radius: 999px;
   overflow: hidden;
   margin: 14px 0 6px;
@@ -73,8 +88,8 @@ h3 { font-size: 15px; margin: 0; }
 /* ---------- notices ---------- */
 
 .notice { border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; font-size: 14px; }
-.notice.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid #f0dcae; }
-.notice.bad  { background: var(--bad-bg);  color: var(--bad);  border: 1px solid #f3c9c6; }
+.notice.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+.notice.bad  { background: var(--bad-bg);  color: var(--bad);  border: 1px solid var(--bad-line); }
 .notice ul { margin: 6px 0 0; padding-left: 20px; }
 
 /* ---------- metadata form ---------- */
@@ -88,7 +103,8 @@ input[type="text"], input[type="date"], input[type="number"] {
   border: 1px solid var(--line);
   border-radius: 6px;
   font: inherit;
-  background: #fff;
+  background: #11151a;
+  color: var(--ink);
 }
 input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
 
@@ -113,11 +129,12 @@ input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-col
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--panel);
 }
-.cell.tally-only { background: #fffdf5; border-color: #ecdfb8; }
+.cell.tally-only { background: #241f14; border-color: var(--warn-line); }
+/* The scans keep their paper white -- see the note at the top. */
 .cell canvas { display: block; border-radius: 4px; background: #fff; }
-.cell canvas.shot { height: 78px; width: auto; border: 1px solid var(--line); }
+.cell canvas.shot { height: 78px; width: auto; border: 1px solid #3a424e; }
 .cell canvas.marks { margin-top: 6px; max-width: 100%; height: auto; opacity: .95; }
 .cell input { text-align: center; font-size: 17px; font-variant-numeric: tabular-nums; }
 .cell .label { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
@@ -134,10 +151,10 @@ button {
   border-radius: 6px;
   border: 1px solid transparent;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   cursor: pointer;
 }
-button.secondary { background: #fff; color: var(--ink); border-color: var(--line); }
+button.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 button:hover:not(:disabled) { filter: brightness(1.06); }
 

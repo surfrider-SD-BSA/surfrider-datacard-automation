@@ -67,7 +67,8 @@ export interface EventMetadata {
   /** ISO date, e.g. "2025-08-02". */
   date: string;
   shoreline: string;
-  volunteers: number;
+  /** Null when nobody recorded a head count, which is common. */
+  volunteers?: number | null;
   pounds?: number | null;
   durationHours?: number | null;
 }
@@ -119,7 +120,10 @@ export function buildCellEdits(input: ExportInput): Map<string, CellValue> {
     // keeps completed sheets consistent with the ones already on file.
     ["date", { kind: "text", value: chapterDate(event.date) }],
     ["shoreline", { kind: "text", value: event.shoreline }],
-    ["volunteers", { kind: "number", value: event.volunteers }],
+    [
+      "volunteers",
+      event.volunteers == null ? undefined : { kind: "number", value: event.volunteers },
+    ],
     [
       "pounds",
       event.pounds == null ? undefined : { kind: "number", value: event.pounds },

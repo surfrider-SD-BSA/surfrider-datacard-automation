@@ -21,8 +21,11 @@ blocked on inputs that do not exist yet — see **Blockers** below.
 | `src/lib/cells.ts` | **Done.** Loads and validates the measured cell map. |
 | `assets/reference/blank-*.png` | **Done.** Registration template synthesized from real cards. |
 | `assets/reference/cells.*.json` | **Done.** All 83 TOTAL boxes located and verified against the overlay. |
-| `src/lib/pdf.ts`, `register.ts`, `recognize.ts`, `tally.ts` | Not started. |
-| UI (Phase 4) | Not started. |
+| `src/lib/pdf.ts` | **Done.** Rasterizes the PDF at 200 DPI in the browser. |
+| `src/lib/register.ts` | **Done and measured** across six scans from two beaches — see below. |
+| `src/lib/marks.ts` | **Done and measured.** Decides whether a person wrote in a cell, by shape rather than by how much ink is there. Halves the review list. |
+| `src/lib/recognize.ts`, `tally.ts` | Not started. Digit training is unblocked; tallies are untouched. |
+| UI (Phase 4) | **Done.** Drop a PDF, review the crops, download the spreadsheet. |
 
 ---
 
@@ -65,7 +68,7 @@ the writing. Output: `assets/reference/blank-{front,back}.png`.
 
 ### 2. (historical) The first sample was 72 DPI
 
-`assets/reference/sample-card.pdf` is 613x793 px per page and its handwritten
+`scans/sample-card.pdf` is 613x793 px per page and its handwritten
 digits are **7-9 px tall**. Its metadata (`Skia/PDF`, `Mozilla`,
 `"... - Google Docs"`) shows it was produced by opening the file in a browser
 preview and using Print -> Save as PDF, which rasterizes at screen resolution.
@@ -169,6 +172,44 @@ nothing and it helps whichever way this build goes.
 
 
 ---
+
+## Registration
+
+Everything downstream is a constant lookup into the cell map, so the one thing
+that has to be right is where the incoming page sits. A page is deskewed, then
+fitted onto the reference by **a scale and an offset per axis** — not a shift.
+Scans of the same card differ in size by up to 2.5%, which moves the bottom of
+the grid by half a row, and a card can sit 100px+ off where the reference has
+it; neither is reachable by translation.
+
+Two details carry most of the reliability:
+
+- **The fit is judged on the grid, not the page.** The window is the cell map's
+  own extent, opened upward to include the section banner above the first row.
+  Correlating whole pages averages regions that do not move together — on the
+  Imperial Beach scans the grid sits ~105px lower relative to the masthead than
+  on the scan the reference was built from, and a whole-page fit splits the
+  difference and misses by ~50px.
+- **The result is checked against the printed banners.** Banners ink ~90% of a
+  block's width where the densest handwriting reaches ~25%, so their overlap
+  with the template measures placement and ignores how much a volunteer wrote.
+  A page below the threshold is refused and surfaced, never cropped: a
+  misregistered page produces ordinary-looking numbers against the wrong debris
+  items, which is the worst failure this tool can have.
+
+Checking a scan:
+
+```bash
+swift scripts/render-pdf.swift <scan.pdf> out/pages/<name>
+```
+
+```bash
+node scripts/diagnose-registration.mjs out/pages/<name> --overlay 1,2
+```
+
+The overlay draws every TOTAL box on the registered page, red where the tool
+would read a number. The boxes must sit on the boxes. A card with ~20 inked
+cells instead of a handful means the crops have landed on captions and banners.
 
 ## The cell map
 

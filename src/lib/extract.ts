@@ -8,26 +8,33 @@
  * guessed, so nothing can be confidently wrong.
  */
 
-import type { CellMap } from "./cells";
+import type { CellMap, Rect } from "./cells";
 import { inkFraction, type GrayImage } from "./image";
-import type { CardPages } from "./register";
+import { boxMarked, cropGray, stripMarked } from "./marks";
+import type { CardPages, PageForPairing } from "./register";
 import { itemForRow, type CardSide } from "./taxonomy";
 
 /**
- * Ink coverage above which a TOTAL box is treated as written in.
+ * Ink coverage below which a cell is not looked at any harder.
  *
- * A blank box is not perfectly clean: it carries its own printed rules and
- * scanner noise. Measured on the reference card, an empty TOTAL box sits around
- * 0.01-0.02; a single handwritten digit covers 0.05 or more.
+ * This is a cheap gate, not the decision. A cell under it has essentially no
+ * dark pixels at all, so there is nothing for the mark test to find and no
+ * reason to pay for it: the test costs about a millisecond a cell and there are
+ * 4,800 cells on a 58-card event, of which some 730 clear this floor.
  *
- * Set deliberately low. A false positive costs one glance at an empty crop; a
- * false negative silently drops a number the volunteer recorded, which is the
- * failure this tool exists to prevent.
+ * Set deliberately low, and left where it was when the whole decision rested on
+ * it. Nothing below it has ever been seen to hold writing.
  */
-const INK_PRESENT = 0.025;
-
-/** Cells below this are not even offered for review. */
 const INK_NEGLIGIBLE = 0.008;
+
+/**
+ * Paper kept around a cell's crop, in pixels.
+ *
+ * The reviewer is looking at a photograph of handwriting, and a digit flush to
+ * the edge of its picture is harder to read than one with a little room. It
+ * also means a stroke a volunteer ran outside the box is still visible.
+ */
+const CROP_MARGIN = 16;
 
 export interface ExtractedCell {
   row: number;
@@ -42,13 +49,27 @@ export interface ExtractedCell {
   hasValue: boolean;
   /** True when there are tally marks but no numeric total. */
   tallyOnly: boolean;
-  /** Where the TOTAL box is, in reference coordinates. */
-  rect: { x: number; y: number; width: number; height: number };
+  /**
+   * Where the TOTAL box is, in the coordinates of THIS CELL'S `image`.
+   *
+   * Not the registered page's coordinates, which is what these were until the
+   * page stopped being kept -- see `image` below.
+   */
+  rect: Rect;
   /** The tally space for this row, to the right of its printed caption. */
-  tallyRect: { x: number; y: number; width: number; height: number };
-  /** Wider crop including the item label, for context. */
-  contextRect: { x: number; y: number; width: number; height: number };
-  /** The registered page this came from. */
+  tallyRect: Rect;
+  /** The whole row from the tally space to the end of the TOTAL box. */
+  contextRect: Rect;
+  /**
+   * A small crop of the registered page: this row and a margin, nothing else.
+   *
+   * Every cell used to hold a reference to its whole registered page, which
+   * meant a 116-page scan kept 116 full-resolution images alive for as long as
+   * the review list was open -- around 840MB of browser heap, on a tool aimed
+   * at whatever laptop a volunteer has. Nothing downstream ever looked outside
+   * the row, so the row is all that is kept: the same review list costs about
+   * 26MB, and the pages are freed as soon as they are cropped.
+   */
   image: GrayImage;
   pageNumber: number;
 }
@@ -56,7 +77,15 @@ export interface ExtractedCell {
 export interface ExtractedCard {
   cardNumber: number;
   cells: ExtractedCell[];
-  /** Pages that could not be read, so their items are absent entirely. */
+  /**
+   * Sides whose items are absent entirely: the page was not in the scan, or it
+   * could not be aligned with the template.
+   *
+   * A page that failed to align is dropped rather than cropped. Its cells would
+   * be taken from the wrong part of the card, which yields numbers that look
+   * ordinary and are attached to the wrong debris items -- worse than a gap,
+   * because a gap is visible.
+   */
   missingSides: CardSide[];
 }
 
@@ -70,7 +99,37 @@ function excluded(map: CellMap, rect: { x: number; y: number; width: number; hei
   );
 }
 
-function cellsForSide(
+/**
+ * The strip of page a cell's picture is taken from: the row, plus a margin.
+ *
+ * The tally-only view draws the TOTAL box wider than the box itself, so the
+ * right-hand side has to reach past it.
+ */
+function cropRegion(total: Rect, tally: Rect, page: GrayImage): Rect {
+  const left = Math.min(tally.x, total.x) - CROP_MARGIN;
+  const right = total.x + total.width * 1.15 + CROP_MARGIN;
+  const top = Math.min(tally.y, total.y) - CROP_MARGIN;
+  const bottom = Math.max(tally.y + tally.height, total.y + total.height) + CROP_MARGIN;
+
+  const x = Math.max(0, Math.floor(left));
+  const y = Math.max(0, Math.floor(top));
+  return {
+    x,
+    y,
+    width: Math.min(page.width, Math.ceil(right)) - x,
+    height: Math.min(page.height, Math.ceil(bottom)) - y,
+  };
+}
+
+/** Move a rectangle from page coordinates into a crop's own coordinates. */
+const rebase = (r: Rect, origin: Rect): Rect => ({
+  x: r.x - origin.x,
+  y: r.y - origin.y,
+  width: r.width,
+  height: r.height,
+});
+
+export function cellsForSide(
   image: GrayImage,
   pageNumber: number,
   map: CellMap,
@@ -97,8 +156,23 @@ function cellsForSide(
 
     if (ink < INK_NEGLIGIBLE && tallyInk < INK_NEGLIGIBLE) continue;
 
-    const hasValue = ink >= INK_PRESENT;
+    // Whether a person wrote here is a question about shape, not quantity --
+    // see the head of `marks.ts`. Asking it of the ink fraction instead put 450
+    // pictures of printed ruling in front of the reviewer on a 58-card event.
+    //
+    // Both regions are examined for every cell that clears the floor, and the
+    // floor is not applied to them separately. An earlier version gated each
+    // region on its own ink and lost a "7" over it: the box held a faint one at
+    // 0.0074, just under, and the cell only survived the floor at all because
+    // its tally strip did.
+    const hasValue = boxMarked(cropGray(image, cell.total));
+    const tallyOnly = !hasValue && stripMarked(cropGray(image, cell.tally));
+    if (!hasValue && !tallyOnly) continue;
 
+    // Take the row's pixels now and let the page go. Everything the reviewer
+    // is shown comes out of this crop, so nothing else about the page has to
+    // stay in memory once every cell on it has been cut out.
+    const region = cropRegion(cell.total, cell.tally, image);
     out.push({
       row: cell.row,
       itemName: item.name,
@@ -107,18 +181,21 @@ function cellsForSide(
       ink,
       tallyInk,
       hasValue,
-      tallyOnly: !hasValue && tallyInk >= INK_PRESENT,
-      rect: cell.total,
-      tallyRect: cell.tally,
-      // Include the label and the tally run so the reviewer can see which item
-      // it is and sanity-check the number against the marks.
-      contextRect: {
-        x: cell.tally.x,
-        y: Math.min(cell.tally.y, cell.total.y) - 2,
-        width: cell.total.x + cell.total.width - cell.tally.x,
-        height: Math.max(cell.tally.height, cell.total.height) + 4,
-      },
-      image,
+      tallyOnly,
+      rect: rebase(cell.total, region),
+      tallyRect: rebase(cell.tally, region),
+      // The tally run beside the number, so the reviewer can sanity-check one
+      // against the other.
+      contextRect: rebase(
+        {
+          x: cell.tally.x,
+          y: Math.min(cell.tally.y, cell.total.y) - 2,
+          width: cell.total.x + cell.total.width - cell.tally.x,
+          height: Math.max(cell.tally.height, cell.total.height) + 4,
+        },
+        region,
+      ),
+      image: cropGray(image, region),
       pageNumber,
     });
   }
@@ -126,21 +203,55 @@ function cellsForSide(
   return out;
 }
 
-export function extractCard(
-  card: CardPages,
-  maps: { front: CellMap; back: CellMap },
-): ExtractedCard {
+/**
+ * A page already cut into cells, with only what pairing needs kept beside them.
+ *
+ * The registered image is deliberately absent: by the time a card is assembled
+ * the page it came from is gone, and its cells carry their own crops.
+ */
+export interface PageCells extends PageForPairing {
+  cells: ExtractedCell[];
+}
+
+/** Put a card's two sides together, once both have been cut into cells. */
+export function assembleCard(card: CardPages<PageCells>): ExtractedCard {
   const cells: ExtractedCell[] = [];
   const missingSides: CardSide[] = [];
 
-  cells.push(...cellsForSide(card.front.image, card.front.pageNumber, maps.front, "front"));
-
-  if (card.back) {
-    cells.push(...cellsForSide(card.back.image, card.back.pageNumber, maps.back, "back"));
-  } else {
-    missingSides.push("back");
+  for (const side of ["front", "back"] as const) {
+    const page = card[side];
+    if (page?.trusted) cells.push(...page.cells);
+    else missingSides.push(side);
   }
 
   cells.sort((a, b) => a.row - b.row);
   return { cardNumber: card.cardNumber, cells, missingSides };
+}
+
+/**
+ * Register-then-extract in one step, for the offline scripts.
+ *
+ * The browser does not go through here: it cuts each page into cells as the
+ * page is rendered, so that no two full-resolution pages are ever alive at
+ * once. This is the same work in the order that is easier to call.
+ */
+export function extractCard(
+  card: CardPages,
+  maps: { front: CellMap; back: CellMap },
+): ExtractedCard {
+  return assembleCard({
+    cardNumber: card.cardNumber,
+    front: card.front && {
+      ...card.front,
+      cells: card.front.trusted
+        ? cellsForSide(card.front.image, card.front.pageNumber, maps.front, "front")
+        : [],
+    },
+    back: card.back && {
+      ...card.back,
+      cells: card.back.trusted
+        ? cellsForSide(card.back.image, card.back.pageNumber, maps.back, "back")
+        : [],
+    },
+  });
 }

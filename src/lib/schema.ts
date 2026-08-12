@@ -73,14 +73,15 @@ export const card = z
 export type Card = z.infer<typeof card>;
 
 /**
- * Event metadata. The plan's completeness gate lives here: date, shoreline and
- * volunteer count are required to export, everything else is optional because
- * volunteers routinely leave it blank.
+ * Event metadata. The completeness gate lives here: date and shoreline are
+ * required to export, everything else is optional because volunteers routinely
+ * leave it blank -- including the head count, which is written on the leader's
+ * card and often not on any of the others.
  */
 export const eventMetadata = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
   shoreline: z.string().min(1),
-  volunteers: z.number().int().min(1).max(MAX_VOLUNTEERS),
+  volunteers: z.number().int().min(1).max(MAX_VOLUNTEERS).nullable(),
   pounds: z.number().min(0).nullable(),
   durationHours: z.number().min(0).nullable(),
   dataEntryVolunteer: z.string().nullable(),

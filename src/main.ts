@@ -10,16 +10,29 @@
  */
 
 import { loadCellMap, type CellMap } from "./lib/cells";
-import { extractCard, type ExtractedCard, type ExtractedCell } from "./lib/extract";
+import {
+  assembleCard,
+  cellsForSide,
+  type ExtractedCard,
+  type ExtractedCell,
+  type PageCells,
+} from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
 import { rasterizePdf } from "./lib/pdf";
 import {
-  classifyPage,
   pairIntoCards,
-  registerPage,
+  referenceTargets,
+  registerAgainstBestSide,
   type PairingProblem,
-  type RegisteredPage,
 } from "./lib/register";
+import {
+  countValues,
+  createDraftStore,
+  describeAge,
+  draftMatches,
+  type Draft,
+  type DraftFingerprint,
+} from "./lib/draft";
 import { downloadWorkbook, fillTemplate, suggestFilename } from "./lib/xlsx";
 import type { ExtractedCard as ExportCard } from "./lib/xlsx";
 
@@ -36,8 +49,11 @@ interface EventForm {
   club: string;
 }
 
+const drafts = createDraftStore();
+
 const state = {
   fileName: "",
+  fileSize: 0,
   cards: [] as ExtractedCard[],
   problems: [] as PairingProblem[],
   /** cardNumber -> taxonomy row -> typed value */
@@ -101,43 +117,41 @@ function loadReferences() {
 
 async function processFile(file: File) {
   state.fileName = file.name;
+  state.fileSize = file.size;
   renderProgress("Reading the PDF…", 0);
 
   try {
     const refs = await loadReferences();
 
-    const pages = await rasterizePdf(file, ({ done, total }) => {
-      renderProgress(`Rendering page ${done} of ${total}…`, (done / total) * 0.6);
+    const targets = referenceTargets(refs.images, refs.maps);
+
+    // One page at a time, all the way through to its crops.
+    //
+    // The obvious shape -- rasterize every page, then align every page, then
+    // crop -- holds two full-resolution copies of the whole scan at once, and
+    // measured 840MB of browser heap on a 116-page file. Nothing needs two
+    // pages at the same time, so nothing keeps two: each page is rendered,
+    // aligned, cut into cells, and dropped before the next one is read.
+    const pages: PageCells[] = [];
+    const pageCount = await rasterizePdf(file, ({ pageNumber, image, total }) => {
+      const registered = registerAgainstBestSide(image, targets, pageNumber);
+      pages.push({
+        pageNumber,
+        side: registered.side,
+        trusted: registered.trusted,
+        bannerOverlap: registered.bannerOverlap,
+        cells: registered.trusted
+          ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side)
+          : [],
+      });
+      renderProgress(`Reading page ${pageNumber} of ${total}…`, (pageNumber / total) * 0.98);
     });
 
-    if (pages.length === 0) throw new Error("That PDF has no pages.");
+    if (pageCount === 0) throw new Error("That PDF has no pages.");
 
-    const registered: RegisteredPage[] = [];
-    for (const [i, page] of pages.entries()) {
-      const cls = classifyPage(page.image);
-      const reference = cls.side === "front" ? refs.images.front : refs.images.back;
-      const { image, skewDegrees, shift } = registerPage(page.image, reference);
+    const { cards, problems } = pairIntoCards(pages);
 
-      registered.push({
-        pageNumber: page.pageNumber,
-        side: cls.side,
-        image,
-        skewDegrees,
-        shift,
-        classification: { banner: cls.banner, footer: cls.footer, agree: cls.agree },
-      });
-
-      renderProgress(
-        `Aligning page ${i + 1} of ${pages.length}…`,
-        0.6 + ((i + 1) / pages.length) * 0.35,
-      );
-      // Yield so the progress bar paints between pages.
-      await new Promise((r) => setTimeout(r, 0));
-    }
-
-    const { cards, problems } = pairIntoCards(registered);
-
-    state.cards = cards.map((c) => extractCard(c, refs.maps));
+    state.cards = cards.map(assembleCard);
     state.problems = problems;
     state.values = new Map();
 
@@ -148,10 +162,156 @@ async function processFile(file: File) {
 
     renderProgress("Done", 1);
     renderReview();
+    offerDraft();
   } catch (err) {
     renderError(err instanceof Error ? err.message : String(err));
   }
 }
+
+// ---------------------------------------------------------------------------
+// Keeping what has been typed
+// ---------------------------------------------------------------------------
+
+/**
+ * Make the boxes on screen say exactly what we think was typed, and nothing else.
+ *
+ * Browsers put values back into form fields on their own -- Chrome restores
+ * form state across a reload, matching fields by position. This tool creates
+ * its inputs from script, several hundred of them, and the item each one stands
+ * for depends on which PDF was dropped, so a restored value lands against
+ * whatever item happens to sit at that index. It has been seen: three boxes
+ * came back filled after a refresh, against items nobody had typed for.
+ * `autocomplete="off"` does not prevent it; it governs autofill suggestions,
+ * not session restore.
+ *
+ * A restored value also fires `input`, so it writes itself into `state.values`
+ * and would be exported as though a person had read it off the card. That is
+ * precisely the failure this whole tool is built to avoid.
+ *
+ * So the typed values are treated as the only truth: after the list renders,
+ * and again whenever the page comes back from the browser's cache, every box is
+ * set from `state.values` and anything the browser put in is thrown away. The
+ * deferral matters -- the restore happens after the elements are inserted, so
+ * doing this synchronously would run before there was anything to undo.
+ */
+function assertTypedValues() {
+  const intended = new Map([...state.values].map(([card, rows]) => [card, new Map(rows)]));
+
+  const apply = () => {
+    state.values = intended;
+    for (const input of document.querySelectorAll<HTMLInputElement>("input[data-card][data-row]")) {
+      const card = Number(input.dataset.card);
+      const row = Number(input.dataset.row);
+      const value = intended.get(card)?.get(row);
+      const want = value === undefined ? "" : String(value);
+      if (input.value !== want) input.value = want;
+    }
+    updateGate();
+  };
+
+  apply();
+  requestAnimationFrame(apply);
+}
+
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) assertTypedValues();
+});
+
+function fingerprint(): DraftFingerprint {
+  return {
+    fileName: state.fileName,
+    fileSize: state.fileSize,
+    cardCount: state.cards.length,
+    cellCount: state.cards.reduce((n, c) => n + c.cells.length, 0),
+  };
+}
+
+function typedCount(): number {
+  return [...state.values.values()].reduce((n, m) => n + m.size, 0);
+}
+
+let saveTimer: number | undefined;
+
+/**
+ * Write the draft, at most a few times a second.
+ *
+ * Debounced because this runs on every keystroke in every one of several
+ * hundred boxes, and serializing the lot on each one would be felt while
+ * typing. The delay is short enough that anything worth losing is a keystroke,
+ * and `flushDraft` closes the gap when the page is going away.
+ */
+function scheduleSave() {
+  window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(flushDraft, 400);
+}
+
+function flushDraft() {
+  window.clearTimeout(saveTimer);
+  if (state.cards.length === 0) return;
+  drafts.save({
+    ...fingerprint(),
+    savedAt: Date.now(),
+    event: { ...state.event },
+    values: [...state.values].map(([card, rows]) => [card, [...rows]]),
+  });
+}
+
+/**
+ * Offer a draft for this file, if there is one. Never applies it unasked.
+ */
+function offerDraft() {
+  const draft = drafts.load();
+  if (!draft || !draftMatches(draft, fingerprint())) return;
+  const values = countValues(draft);
+  if (values === 0) return;
+
+  const banner = document.createElement("div");
+  banner.className = "notice warn";
+  banner.innerHTML = `
+    <strong>Work saved on this computer ${escapeHtml(describeAge(draft.savedAt))}.</strong>
+    ${values} value${values === 1 ? "" : "s"} were typed for this file. Nothing has
+    been put in the boxes below unless you ask for it.
+    <div class="actions" style="margin-top:10px">
+      <button id="draft-restore">Put them back</button>
+      <button class="secondary" id="draft-discard">Start fresh</button>
+    </div>`;
+  app.prepend(banner);
+
+  document.getElementById("draft-restore")!.addEventListener("click", () => {
+    restoreDraft(draft);
+    banner.remove();
+  });
+  document.getElementById("draft-discard")!.addEventListener("click", () => {
+    drafts.clear();
+    banner.remove();
+  });
+}
+
+function restoreDraft(draft: Draft) {
+  state.values = new Map(draft.values.map(([card, rows]) => [card, new Map(rows)]));
+  for (const key of Object.keys(state.event) as (keyof EventForm)[]) {
+    const saved = draft.event[key];
+    if (typeof saved === "string") state.event[key] = saved;
+  }
+  renderReview();
+  setStatus(`${state.fileName} — ${countValues(draft)} values restored.`);
+}
+
+/**
+ * A last chance before the tab goes.
+ *
+ * The draft makes this recoverable rather than fatal, but a reviewer who
+ * fat-fingers Cmd-W two hours in should be asked first. Browsers ignore the
+ * message and show their own wording; returning a value is what triggers it.
+ */
+window.addEventListener("beforeunload", (e) => {
+  if (typedCount() === 0) return;
+  flushDraft();
+  e.preventDefault();
+  e.returnValue = "";
+});
+
+// ---------------------------------------------------------------------------
 
 function seedEventFromFilename(name: string) {
   const m = /^(\d{1,2})\.(\d{1,2})\.(\d{2,4})[_-](.+?)(?:[_-]CH\d+)?\.pdf$/i.exec(name);
@@ -232,7 +392,7 @@ function renderReview() {
       <div class="grid-form" style="margin-top:14px">
         ${field("date", "Date", "date")}
         ${field("shoreline", "Beach", "text")}
-        ${field("volunteers", "Volunteers", "number")}
+        ${field("volunteers", "Volunteers", "number", true)}
         ${field("pounds", "Pounds of trash", "number", true)}
         ${field("durationHours", "Duration (hours)", "number", true)}
         ${field("dataEntryVolunteer", "Your name", "text", true)}
@@ -270,18 +430,27 @@ function renderReview() {
     el?.addEventListener("input", () => {
       state.event[key] = el.value;
       updateGate();
+      scheduleSave();
     });
   }
 
   document.getElementById("export")!.addEventListener("click", () => void doExport());
   document.getElementById("restart")!.addEventListener("click", () => {
+    if (typedCount() > 0 && !confirm("Discard the numbers typed so far and start over?")) return;
+    drafts.clear();
     state.cards = [];
     state.values = new Map();
     renderUpload();
   });
 
+  assertTypedValues();
   updateGate();
-  setStatus(`${state.fileName} — nothing has been uploaded anywhere.`);
+  setStatus(
+    `${state.fileName} — nothing has been uploaded anywhere.` +
+      // If the browser will not store anything, say so rather than letting
+      // someone type for an hour believing it is being kept.
+      (drafts.available ? "" : " This browser will not save your work — do not close the tab."),
+  );
 }
 
 function field(key: keyof EventForm, label: string, type: string, optional = false) {
@@ -384,7 +553,13 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   // back into a box that is now a different item -- observed during testing,
   // where three cells came back pre-filled after a refresh. Silently wrong
   // numbers are the one outcome this tool must not produce.
+  //
+  // This alone does NOT stop it: `autocomplete` governs autofill suggestions,
+  // not session restore. `assertTypedValues` is what actually undoes it, and
+  // the two data attributes are how it knows which item each box belongs to.
   input.autocomplete = "off";
+  input.dataset.card = String(cardNumber);
+  input.dataset.row = String(cell.row);
   input.setAttribute("aria-label", `${cell.itemName} count`);
   input.addEventListener("input", () => {
     const map = state.values.get(cardNumber) ?? new Map<number, number>();
@@ -393,6 +568,7 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
     else map.delete(cell.row);
     state.values.set(cardNumber, map);
     updateGate();
+    scheduleSave();
   });
   row.appendChild(input);
 
@@ -430,9 +606,6 @@ function gateProblems(): string[] {
   const problems: string[] = [];
   if (!state.event.date) problems.push("date");
   if (!state.event.shoreline.trim()) problems.push("beach");
-  if (!Number.isFinite(Number(state.event.volunteers)) || Number(state.event.volunteers) < 1) {
-    problems.push("volunteer count");
-  }
   return problems;
 }
 
@@ -464,7 +637,7 @@ async function doExport() {
       event: {
         date: state.event.date,
         shoreline: state.event.shoreline.trim(),
-        volunteers: Number(state.event.volunteers),
+        volunteers: state.event.volunteers ? Number(state.event.volunteers) : null,
         pounds: state.event.pounds ? Number(state.event.pounds) : null,
         durationHours: state.event.durationHours ? Number(state.event.durationHours) : null,
         dataEntryVolunteer: state.event.dataEntryVolunteer.trim() || null,

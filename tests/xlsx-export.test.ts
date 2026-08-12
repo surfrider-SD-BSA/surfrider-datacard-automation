@@ -100,6 +100,16 @@ describe("buildCellEdits", () => {
     expect(edits.get("A14")).toEqual({ kind: "text", value: "2 hours" });
   });
 
+  it("leaves the head count out when nobody recorded one", () => {
+    // The volunteer count is written on the leader's card and often on no
+    // other, so requiring it would block an export over a number that is not
+    // on the paper. A6 and A8 still have to be there; A10 simply is not.
+    const edits = buildCellEdits({ ...baseInput, event: { ...baseInput.event, volunteers: null } });
+    expect(edits.has("A10")).toBe(false);
+    expect(edits.get("A6")).toEqual({ kind: "text", value: "8.2.25" });
+    expect(edits.get("A8")).toEqual({ kind: "text", value: "Ocean Beach" });
+  });
+
   it("does not write header values into column B at all", () => {
     const edits = buildCellEdits(baseInput);
     for (let row = 1; row <= 16; row++) expect(edits.has(`B${row}`)).toBe(false);
