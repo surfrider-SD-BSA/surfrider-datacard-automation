@@ -1,0 +1,33 @@
+{
+  "name": "surfrider-datacard-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser-only extraction of Surfrider beach cleanup data cards into the chapter's Excel template. No server, no accounts, no API keys.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/check-dist.mjs",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "gen:taxonomy": "python3 scripts/gen_taxonomy.py",
+    "validate:xlsx": "python3 scripts/validate_xlsx.py",
+    "check:dist": "node scripts/check-dist.mjs",
+    "diagnose:review": "node scripts/diagnose-review.mjs",
+    "run:shipping-path": "vite-node scripts/run-shipping-path.mjs --"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "onnxruntime-web": "^1.21.0",
+    "pdfjs-dist": "^4.10.38",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11",
+    "vitest": "^3.0.5"
+  }
+}
