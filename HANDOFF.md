@@ -310,22 +310,101 @@ gives it a confidence of 0.17 to match -- which leaves it below the pre-fill
 gate. Raising `splitConfidence` is a one-line change if the chapter decides a
 one-in-six hit rate is worth the typing it saves.
 
+## What it would take to get a volunteer down to 20 numbers
+
+The chapter's goal is a reviewer typing almost nothing. It is worth setting out
+what stands between here and there, because the effort so far has gone into the
+smaller half of the problem.
+
+On the 58-card test scan the review list is 453 cells, about 329 of which hold
+something a volunteer wrote. Of the 453:
+
+```
+  cells with a number written in the TOTAL box     387
+  cells with tally marks and no number              66
+```
+
+**So counting tallies can only ever touch a fifth of it.** Everything else is a
+handwritten number, and reading those is the 84%-precision problem this file has
+described from the start. Leaving 20 for a person means the tool correctly
+filling roughly 309 of 329 -- 94% coverage at essentially perfect precision --
+and almost all of that has to come from the digits.
+
+### Segmentation is the bottleneck, not the classifier. This is new, and measured
+
+`scripts/diagnose-segmentation.mjs` asks a question nobody had asked
+separately: how often is the number CUT into the right number of digits at all?
+On 1.18 Imperial Beach, over 327 written cells with a value in the sheet:
+
+```
+  cut into the right number of digits    72.8%
+  too many pieces                        45
+  too few                                18
+  none found at all                      26
+```
+
+**A perfect classifier would therefore still be wrong on a quarter of cells**,
+because "2" and "21" are different numbers of debris and no amount of confidence
+in each piece fixes having the wrong number of pieces. Gating on classifier
+confidence cannot catch it either: the model is perfectly confident about each
+of the two digits it was handed.
+
+This also means every accuracy figure quoted for the recognizer is conditional.
+`label-from-spreadsheet.mjs` only emits a cell when segmentation already found
+as many boxes as the sheet's number has digits, so 66.3% per digit and 83.5% of
+whole cells are both measured on the subset where this step had ALREADY
+succeeded. End to end the whole-cell figure is bounded by roughly 0.73 times
+that.
+
+Rendered and looked at, the failures fall into a few kinds, and none of them is
+mysterious:
+
+- two-digit numbers whose digits touch -- "20" written with the nought joined to
+  the two -- cut into one piece or three
+- a digit written in two strokes, a 5 with a detached bar, taken as two digits
+- the printed border of the box arriving as a component when the number is
+  written over it
+- numbers written in the tally space rather than the box, so the box holds
+  marks and the strip holds the number
+
+**Fixing the cutting is worth more than any classifier work, and it is ordinary
+geometry rather than recognition** -- which is the same reason the tally counter
+was worth doing. That is where the next session should go.
+
+### The toolchain everyone assumed was absent
+
+Both of these install on this machine in about a minute with
+`pip install --target`, and the note in `train-digits.mjs` saying otherwise is
+wrong:
+
+```
+  scikit-learn 1.6.1     tried; an MLP with augmentation does not beat
+                         nearest neighbour at the gate (81.5% against 84.2%)
+  torch 2.8.0            installs cleanly. A real convolutional net is
+                         untried, and is the honest next attempt AFTER the
+                         cutting is fixed -- not before, because a better
+                         classifier cannot read a digit that was never cut out.
+```
+
 ## What to do next
 
 The shortest list of what is worth doing, in order:
 
-1. **Tallies that continue onto the next row** -- see "Counting the tallies"
+1. **Digit SEGMENTATION**, measured at 72.8% and capping everything downstream.
+   The largest single lever on how much a volunteer has to type, and it is
+   geometry rather than recognition. See "What it would take" above.
+2. **Tallies that continue onto the next row** -- see "Counting the tallies"
    above. Now the dominant error in the counter and the thing standing between
    it and the counts above five, which is where most of the volume is.
-2. **The 131 cells the review list still offers with nothing in them** -- see
+3. **The 131 cells the review list still offers with nothing in them** -- see
    "What is still on the list that should not be" below. Another quarter of a
    reviewer's time, and the remaining noise is a different kind from the ruling
    that has been dealt with.
-3. **Memory**, under "Also outstanding". A 114-page scan peaks near 840MB
+4. **Memory**, under "Also outstanding". A 114-page scan peaks near 840MB
    because every page is kept at full resolution; cropping and discarding would
    make it a few MB. This is the thing most likely to make the tool fail on
    somebody else's laptop.
-4. ~~**Counting tallies.**~~ Built; see above.
+5. ~~**Counting tallies.**~~ Built; see above.
 
 Digit recognition is NOT on that list, for the reasons immediately below.
 
