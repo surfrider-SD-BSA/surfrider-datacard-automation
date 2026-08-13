@@ -819,7 +819,7 @@ function prepare(img: MarkImage, options: Partial<TallyOptions & MarkOptions> & 
   // so the border survives and is counted as a stroke. Leaving both in costs
   // nothing, because a couple of extra rows cannot lift handwriting to full
   // height.
-  const whole = inkMask(options.context ?? img, { wallEdge: 0, ruleFrac: 2, ...options });
+  const whole = inkMask(options.context ?? img, { wallFrac: 2, ruleFrac: 2, ...options });
   const rules = verticalRules(whole.mask, whole.width, whole.height, o);
 
   // Does the tally run out of the crop? Asked on the untrimmed strip, because
@@ -834,19 +834,26 @@ function prepare(img: MarkImage, options: Partial<TallyOptions & MarkOptions> & 
   // above and below, whose tallies commonly start at the far left, which is the
   // very thing `insetRows` exists to keep out.
   const band = insetRows(img, o.rowInset);
-  const clipped = touchesSide(inkMask(band, { wallEdge: 0, ...options }), rules, o);
+  const clipped = touchesSide(inkMask(band, { wallFrac: 2, ...options }), rules, o);
 
   const trimmed = insetColumns(band, o.insetLeft, o.insetRight);
 
   // The wall test is switched off for a tally strip, and this is the one place
-  // in the project where that is right. It exists because a handwritten "1" in
+  // in the project where that is right.
+  //
+  // Switched off with `wallFrac: 2` -- a column would have to be more than
+  // fully inked to qualify -- and NOT with `wallEdge: 0`, which is the obvious
+  // way to write it and does not work: `marks.ts` floors the edge at two
+  // columns, so a stroke landing within two pixels of the side after trimming
+  // was still struck out, and it took up to six columns with it. That is how a
+  // tally of two came to be pre-filled into a reviewer's box as a one. It exists because a handwritten "1" in
   // a TOTAL box has the column profile of the box's own border, and what
   // separates them is that the border is at the edge and a volunteer writes
   // inside it. A tally strip is the opposite: it has no border inside the crop,
   // and the first stroke of a tally is written hard against the left edge.
   // Leaving the test on struck those strokes out -- three of them on one card
   // of 1.18 Imperial Beach, turning a tally of three into a tally of two.
-  const { mask, width, height } = inkMask(trimmed, { wallEdge: 0, ...options });
+  const { mask, width, height } = inkMask(trimmed, { wallFrac: 2, ...options });
   for (const x of rules) {
     const tx = x - o.insetLeft;
     if (tx >= 0 && tx < width) for (let y = 0; y < height; y++) mask[y * width + tx] = 0;

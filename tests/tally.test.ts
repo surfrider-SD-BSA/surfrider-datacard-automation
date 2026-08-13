@@ -195,6 +195,31 @@ describe("countTally", () => {
     });
   });
 
+  it("counts a stroke written hard against the left edge", () => {
+    // The mark test strikes thin dark columns near the edge of a crop, which is
+    // right for a TOTAL box -- the border is at the edge, a volunteer writes
+    // inside it -- and wrong for a tally strip, where the first stroke of a
+    // tally is written against the side.
+    //
+    // Found by clicking through the built app: BOTH cells it pre-filled on a
+    // real scan were short by exactly this stroke, and both reported their ink
+    // fully accounted for, because the evidence had been struck out before it
+    // was counted.
+    // A broad stroke spanning columns 4-9, as on the card this was found on.
+    const img = blank();
+    for (const dx of [0, 1, 2]) stroke(img, 5 + dx, 12, 5 + dx, 46);
+    stroke(img, 30, 12, 28, 46);
+    expect(count(img).count).toBe(2);
+
+    // Written out because the failure was silent and confident, which is the
+    // combination that matters: with the wall test left half-on, the same strip
+    // reads as ONE stroke, reports every pixel of ink accounted for, and scores
+    // highly enough to be typed into a reviewer's box.
+    const halfOn = count(img, { wallFrac: 0.5, wallEdge: 0 });
+    expect(halfOn.count).toBe(1);
+    expect(halfOn.explained).toBe(1);
+  });
+
   it("puts a stroke broken in the middle back together", () => {
     // A pencil lifts off the paper. Left alone the two halves are two strokes,
     // and a tally of three reads as a tally of four.

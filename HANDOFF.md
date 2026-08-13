@@ -649,17 +649,38 @@ same classic worker, the same syntax error.
 This was present before the tally work and is not a regression from it; verified
 by stashing those changes, rebuilding, and reproducing it.
 
-**Still open: `page.render()` does not resolve in the in-app browser pane.**
-With the worker fixed the document opens -- `getDocument` resolves and reports
-its page count -- and then rendering page 1 onto a 1700x2200 canvas never comes
-back. No error, no rejection; the promise simply never settles.
+**Not a bug: `page.render()` appearing to hang under automation.** With the
+worker fixed the document opened and then rendering never came back -- no error,
+no rejection, the promise simply never settled, at every canvas size down to
+306x396. The cause is that the automated browser pane runs its tab HIDDEN:
+`document.visibilityState` is `"hidden"` and `requestAnimationFrame` never
+fires, and pdf.js drives rendering through rAF. Fronting the tab made it
+resolve immediately, one page per screenshot.
 
-What is NOT known is whether this affects a real Chrome. It was only ever
-reproduced inside the automated browser pane, which may not back a canvas of
-that size the way a desktop browser does. **Before anything else, open `dist/`
-in an ordinary browser and drop a card in.** If it renders, this is an artefact
-of the test environment and the built bundle is fine; if it hangs, it is the
-next thing to fix and nothing else matters until it is.
+So there is nothing to fix in the app. Anything driving this tool from a hidden
+or background tab needs `window.requestAnimationFrame = (cb) => setTimeout(cb, 0)`
+as a harness shim; a person with the page in front of them needs nothing.
+
+Worth knowing before spending an afternoon on it, because every symptom points
+at the PDF pipeline and none of them is the PDF pipeline.
+
+### What clicking through the built bundle actually found
+
+The click-through was not ceremony. Both cells the tool pre-filled on the 10.1
+Ocean Beach scan were WRONG, each short by the one stroke written hard against
+the left edge of the strip, and both reported their ink fully accounted for.
+
+The cause: `countTally` disabled the mark test's wall rule with `wallEdge: 0`,
+which is the obvious way to write it and does not work. `marks.ts` floors the
+edge at two columns, so a stroke landing within two pixels of the side after
+trimming was struck out anyway -- and took up to six columns with it. Disabling
+it properly needs `wallFrac: 2`, a bar no column can clear.
+
+That one line is the difference between a reviewer being handed 1 and being
+handed 2. Nothing else caught it: the offline diagnostics agreed with the
+browser, the spreadsheet score moved by less than a point, and all 111 tests
+passed throughout. It was found by rendering the two cells that reached the
+screen and counting the strokes by eye.
 
 ## Also outstanding
 
