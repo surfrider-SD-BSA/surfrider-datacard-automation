@@ -224,6 +224,37 @@ pre-filled box is marked in the list and exported as `recognized` rather than
 Set it to 0.95 to pre-fill only single strokes -- the one shape measured above
 95%. Set it to 1.1 to turn pre-filling off and leave the tool as it was.
 
+### Where the coverage goes, and one repair that did not work
+
+Of 249 marked strips on the test scan the counter answers 49. The declines:
+
+```
+  80  runs off the strip        45  strokes not parallel
+  37  unexplained ink           15  no strokes
+   9  too dense                  7  no ink
+   6  ragged groups              1  no common baseline
+```
+
+The clipped-tally test is the largest single cost, so it was worth attacking.
+Rendered, those 80 are a mix: numbers written in the strip, the word "(string)",
+a volunteer's "Waterboard", dense multi-row messes -- all correctly refused --
+and a real minority of clean countable tallies whose first stroke simply sits
+against the left edge of the crop.
+
+**Restricting the test to the right edge looked obviously correct and bought
+almost nothing.** The argument is sound -- a tally is written left to right so
+it runs out of room on the right, while the left edge is just where the printed
+caption ends and writing begins -- and the measurement did not agree: answered
+went from 49 to 52 out of 249. The strips it released were then declined for
+`strokes not parallel` (45 to 77) and `unexplained ink` (37 to 44) instead,
+which says the left-edge ink really was a cut stroke rather than a whole one.
+Three cells is not worth removing a guard in a tool whose entire design is about
+not being confidently wrong, so it was reverted.
+
+If someone wants that coverage, the thing to separate is a COMPLETE first stroke
+sitting at the edge from a stroke CUT BY the edge. Ink position alone cannot do
+it; stroke width and height against the strip's own typical stroke probably can.
+
 ### Where the next work should go
 
 **Tallies that carry on onto the next row.** This is now the dominant error and
