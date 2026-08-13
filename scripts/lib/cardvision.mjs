@@ -639,6 +639,29 @@ function components(mask, width, height, minPixels = 12) {
  * detached top bar, or a dotted stroke, arrives as two components but is one
  * digit.
  */
+/**
+ * Splitting a wide component into two digits was tried and made things worse.
+ *
+ * "20" written with the nought joined to the two is one component, and cutting
+ * it at the emptiest column in the middle is the obvious repair. Measured on
+ * 1.18 Imperial Beach it took the cells cut into too many pieces from 45 to 65
+ * and the total from 72.8% to 68.5%: single digits are wider than tall often
+ * enough -- a 4, a 7 with a bar, anything written in a hurry -- that the rule
+ * cuts more real digits than joined pairs. Whatever fixes touching digits has
+ * to recognise the join, not just the width.
+ */
+
+/**
+ * A gap this small, as a share of digit height, is a break in one digit rather
+ * than the space between two. Volunteers lift the pen mid-digit constantly.
+ *
+ * Swept against the sheets rather than picked. It trades one failure for the
+ * other -- join more eagerly and cells cut into too MANY pieces fall from 45 to
+ * 18 while cells cut into too few climb from 18 to 38 -- and this sits at the
+ * bottom of that curve.
+ */
+const FRAGMENT_GAP = 0.18;
+
 function segmentDigits(img) {
   const mask = inkMask(img);
   if (!mask.some((v) => v)) return [];
@@ -667,13 +690,26 @@ function segmentDigits(img) {
 
   boxes.sort((a, b) => a.minX - b.minX);
 
+  // Put the pieces of one digit back together.
+  //
+  // Overlap in x is not enough on its own, and the cases it misses are ordinary:
+  // a nought closed badly leaves two arcs side by side, a 5 is drawn as a bar
+  // and a bowl. Those sit ADJACENT rather than on top of each other, so they are
+  // joined on a small gap instead -- but only when what comes out is still
+  // shaped like a digit, which is what stops two real digits being welded into
+  // one.
   const merged = [];
   for (const b of boxes) {
     const prev = merged[merged.length - 1];
     if (prev) {
       const overlap = Math.min(prev.maxX, b.maxX) - Math.max(prev.minX, b.minX);
       const narrower = Math.min(prev.maxX - prev.minX, b.maxX - b.minX) + 1;
-      if (overlap > narrower * 0.5) {
+      const gap = b.minX - prev.maxX - 1;
+      const height = Math.max(prev.maxY, b.maxY) - Math.min(prev.minY, b.minY) + 1;
+      const joinedWidth = Math.max(prev.maxX, b.maxX) - Math.min(prev.minX, b.minX) + 1;
+      const adjacent = gap <= height * FRAGMENT_GAP && joinedWidth <= height * 1.05;
+
+      if (overlap > narrower * 0.5 || adjacent) {
         prev.minX = Math.min(prev.minX, b.minX);
         prev.maxX = Math.max(prev.maxX, b.maxX);
         prev.minY = Math.min(prev.minY, b.minY);
@@ -684,8 +720,10 @@ function segmentDigits(img) {
     }
     merged.push({ ...b });
   }
+
   return merged;
 }
+
 
 /**
  * Normalize a digit box to a 28x28 bitmap: scaled to fit 20x20 and centred by

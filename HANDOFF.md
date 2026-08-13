@@ -369,7 +369,40 @@ mysterious:
 
 **Fixing the cutting is worth more than any classifier work, and it is ordinary
 geometry rather than recognition** -- which is the same reason the tally counter
-was worth doing. That is where the next session should go.
+was worth doing.
+
+A first pass at it: joining the pieces of a digit on a small GAP as well as on
+overlap in x. A nought closed badly leaves two arcs side by side and a 5 is
+drawn as a bar and a bowl; those sit adjacent rather than on top of each other,
+so the overlap rule missed them. Measured:
+
+```
+                     1.18 Imperial   3.22 Pacific   8.23 Seaport
+  before                 72.8%           --             --
+  after                  75.8%          74.7%          81.5%
+```
+
+The threshold trades one failure for the other -- join more eagerly and cells
+cut into too MANY pieces fall from 45 to 18 while cells cut into too few climb
+from 18 to 38 -- and it is set at the bottom of that curve.
+
+**Splitting a wide component into two digits was tried and made it worse**: 45
+cells cut into too many became 65, and the total fell to 68.5%. Single digits
+are wider than tall often enough that a width rule cuts more real digits than
+joined pairs. Whatever fixes touching digits has to recognise the JOIN, not the
+width.
+
+**The 26 cells where nothing is found at all are not faint pencil.** Dropping
+the ink threshold from 25 to 10 changes the figure by nothing, so it is the
+shape filters rejecting real writing, or cells that are blank on the card with a
+value in the sheet. That is the next thing to look at, and it is worth 8 points
+on its own.
+
+**Regenerate the training set after any change here.**
+`label-from-spreadsheet.mjs` only emits a cell when segmentation found as many
+boxes as the sheet's number has digits, so better cutting means more labelled
+digits -- which has not been done for the improvement above and is the cheapest
+remaining gain on the classifier.
 
 ### The toolchain everyone assumed was absent
 
