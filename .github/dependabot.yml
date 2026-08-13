@@ -1,11 +1,20 @@
 version: 2
 
+# Security updates only. Version-update PRs are switched off below
+# (open-pull-requests-limit: 0) because they cost more than they bought: of the
+# first eight PRs merged to main, four were version bumps and two more were
+# fixing their fallout, against zero vulnerabilities prevented. Dependabot
+# ALERTS and SECURITY updates stay on (they are repository settings, not
+# configured here — see docs/repo-setup.md), so a real advisory still opens a
+# PR. The entries below are kept because their labels, commit prefixes and
+# ignore rules also apply to those security PRs.
 updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
       interval: monthly
-    open-pull-requests-limit: 5
+    # 0 = no version-update PRs; security updates are unaffected by this limit.
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: scope
@@ -30,7 +39,8 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-    open-pull-requests-limit: 5
+    # 0 = no version-update PRs; security updates are unaffected by this limit.
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "ci"
       include: scope

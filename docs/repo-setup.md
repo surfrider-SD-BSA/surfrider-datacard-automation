@@ -197,10 +197,9 @@ Under the status checks rule: require branches to be up to date **on**, then add
 ```
 Lint (ruff)
 Test (Python 3.9)
-Test (Python 3.11)
-Test (Python 3.13)
 Shell (shellcheck)
 No volunteer data
+Browser tool (typecheck, tests, build)
 ```
 
 > **A check has to run before you can require it.** GitHub only offers status checks it has seen.
@@ -241,10 +240,9 @@ gh api -X POST "repos/$REPO/rulesets" --input - <<'JSON'
         "required_status_checks": [
           { "context": "Lint (ruff)" },
           { "context": "Test (Python 3.9)" },
-          { "context": "Test (Python 3.11)" },
-          { "context": "Test (Python 3.13)" },
           { "context": "Shell (shellcheck)" },
-          { "context": "No volunteer data" }
+          { "context": "No volunteer data" },
+          { "context": "Browser tool (typecheck, tests, build)" }
         ]
       }
     }
@@ -272,10 +270,9 @@ gh api -X PUT "repos/$REPO/branches/main/protection" --input - <<'JSON'
     "contexts": [
       "Lint (ruff)",
       "Test (Python 3.9)",
-      "Test (Python 3.11)",
-      "Test (Python 3.13)",
       "Shell (shellcheck)",
-      "No volunteer data"
+      "No volunteer data",
+      "Browser tool (typecheck, tests, build)"
     ]
   },
   "enforce_admins": true,
