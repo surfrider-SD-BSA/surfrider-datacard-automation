@@ -272,18 +272,31 @@ export interface TallyOptions {
    * tally strip, where the first stroke is written hard against the left edge
    * and was being struck out as the wall.
    *
-   * What separates them without reference to position: a printed rule runs down
-   * the PAGE, so it carries on through the rows above and below, and a pen
-   * stroke stops at its own row. That is why this is measured on `context` --
-   * the same columns taken over a taller slice of the page -- rather than on
-   * the strip. Measured on the strip alone it cannot be done at all: a
-   * volunteer who writes one tall upright stroke produces a column indis-
-   * tinguishable from a rule, and three real strokes were struck out that way
-   * on 1.18 Imperial Beach before the context was passed in.
+   * What separates them without reference to position: a printed rule appears in
+   * the rows ABOVE AND BELOW this one as well, at the same column, and a pen
+   * stroke exists only in its own row. That is why this is measured on
+   * `context` -- the same columns over a taller slice of the page -- rather
+   * than on the strip. On the strip alone it cannot be done: a volunteer who
+   * writes one tall upright stroke produces a column indistinguishable from a
+   * rule, and three real strokes were struck out that way on 1.18 Imperial
+   * Beach before the context was passed in.
+   *
+   * Note it asks whether the column is inked ABOVE OR BELOW the row, not
+   * whether it is inked continuously, and not both sides. An earlier version demanded a single unbroken run down
+   * the whole context and let three borders through, because on some cards the
+   * vertical rules are dotted and stop dead at each horizontal rule -- so a
+   * perfectly ordinary printed border never spans anything. Reading all 44
+   * pre-fills by eye is what turned that up; the borders it missed were counted
+   * as strokes at the top confidence the tool issues. Requiring BOTH sides was
+   * the next attempt and also failed -- the rule on that card runs above the row
+   * and stops before the one below -- so either side alone is taken as proof
+   * that the mark is not confined to this row, which is all that is being asked.
    */
   ruleCoverage: number;
   /** ...and how many columns wide such a rule may be. */
   ruleWidth: number;
+  /** Share of the context, top and bottom, that belongs to the other rows. */
+  ruleMargin: number;
   /** Columns blanked either side of one, to take its anti-aliased fringe too. */
   ruleFringe: number;
   /** Ink pixels against a side before the tally counts as running off it. */
@@ -336,7 +349,8 @@ export const TALLY_DEFAULTS: TallyOptions = {
   rowInset: 0.17,
   insetRight: 3,
   insetLeft: 3,
-  ruleCoverage: 0.97,
+  ruleCoverage: 0.55,
+  ruleMargin: 0.2,
   ruleWidth: 6,
   ruleFringe: 2,
   edgeInk: 6,
@@ -648,11 +662,18 @@ function verticalRules(
   height: number,
   o: TallyOptions,
 ): Set<number> {
+  // The row's own band sits in the middle of the context; what is above and
+  // below it belongs to the neighbouring rows.
+  const margin = Math.round(height * o.ruleMargin);
+  const inked = (x: number, from: number, to: number) => {
+    let n = 0;
+    for (let y = from; y < to; y++) n += mask[y * width + x]!;
+    return n >= (to - from) * o.ruleCoverage;
+  };
+
   const full: boolean[] = [];
   for (let x = 0; x < width; x++) {
-    let n = 0;
-    for (let y = 0; y < height; y++) n += mask[y * width + x]!;
-    full.push(n >= height * o.ruleCoverage);
+    full.push(inked(x, 0, margin) || inked(x, height - margin, height));
   }
 
   const out = new Set<number>();

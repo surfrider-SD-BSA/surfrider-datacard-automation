@@ -235,7 +235,21 @@ refused. Everything else about the counter is measured and works; this is the
 one thing between it and being useful. Put the gate back to 0.80 when that is
 fixed.
 
-**One attempted fix, tried and reverted.** The obvious repair is to lower the
+**Fixed, at a cost.** Rendering the context crop answered it: the border on that
+card is a DOTTED vertical rule that stops dead at each horizontal row rule, so it
+never spans anything and no continuity test can see it. What does see it is
+asking whether the column is inked ABOVE OR BELOW the row band at all -- a
+printed rule appears in the neighbouring rows, a volunteer's stroke does not.
+Both known-bad cells are now refused.
+
+The cost is coverage: answers on the test scan fall from 49 to 34, because
+tallies in adjacent rows sit at similar columns, so the test also catches some
+genuine strokes. That trade is right while precision is the priority and
+pre-filling is off, and it is the first thing to revisit when turning pre-fill
+back on -- the test could be narrowed to columns whose ink above and below is
+STRAIGHT and at the same angle, which a stacked tally's strokes are not.
+
+**An earlier attempted fix, tried and reverted.** The obvious repair is to lower the
 rule bar near the sides -- `verticalRules` demands a column run the whole height
 of the context, and a border that fades or is broken where a row rule crosses it
 will not clear that. Measured: both known-bad cells still counted their border,
