@@ -178,14 +178,17 @@ strips the mark test offers -- 772 answers, 438 of which have a value in a
 sheet:
 
 ```
-  count 1, all ink accounted for      44   95.5%
-  count 4, all ink accounted for      62   87.1%
-  count 2, all ink accounted for     119   80.7%
-  count 3, all ink accounted for     106   75.5%
-  count 5-9, all ink accounted for    43   74.4%
+  count 1, all ink accounted for      42   97.6%
+  count 4, all ink accounted for      61   86.9%
+  count 2, all ink accounted for     116   82.8%
+  count 3, all ink accounted for     105   77.1%
+  count 5-9, all ink accounted for    42   73.8%
   count 10+, all ink accounted for     7   85.7%
-  anything with ink left over         53   54-85%
+  anything with ink left over         48   50-86%
 ```
+
+750 answers over 27 scans, 425 of them on a cell the chapter typed a value for;
+81.4% agreement overall.
 
 **These are lower bounds, not precisions**, for the same reason every other
 spreadsheet-scored figure in this file is: a value in a sheet is not proof of

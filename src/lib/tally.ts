@@ -110,13 +110,13 @@ const DECLINE = (reason: string, extra: Partial<TallyReading> = {}): TallyReadin
  * cases where the sheet is wrong and the counter is right -- but they are the
  * only figures measured at a scale where a precision claim means anything.
  *
- *     count 1, all ink accounted for      44   95.5%
- *     count 4, all ink accounted for      62   87.1%
- *     count 2, all ink accounted for     119   80.7%
- *     count 3, all ink accounted for     106   75.5%
- *     count 5-9, all ink accounted for    43   74.4%
+ *     count 1, all ink accounted for      42   97.6%
+ *     count 4, all ink accounted for      61   86.9%
+ *     count 2, all ink accounted for     116   82.8%
+ *     count 3, all ink accounted for     105   77.1%
+ *     count 5-9, all ink accounted for    42   73.8%
  *     count 10+, all ink accounted for     7   85.7%
- *     anything with ink left over         53   54-85%
+ *     anything with ink left over         48   50-86%
  *
  * The first version of this scored on whether the tally had crossbars, on the
  * theory that a group of five checks its own arithmetic: a missed stroke breaks
