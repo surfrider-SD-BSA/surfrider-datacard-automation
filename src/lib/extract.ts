@@ -11,6 +11,7 @@
 import type { CellMap, Rect } from "./cells";
 import { inkFraction, type GrayImage } from "./image";
 import { boxMarked, cropGray, stripMarked } from "./marks";
+import { countTally } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
 import { itemForRow, type CardSide } from "./taxonomy";
 
@@ -49,6 +50,17 @@ export interface ExtractedCell {
   hasValue: boolean;
   /** True when there are tally marks but no numeric total. */
   tallyOnly: boolean;
+  /**
+   * The tally strip counted, or null when the counter declined.
+   *
+   * Null far more often than not, and that is the design rather than a
+   * shortfall: a strip it declines costs the reviewer the keystroke they were
+   * making anyway, and a strip it counts wrongly costs data integrity. See the
+   * head of `tally.ts`.
+   */
+  tallyCount: number | null;
+  /** How far that count can be trusted, 0-1. See `confidence` in tally.ts. */
+  tallyConfidence: number;
   /**
    * Where the TOTAL box is, in the coordinates of THIS CELL'S `image`.
    *
@@ -166,8 +178,30 @@ export function cellsForSide(
     // 0.0074, just under, and the cell only survived the floor at all because
     // its tally strip did.
     const hasValue = boxMarked(cropGray(image, cell.total));
-    const tallyOnly = !hasValue && stripMarked(cropGray(image, cell.tally));
+    const tallyMarked = stripMarked(cropGray(image, cell.tally));
+    const tallyOnly = !hasValue && tallyMarked;
     if (!hasValue && !tallyOnly) continue;
+
+    // Count the strokes, where they can be counted.
+    //
+    // Only for cells with no number in the box. Where a volunteer wrote the
+    // total as well, that number is what the reviewer is reading and the tally
+    // beside it is their working; pre-filling from the working would put a
+    // second opinion into a box that already has a picture of the answer.
+    //
+    // The context is a taller slice of the SAME COLUMNS, and is not optional:
+    // it is the only way to tell a printed rule down the page from a stroke a
+    // volunteer made. See `ruleCoverage` in tally.ts.
+    const tallyReading = tallyOnly
+      ? countTally(cropGray(image, cell.tally), {
+          context: cropGray(image, {
+            x: cell.tally.x,
+            y: cell.tally.y - cell.tally.height * 0.6,
+            width: cell.tally.width,
+            height: cell.tally.height * 2.2,
+          }),
+        })
+      : null;
 
     // Take the row's pixels now and let the page go. Everything the reviewer
     // is shown comes out of this crop, so nothing else about the page has to
@@ -182,6 +216,8 @@ export function cellsForSide(
       tallyInk,
       hasValue,
       tallyOnly,
+      tallyCount: tallyReading?.count ?? null,
+      tallyConfidence: tallyReading?.confidence ?? 0,
       rect: rebase(cell.total, region),
       tallyRect: rebase(cell.tally, region),
       // The tally run beside the number, so the reviewer can sanity-check one

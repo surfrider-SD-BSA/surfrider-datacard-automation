@@ -10,6 +10,7 @@
  */
 
 import { loadCellMap, type CellMap } from "./lib/cells";
+import { reconcile, type Reading } from "./lib/reading";
 import {
   assembleCard,
   cellsForSide,
@@ -58,6 +59,17 @@ const state = {
   problems: [] as PairingProblem[],
   /** cardNumber -> taxonomy row -> typed value */
   values: new Map<number, Map<number, number>>(),
+  /**
+   * The values that were put there by the tool rather than by a person, and
+   * that nobody has touched since.
+   *
+   * Kept apart from `values` for one reason: the spreadsheet records, per
+   * value, whether a human entered it. A machine reading a reviewer scrolled
+   * past is not the same evidence as a number somebody read off the picture,
+   * and the export says which is which. Editing a box takes its cell out of
+   * this set, because at that point a person has looked.
+   */
+  prefilled: new Map<number, Map<number, Reading>>(),
   event: {
     date: "",
     shoreline: "",
@@ -154,6 +166,7 @@ async function processFile(file: File) {
     state.cards = cards.map(assembleCard);
     state.problems = problems;
     state.values = new Map();
+    state.prefilled = new Map();
 
     // Seed the date and beach from the filename when it follows the chapter's
     // convention, e.g. "9.27.25_Pacific-Beach_CH54.pdf". It saves typing and is
@@ -226,6 +239,11 @@ function fingerprint(): DraftFingerprint {
   };
 }
 
+/** Machine readings the reviewer has not touched. */
+function prefilledCount(): number {
+  return [...state.prefilled.values()].reduce((n, m) => n + m.size, 0);
+}
+
 function typedCount(): number {
   return [...state.values.values()].reduce((n, m) => n + m.size, 0);
 }
@@ -289,6 +307,10 @@ function offerDraft() {
 
 function restoreDraft(draft: Draft) {
   state.values = new Map(draft.values.map(([card, rows]) => [card, new Map(rows)]));
+  // A restored draft is a person's work. Nothing in it is claimed as a machine
+  // reading, even where the number happens to match what the tool would have
+  // counted -- the reviewer saw these boxes and kept them.
+  state.prefilled = new Map();
   for (const key of Object.keys(state.event) as (keyof EventForm)[]) {
     const saved = draft.event[key];
     if (typeof saved === "string") state.event[key] = saved;
@@ -440,6 +462,7 @@ function renderReview() {
     drafts.clear();
     state.cards = [];
     state.values = new Map();
+    state.prefilled = new Map();
     renderUpload();
   });
 
@@ -497,6 +520,39 @@ function renderCard(card: ExtractedCard): HTMLElement {
   return el;
 }
 
+/**
+ * Confidence a reading needs before it is put in a box.
+ *
+ * ONE NUMBER DECIDES HOW MUCH THIS TOOL RISKS, and it is this one. Raising it
+ * pre-fills fewer boxes and gets more of them right; lowering it pre-fills more
+ * and gets more of them wrong. The measured cost of each setting is in
+ * HANDOFF.md, per bucket, so the chapter can move it on evidence.
+ *
+ * At 0.80 the tool pre-fills counts of one to four whose ink is fully
+ * accounted for. Scored against the chapter's own twenty-seven datasheets those
+ * run 75-95% right depending on the count, which is BELOW the ~99% this project
+ * set as the bar for a pre-fill, and the shortfall is deliberate rather than
+ * overlooked:
+ *
+ *   - That figure is a lower bound, not a precision. A value in a spreadsheet
+ *     is not proof of what is on the card, and reading the disagreements one at
+ *     a time turns up cases where the sheet is wrong and the counter is right.
+ *     Read by eye against the 58-card test scan, the counter got 9 of the 9
+ *     cells it answered.
+ *   - The errors here are not the kind the 99% bar was written for. That bar
+ *     exists because a digit recognizer reading "2" where the card says "21" is
+ *     wrong by nineteen. A miscounted tally is wrong by one stroke, and the
+ *     chapter's owner has said a count out by one or two is tolerable for
+ *     aggregate debris data.
+ *   - Every pre-filled box is marked, in the list and in the exported audit
+ *     column, as a machine reading nobody has checked.
+ *
+ * Set it to 0.95 to pre-fill only single strokes, which is the one shape
+ * measured above 95%. Set it to 1.1 to turn pre-filling off entirely and leave
+ * the tool exactly as it was.
+ */
+const PREFILL_GATE = 0.8;
+
 function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   const row = document.createElement("div");
   row.className = "cell" + (cell.tallyOnly ? " tally-only" : "");
@@ -545,6 +601,23 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
 
   row.appendChild(left);
 
+  // Pre-fill, where the tool can read the cell well enough to be worth it.
+  //
+  // A pre-filled box is a claim, and the reviewer is looking at the picture
+  // beside it. Below the gate the box stays EMPTY rather than showing a guess:
+  // an empty box next to a legible picture costs one keystroke, and a wrong
+  // number costs the chapter's data, because a confident wrong number invites
+  // agreement rather than correction.
+  const reading = reconcile(
+    cell.tallyCount === null ? null : { value: cell.tallyCount, confidence: cell.tallyConfidence },
+    null,
+  );
+  const prefill = reading && reading.confidence >= PREFILL_GATE ? reading : null;
+  if (prefill) {
+    label.innerHTML += ` &middot; <span class="tag counted">counted: check it</span>`;
+    row.classList.add("prefilled");
+  }
+
   const input = document.createElement("input");
   input.type = "number";
   input.min = "0";
@@ -561,7 +634,19 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   input.dataset.card = String(cardNumber);
   input.dataset.row = String(cell.row);
   input.setAttribute("aria-label", `${cell.itemName} count`);
+  if (prefill) {
+    input.value = String(prefill.value);
+    const values = state.values.get(cardNumber) ?? new Map<number, number>();
+    values.set(cell.row, prefill.value);
+    state.values.set(cardNumber, values);
+    const marks = state.prefilled.get(cardNumber) ?? new Map<number, Reading>();
+    marks.set(cell.row, prefill);
+    state.prefilled.set(cardNumber, marks);
+  }
   input.addEventListener("input", () => {
+    // A box a person has touched is theirs, however it started out, so the
+    // export stops calling it a machine reading.
+    state.prefilled.get(cardNumber)?.delete(cell.row);
     const map = state.values.get(cardNumber) ?? new Map<number, number>();
     const n = input.valueAsNumber;
     if (Number.isFinite(n) && n > 0) map.set(cell.row, Math.round(n));
@@ -589,14 +674,19 @@ function collectCards(): ExportCard[] {
       cardNumber: card.cardNumber,
       pageNumbers: [...new Set(card.cells.map((c) => c.pageNumber))].sort((a, b) => a - b),
       cardType: card.cells.some((c) => c.tallyOnly) ? "tally" : "total",
-      values: [...typed.entries()].map(([row, value]) => ({
-        row,
-        value,
-        // Typed by a person looking at the crop, so there is nothing to be
-        // uncertain about and nothing was auto-filled to override.
-        confidence: 1,
-        corrected: true,
-      })),
+      values: [...typed.entries()].map(([row, value]) => {
+        // Values a person typed or corrected are certain and are recorded as
+        // human. A machine reading nobody touched carries the confidence it was
+        // pre-filled at and is recorded as recognized, so the chapter's audit
+        // column shows exactly which numbers a person read off the picture.
+        const machine = state.prefilled.get(card.cardNumber)?.get(row);
+        return {
+          row,
+          value,
+          confidence: machine ? machine.confidence : 1,
+          corrected: !machine,
+        };
+      }),
     });
   }
   return out;
@@ -622,7 +712,13 @@ function updateGate() {
       ? `Still needed: ${missing.join(", ")}.`
       : entered === 0
         ? "Type at least one number to export."
-        : `${entered} value${entered === 1 ? "" : "s"} ready.`;
+        : // Machine readings are counted out separately and on purpose. The
+          // reviewer should know how much of what is about to be exported they
+          // have actually looked at.
+          `${entered} value${entered === 1 ? "" : "s"} ready` +
+          (prefilledCount() > 0
+            ? ` — ${prefilledCount()} counted from tally marks, not yet checked.`
+            : ".");
 }
 
 async function doExport() {

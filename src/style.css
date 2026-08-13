@@ -140,6 +140,18 @@ input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-col
 .cell .label { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
 .cell .tag { color: var(--warn); font-weight: 600; }
 
+/*
+ * A box the tool filled in, rather than a person.
+ *
+ * Marked so it is obvious at a glance which numbers in the list nobody has
+ * looked at yet. The reviewer is scrolling past a few hundred of these, and a
+ * pre-filled box that looks exactly like one they typed is how a machine
+ * reading gets exported as though it were read off the card.
+ */
+.cell.prefilled { border-color: var(--accent, #4a90d9); }
+.cell.prefilled input { color: var(--accent, #4a90d9); }
+.cell .tag.counted { color: var(--accent, #4a90d9); }
+
 .empty { color: var(--muted); font-style: italic; padding: 8px 0; }
 
 /* ---------- buttons ---------- */

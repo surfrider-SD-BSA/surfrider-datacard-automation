@@ -9,7 +9,30 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import { toGray, type GrayImage } from "./image";
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+/**
+ * Hand pdf.js a worker we constructed, rather than a URL for it to construct
+ * one from.
+ *
+ * This looks like a stylistic choice and is not. pdf.js builds its worker from
+ * `workerSrc` with `new Worker(url)` -- a CLASSIC worker -- while the file it is
+ * given is an ES module. In a classic worker the first `export` in that file is
+ * a syntax error, the worker dies before it says anything, and the app sits on
+ * "Reading the PDF…" for ever. It fails only in the BUILT bundle, which is why
+ * it survived: `npm run dev` resolves the same import to something a classic
+ * worker can run.
+ *
+ * The worker is constructed here, by hand, with `type: "module"` written out.
+ * Vite's `?worker` import is the tidier-looking way to do it and does not work:
+ * it emitted `new Worker(url)` with no options for this dependency even with
+ * `worker: { format: "es" }` set in the config, which is the same classic worker
+ * and the same syntax error. `workerPort` is the pdf.js entry point that takes
+ * an instance rather than a URL, so the one place the type is decided is here.
+ *
+ * Verified by loading the BUILT bundle and reading a real card through it. The
+ * failure is invisible to every test in this repository, because they all run
+ * the source rather than the bundle.
+ */
+pdfjs.GlobalWorkerOptions.workerPort = new Worker(workerUrl, { type: "module" });
 
 /**
  * Render at the resolution the reference was measured at.

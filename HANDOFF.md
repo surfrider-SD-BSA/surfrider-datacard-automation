@@ -18,7 +18,7 @@ State of the project, what is proven, and what to do next.
 | The UI | Dark, and only dark. Scan crops stay on white -- see the note in `style.css`. |
 | The web app | Runs end to end: drop a PDF, review crops, download the spreadsheet. |
 
-97 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
+111 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
 
 ## Registration: fixed
 
@@ -99,20 +99,230 @@ node scripts/diagnose-registration.mjs out/pages/<name> --overlay 1,2
 The overlay is the thing to look at: it draws every TOTAL box on the registered
 page, red where the tool would read a number. The boxes must sit on the boxes.
 
+## Counting the tallies: built, measured, shipped behind a gate
+
+`src/lib/tally.ts` reads a tally strip and returns a number. This was the
+largest unexploited lever in the project -- across eleven scans, 1,217 of 1,611
+values were tallied and never written as a number -- and it is deliberately not
+a handwriting problem, which is why it was worth expecting to work where digit
+recognition does not.
+
+**How it works, and the two things that do not work.**
+
+The strip is thinned to one-pixel lines and taken apart into straight segments
+by a Hough vote, longest first, each removed before the next is looked for.
+Segments near vertical are strokes; the rest are crossbars. A group of five is
+four strokes plus a bar drawn through them.
+
+- *Connected components cannot do it.* A crossed group of five is ONE component,
+  because the fifth stroke is drawn through the other four. Often the whole
+  tally is one blob.
+- *A column projection cannot do it either.* The crossbar is not confined to the
+  gaps between strokes: measured on the test scan it runs past both ends of its
+  group and carries about half the ink in the strip, so the projection is a
+  ridge with spikes on it and the ridge is most of what has to be explained.
+
+**The design rests on one rule: explain every ink pixel, or decline.** A tally
+is straight lines and nothing else. A "50", a "15", the word SUCKS written
+across a card by somebody having a bad morning, a scribbled-out cell -- all real
+on the test scan -- are mostly not, and the ink no arrangement of straight
+segments can account for is what rules them out.
+
+### Six failures that each cost a measurement to find
+
+Recorded because none is obvious and every one was found by rendering cells and
+looking at them, not by reasoning:
+
+1. **The uprights must be extracted BEFORE the crossbars.** A segment takes its
+   claimed band with it, so a bar found first cuts a ten-pixel hole through every
+   upright it crossed, and each of those then arrives as a long piece and a
+   short one. Widening the gap a run may bridge does not fix it: the gap would
+   have to exceed the spacing between strokes, at which point a line hops from
+   the top of one stroke to the top of the next and a group comes out as one
+   diagonal. The bar pass then needs its OWN wider gap (`barGap`) and its own
+   lower density bar (`barDensity`), because by then the bar is the thing full
+   of holes.
+2. **The ink must be thinned first.** A stroke is three to five pixels wide
+   depending on the pencil. Claim too narrow a band and every stroke leaves a
+   collinear sliver that is found again as another stroke -- a two-stroke tally
+   came apart into nine. Thinning removes the choice, and takes how hard
+   somebody pressed out of the measurement.
+3. **The band that VOTES for a line and the band it then CLAIMS must differ.**
+   A thinned hand-drawn line zigzags a pixel either side, so a claim as narrow
+   as the vote leaves a dotted trail that is found again. A group of five read
+   as six.
+4. **Some card printings put the TOTAL box's left border inside the tally
+   rectangle.** It lands at page x 728 on the Imperial Beach cards, twenty pixels
+   inside a rectangle that ends at 748, and the blank reference composited from
+   Pacific Beach cards has nothing there at all. Left in, it is dense, full
+   length and perfectly upright -- a flawless tally stroke by every other test --
+   and it added a phantom +1 to a third of the counts on that scan.
+5. **That border cannot be found from the strip alone.** A volunteer's tall
+   upright stroke and a printed rule are the same column of pixels. What
+   separates them is that the rule carries on through the rows above and below,
+   so the test needs `context`: the same columns over a taller slice of the page.
+   Measured on 1.18 Imperial the borders sit at 1.00 of full height and the
+   tallest real stroke reaches 0.95. Without context, three real strokes were
+   struck out as rules.
+6. **The mark test's own wall rule is wrong here, and this is the one place in
+   the project where that is true.** It strikes thin dark columns near either
+   edge of a crop, which is right for a TOTAL box -- the border is at the edge, a
+   volunteer writes inside it -- and wrong for a tally strip, where the first
+   stroke is written hard against the left edge. It was striking those strokes
+   out, turning a tally of three into a tally of two.
+
+### What it is worth, measured
+
+Scored against every value the chapter typed up, card N to column N, on the
+strips the mark test offers -- 772 answers, 438 of which have a value in a
+sheet:
+
+```
+  count 1, all ink accounted for      44   95.5%
+  count 4, all ink accounted for      62   87.1%
+  count 2, all ink accounted for     119   80.7%
+  count 3, all ink accounted for     106   75.5%
+  count 5-9, all ink accounted for    43   74.4%
+  count 10+, all ink accounted for     7   85.7%
+  anything with ink left over         53   54-85%
+```
+
+**These are lower bounds, not precisions**, for the same reason every other
+spreadsheet-scored figure in this file is: a value in a sheet is not proof of
+what is on the card. Read by eye against the test scan the counter got 9 of the
+9 cells it answered, and reading the 1.18 Imperial disagreements one at a time,
+two of seven were the sheet being wrong rather than the counter.
+
+**A theory that was clean and is wrong, worth not re-deriving.** The first
+version scored confidence on whether the tally had crossbars, reasoning that a
+group of five checks its own arithmetic -- a missed stroke breaks the count of
+five, so the reading is declined rather than returned short. Measured, crossed
+groups scored WORST: 61.5% against 95.5% for a single stroke. The reason points
+at the real failure. A crossbar means the volunteer counted past five, and a
+tally past five is the one that runs out of room. The disagreements read "said
+5, sheet 19": the strip holds the first group and the rest is elsewhere on the
+card. **The counter is not miscounting what it can see; it is counting all of
+what it can see, and there is more.**
+
+### What ships, and the one number that decides it
+
+`PREFILL_GATE` in `main.ts`, currently **0.80**: counts of one to four whose ink
+is fully accounted for. On the 58-card test scan that is **5 of 66 tally-only
+cells pre-filled**, out of a review list of 453. Small, and honestly so.
+
+It is below the ~99% this project set for a pre-fill, and that is a decision
+rather than an oversight: the figures above are lower bounds, and a miscounted
+tally is wrong by one stroke where the 99% bar was written for a digit
+recognizer reading "2" as "21" and being wrong by nineteen. The chapter's owner
+has said a count out by one or two is tolerable for aggregate debris data. Every
+pre-filled box is marked in the list and exported as `recognized` rather than
+`human`.
+
+Set it to 0.95 to pre-fill only single strokes -- the one shape measured above
+95%. Set it to 1.1 to turn pre-filling off and leave the tool as it was.
+
+### Where the next work should go
+
+**Tallies that carry on onto the next row.** This is now the dominant error and
+it is unsolved. `touchesSide` catches a tally overrunning the left or right of
+its crop; nothing catches one that continues below. Every "said 5, sheet 19"
+disagreement is this. Fixing it would both remove the errors and unlock the
+counts above five, which is where most of the volume is.
+
+```bash
+npx vite-node scripts/diagnose-tally.mjs -- test-long --show     # look at them
+npx vite-node scripts/diagnose-tally-sheets.mjs -- [--show]      # score them
+npx vite-node scripts/diagnose-agreement.mjs --                  # two readers
+npx vite-node scripts/diagnose-segmentation.mjs --               # digit cutting
+```
+
+## Digits: a real model was tried, and nearest neighbour still wins
+
+The note in `train-digits.mjs` saying there is no ML toolchain on this machine
+was stale -- `pip install --target scikit-learn` takes about a minute -- so the
+honest next method was tried. `scripts/train_digits.py` trains an MLP with
+augmentation (shifts, rotations, rescalings), measured leave-one-event-out over
+the same 3,218 digits:
+
+```
+                              per digit   precision at its best gate   coverage
+  nearest neighbour (shipped)    66.3%              84.2%                32%
+  MLP + augmentation             66.3%              81.5%                14%
+```
+
+**Augmentation does what it was expected to do and it is not enough.** Recall on
+the rare classes roughly doubles -- 8s from 13% to 42%, 9s from 22% to 44% --
+which is the imbalance problem largely solved. Per-digit accuracy does not move,
+and precision where it answers gets *worse*. The gate is the number the design
+rests on, so the recognizer stays off.
+
+**Two things worth knowing before trying again.**
+
+*The first two attempts diverged and reported a confidence anyway.* numpy
+reported overflow in the matmuls; a diverged network still returns a softmax
+that looks exactly like a confidence, which is the worst possible failure for a
+design that gates on confidence. What fixed it was standardizing the inputs:
+these bitmaps are ink coverage, so most of the 784 inputs are zero for every
+digit in the set. Any future attempt should check for that warning before
+believing a number.
+
+*The measured accuracy is conditional in a way that is easy to miss.*
+`label-from-spreadsheet.mjs` only emits a cell when segmentation already found
+exactly as many digit boxes as the sheet's number has digits. Every cell where
+the CUTTING went wrong was dropped before a digit was labelled, so 66.3% and
+83.5% are both measured on the subset where that step had already succeeded.
+`scripts/diagnose-segmentation.mjs` measures that step on its own; it had never
+been measured separately.
+
+## Two readers on one cell
+
+`src/lib/reading.ts` puts the tally count and the digit reading of the same cell
+together. They share no code and fail for unrelated reasons, so agreement is
+much better evidence than either alone. Measured across the 27 pairs:
+
+```
+  both readers answered                    175 cells
+  they agreed on                           151
+  where they agreed, and a sheet has it    93.5%  (of 77)
+  digits alone at their 0.9 gate           72.4%  (of 740)
+  tally alone                              80.8%  (of 402)
+```
+
+**When they disagree, do not average them.** The chapter's owner asked for the
+midpoint, on the grounds that a count out by a couple is tolerable. On the 18
+disagreements with a value in a sheet:
+
+```
+  the tally alone was right         9  (50%)
+  the digits alone were right       7  (39%)
+  halfway between was right         3  (17%)
+```
+
+In 16 of the 18, one of the two readings WAS the answer. The readers do not
+drift either side of the truth, which is the situation an average is for; one of
+them fails outright and the other is simply correct, so averaging a right answer
+with a wrong one reliably produces a third number that is on neither the tally
+nor the box. `reconcile` computes the midpoint, because it was asked for, and
+gives it a confidence of 0.17 to match -- which leaves it below the pre-fill
+gate. Raising `splitConfidence` is a one-line change if the chapter decides a
+one-in-six hit rate is worth the typing it saves.
+
 ## What to do next
 
 The shortest list of what is worth doing, in order:
 
-1. **The 131 cells the review list still offers with nothing in them** -- see
+1. **Tallies that continue onto the next row** -- see "Counting the tallies"
+   above. Now the dominant error in the counter and the thing standing between
+   it and the counts above five, which is where most of the volume is.
+2. **The 131 cells the review list still offers with nothing in them** -- see
    "What is still on the list that should not be" below. Another quarter of a
    reviewer's time, and the remaining noise is a different kind from the ruling
    that has been dealt with.
-2. **Memory**, under "Also outstanding". A 114-page scan peaks near 840MB
+3. **Memory**, under "Also outstanding". A 114-page scan peaks near 840MB
    because every page is kept at full resolution; cropping and discarding would
    make it a few MB. This is the thing most likely to make the tool fail on
    somebody else's laptop.
-3. **Counting tallies**, which is most of the chapter's data and is still
-   entirely on the human.
+4. ~~**Counting tallies.**~~ Built; see above.
 
 Digit recognition is NOT on that list, for the reasons immediately below.
 
@@ -418,9 +628,45 @@ Worth knowing how this was found, because measurement would not have: it turned
 up on the first real click-through, as three boxes holding numbers nobody had
 typed.
 
+## The built bundle: one bug fixed, one still open
+
+Both were found the only way they can be -- by loading `dist/` in a browser and
+reading a real card through it. Every test in this repository runs the SOURCE,
+so neither is visible to any of them.
+
+**Fixed: the PDF worker never loaded.** pdf.js builds its worker from
+`workerSrc` with `new Worker(url)` -- a classic worker -- and the file it was
+given is an ES module, so the first `export` was a syntax error, the worker died
+before saying anything, and the app sat on "Reading the PDF…" for ever. `npm run
+dev` was unaffected, which is how it survived. `src/lib/pdf.ts` now constructs
+the worker itself with `type: "module"` and hands it over as `workerPort`.
+
+Note for anyone tempted to tidy this: Vite's `?worker` import is the neater way
+to write it and does NOT work here. It emitted `new Worker(url)` with no options
+for this dependency even with `worker: { format: "es" }` in the config -- the
+same classic worker, the same syntax error.
+
+This was present before the tally work and is not a regression from it; verified
+by stashing those changes, rebuilding, and reproducing it.
+
+**Still open: `page.render()` does not resolve in the in-app browser pane.**
+With the worker fixed the document opens -- `getDocument` resolves and reports
+its page count -- and then rendering page 1 onto a 1700x2200 canvas never comes
+back. No error, no rejection; the promise simply never settles.
+
+What is NOT known is whether this affects a real Chrome. It was only ever
+reproduced inside the automated browser pane, which may not back a canvas of
+that size the way a desktop browser does. **Before anything else, open `dist/`
+in an ordinary browser and drop a card in.** If it renders, this is an artefact
+of the test environment and the built bundle is fine; if it hangs, it is the
+next thing to fix and nothing else matters until it is.
+
 ## Also outstanding
 
-- **Tally marks are still not COUNTED, and they are the majority of the data.**
+- ~~**Tally marks are still not COUNTED.**~~ Counted now, behind a gate; see
+  "Counting the tallies" above. The paragraph below is kept because its figures
+  are what made the case for doing it.
+- **Tally marks were not COUNTED, and they are the majority of the data.**
   Across eleven scans measured under the old card gate, 1,217 of the 1,611
   values on dropped cards had been tallied and never written as a number.
   Counting strokes is a different problem from reading digits and is where

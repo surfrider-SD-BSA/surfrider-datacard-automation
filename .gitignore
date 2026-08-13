@@ -64,3 +64,6 @@ out/
 # them there put 7.5MB of dev artifacts into every bundle.
 assets/reference/debug-grid-*.png
 assets/reference/lines-*.png
+
+# Local preview config for verifying the BUILT bundle in a browser.
+.claude/
