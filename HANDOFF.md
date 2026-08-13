@@ -235,6 +235,20 @@ refused. Everything else about the counter is measured and works; this is the
 one thing between it and being useful. Put the gate back to 0.80 when that is
 fixed.
 
+**One attempted fix, tried and reverted.** The obvious repair is to lower the
+rule bar near the sides -- `verticalRules` demands a column run the whole height
+of the context, and a border that fades or is broken where a row rule crosses it
+will not clear that. Measured: both known-bad cells still counted their border,
+and coverage on the test scan fell from 49 to 46. So the premise is wrong for
+this scan. **That mark does NOT run through the rows above and below**, which is
+the whole basis of the current test, and means it is either a border only
+printed within the row or something else entirely.
+
+Before writing more code, render those two cells with their CONTEXT crop -- the
+taller slice -- and look at what that mark actually does above and below the
+row. Everything built so far assumes an answer to that question which the
+measurement says is wrong.
+
 Worth noting how it was found, because none of the other instruments caught it:
 the spreadsheet score is a lower bound and absorbed it, the offline diagnostics
 agreed with the browser, and all 112 tests passed. It took listing every cell
