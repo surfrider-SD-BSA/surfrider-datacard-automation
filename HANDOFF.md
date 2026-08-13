@@ -207,7 +207,40 @@ tally past five is the one that runs out of room. The disagreements read "said
 card. **The counter is not miscounting what it can see; it is counting all of
 what it can see, and there is more.**
 
-### What ships, and the one number that decides it
+### Read all 44 pre-fills by eye. Three were wrong, and pre-filling is now OFF
+
+Every cell the gate would fill across all 27 scans -- 44 of them -- was rendered
+and counted by eye. Most were right. **At least three counted the printed border
+of the TOTAL box as a stroke**, one of them returning a number for a strip with
+no tally in it at all:
+
+```
+  imperial-3.15 card 2 row 33   said 1   "stroke" at 92% of the strip width
+  imperial-3.15 card 20 row 51  said 2   "stroke" at 93%
+```
+
+Those marks are dense, full height and perfectly vertical: a flawless stroke by
+every test in `tally.ts`. `verticalRules` is meant to strike them and does on
+most scans; where it fails, nothing downstream can tell. The ink comes out fully
+accounted for and **the reading scores at the top confidence this tool issues --
+one of the three was 0.95.**
+
+**So no threshold separates them, and raising the gate does not help.** That is
+the whole point: a confidence gate can only rank readings the counter
+understands, and this is a reading it misunderstands completely.
+
+`PREFILL_GATE` in `main.ts` is therefore set to 1.1 -- above any confidence, so
+nothing is pre-filled -- until a strip holding only the printed border is
+refused. Everything else about the counter is measured and works; this is the
+one thing between it and being useful. Put the gate back to 0.80 when that is
+fixed.
+
+Worth noting how it was found, because none of the other instruments caught it:
+the spreadsheet score is a lower bound and absorbed it, the offline diagnostics
+agreed with the browser, and all 112 tests passed. It took listing every cell
+that would actually reach a volunteer and looking at each one.
+
+### What the gate would ship, and the one number that decides it
 
 `PREFILL_GATE` in `main.ts`, currently **0.80**: counts of one to four whose ink
 is fully accounted for. On the 58-card test scan that is **5 of 66 tally-only

@@ -528,6 +528,24 @@ function renderCard(card: ExtractedCard): HTMLElement {
  * and gets more of them wrong. The measured cost of each setting is in
  * HANDOFF.md, per bucket, so the chapter can move it on evidence.
  *
+ * SET ABOVE 1 -- PRE-FILLING IS OFF -- and the reason is a measurement, not
+ * caution. Every cell the gate would fill across all 27 scans was rendered and
+ * read by eye: 44 of them. Most were right. At least three counted the printed
+ * border of the TOTAL box as a stroke, and returned a number for a strip with
+ * no tally in it at all.
+ *
+ * `verticalRules` is supposed to strike that border and does, on most scans.
+ * Where it fails the failure is invisible from inside: the border is dense,
+ * full-height and perfectly upright, so it reads as a flawless stroke, the ink
+ * is fully accounted for, and the reading comes out at the TOP confidence this
+ * tool issues. One of the three scored 0.95. So no threshold separates them --
+ * raising the gate does not help, and that is exactly why the gate is not the
+ * answer here.
+ *
+ * Turn it back on by setting this to 0.80 once a strip with only the printed
+ * border in it is refused. That is the one thing standing between this counter
+ * and being useful; everything else about it is measured and working.
+ *
  * At 0.80 the tool pre-fills counts of one to four whose ink is fully
  * accounted for. Scored against the chapter's own twenty-seven datasheets those
  * run 75-95% right depending on the count, which is BELOW the ~99% this project
@@ -551,7 +569,7 @@ function renderCard(card: ExtractedCard): HTMLElement {
  * measured above 95%. Set it to 1.1 to turn pre-filling off entirely and leave
  * the tool exactly as it was.
  */
-const PREFILL_GATE = 0.8;
+const PREFILL_GATE = 1.1;
 
 function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   const row = document.createElement("div");
