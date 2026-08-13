@@ -197,8 +197,6 @@ Under the status checks rule: require branches to be up to date **on**, then add
 ```
 Lint (ruff)
 Test (Python 3.9)
-Test (Python 3.11)
-Test (Python 3.13)
 Shell (shellcheck)
 No volunteer data
 ```
@@ -241,8 +239,6 @@ gh api -X POST "repos/$REPO/rulesets" --input - <<'JSON'
         "required_status_checks": [
           { "context": "Lint (ruff)" },
           { "context": "Test (Python 3.9)" },
-          { "context": "Test (Python 3.11)" },
-          { "context": "Test (Python 3.13)" },
           { "context": "Shell (shellcheck)" },
           { "context": "No volunteer data" }
         ]
@@ -272,8 +268,6 @@ gh api -X PUT "repos/$REPO/branches/main/protection" --input - <<'JSON'
     "contexts": [
       "Lint (ruff)",
       "Test (Python 3.9)",
-      "Test (Python 3.11)",
-      "Test (Python 3.13)",
       "Shell (shellcheck)",
       "No volunteer data"
     ]

@@ -42,9 +42,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9 is the floor because volunteers run this on stock macOS Python.
-        # Keep this list in sync with pyproject.toml and the README.
-        python-version: ["3.9", "3.11", "3.13"]
+        # 3.9 is the floor because volunteers run this on stock macOS Python,
+        # and the floor is the only version tested: the matrix guards two
+        # maintainer-facing helper scripts, so newer-Python coverage was three
+        # CI jobs guarding almost nothing. Keep the floor in sync with
+        # pyproject.toml and the README. If a version is ever added or removed
+        # here, the job NAME changes with it — update the required checks in
+        # the ruleset in the same PR (docs/repo-setup.md, "Require status
+        # checks"), or main stops being mergeable.
+        python-version: ["3.9"]
     steps:
       - uses: actions/checkout@v7
 
