@@ -207,7 +207,120 @@ tally past five is the one that runs out of room. The disagreements read "said
 card. **The counter is not miscounting what it can see; it is counting all of
 what it can see, and there is more.**
 
+### The audit, redone: 46 cells, three still wrong, and pre-filling stays OFF
+
+The audit below was taken before the dotted-border fix and went stale, so it was
+rebuilt as a script that can be re-run and re-scored rather than thrown away:
+
+```bash
+npx vite-node scripts/audit-prefills.mjs --            # list, render, score
+npx vite-node scripts/audit-prefills.mjs -- --debug --only <scan> --no-show
+```
+
+It lists every cell that would clear the gate across all twenty-nine page
+directories, renders each one as **the strip beside its context with the row
+band ticked off**, and scores what the counter said against
+`scans/eye-labels/prefill-audit.json` -- 46 cells counted by eye. The labels are
+keyed `scan:card:row`, so a change to the counter that moves which cells clear
+the gate does not invalidate them, which is exactly how the last audit went
+stale.
+
+One correction to what the old audit population was: it must be the cells
+`extract.ts` actually counts, which is `!hasValue && tallyMarked`. Auditing every
+marked strip measures the wrong thing -- most of those cells have the answer
+written in the box beside them, and the tool never pre-fills from the tally there.
+
+**Read by eye, before any change this session: 36 of 42 right.** Six wrong, in
+four kinds:
+
+```
+  imperial-6.21 14:35   said 3, is 2   printed border counted as a stroke
+  seaport-7.05  18:18   said 3, is 2   the same, and the sheet says 2 as well
+  seaport-7.05  18:42   said 3, is 2   the same
+  pacific-3.22  14:21   said 3, is 1   a "1" written inside a drawn circle
+  pacific-6.30   3:108  said 1, is 0   a long diagonal crossing three rows
+  pacific-9.27  14:26   said 3, is 4   an undercount, the only one
+```
+
+#### The border failure was one bug, and it is fixed
+
+All three border cases are the same thing, and it is not what the previous
+session's note assumed. `verticalRules` asks whether a column is inked in the
+margin above or below the row. **A section banner inks every column there.** So
+every column reads as a rule, the run of them is far wider than `ruleWidth`, the
+test concludes there is no rule in the strip and strikes *nothing* -- and the
+printed border survives as a dense, full-height, perfectly upright stroke.
+Roughly one row in eight on this card sits directly under a banner.
+
+The repair is to drop rows that are inked most of the way across (`ruleCrowd`)
+from the measurement rather than let them vote for every column at once, and to
+treat a margin with too little left as carrying no evidence (`ruleEvidence`), so
+the other side decides alone. A printed border runs through both margins, so one
+clean side is enough. This also takes the row's own horizontal rules out of the
+denominator, which is strictly better than the old workaround of leaving them in
+-- striking their *pixels* punched a hole through the vertical rule they cross
+and dropped it below the coverage bar.
+
+Measured against the chapter's twenty-seven datasheets, it costs nothing and buys
+on both axes at once:
+
+```
+                              before        after
+  answers                       735          769
+  of those, with a typed value  418          444
+  agreement                    75.8%        79.5%
+  tally-only cells             65.6%        72.7%
+```
+
+Every bucket in the by-shape table improves. Note the 81.4% quoted further down
+this file is stale: measured on the committed code it is 75.8%.
+
+`tests/tally.test.ts` has the case. The synthetic banner has white lettering
+reversed out of it, and that detail is the test: `inkMask` measures against a
+LOCAL paper level, so a uniformly dark band contains no ink by that definition
+and the flat version of this test passes with or without the fix.
+
+#### What is still wrong, and why the gate stays at 1.1
+
+**43 of 46 by eye, 93.5%** -- and the three failures are worth more than the
+figure:
+
+```
+  pacific-3.22   14:21  said 3, is 1   a "1" inside a drawn circle; the two arcs
+                                       pass as uprights and the ink comes out
+                                       fully explained
+  pacific-6.30    3:108 said 1, is 0   one long diagonal, from well above the row
+                                       to well below it, cropped to band height
+  moonlight-7.19  7:42  said 2, is 0   the descenders of "Paper", written by the
+                                       volunteer in the row ABOVE
+  pacific-9.27   14:26  said 3, is 4   four strokes, two of them hanging below
+                                       the band
+```
+
+**Two of the four are the same failure: ink that belongs to a neighbouring row.**
+That is the problem this file already names as the dominant one, arriving from
+the other direction -- not a tally that runs on past its row, but another row's
+marks reaching into this one. Both produce the worst outcome the tool can:
+a number in a box whose row holds no tally at all.
+
+`moonlight-7.19 7:42` was admitted by the banner fix, which is the honest cost of
+it and is recorded in the labels. It is not a border case; nothing about the
+repair made it more likely than the failure it replaced.
+
+So `PREFILL_GATE` stays at **1.1**. 93.5% is not the ~99% a pre-fill needs, and
+dropping to 0.95 -- single strokes only, the shape measured highest -- does not
+rescue it: of the five such cells, `pacific-6.30 3:108` is one of them.
+
+The next thing to build is a test that a stroke is CONFINED TO ITS ROW: follow
+each stroke's own line into the context above and below, and refuse the reading
+when the ink carries on. That is one mechanism for two of the three failures, it
+is geometry rather than recognition, and the context crop needed for it is
+already being passed in.
+
 ### Read all 44 pre-fills by eye. Three were wrong, and pre-filling is now OFF
+
+*(What follows is the previous session's audit, kept because the reasoning in it
+is still right and the figures are what the section above is measured against.)*
 
 Every cell the gate would fill across all 27 scans -- 44 of them -- was rendered
 and counted by eye. Most were right. **At least three counted the printed border

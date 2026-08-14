@@ -297,6 +297,39 @@ export interface TallyOptions {
   ruleWidth: number;
   /** Share of the context, top and bottom, that belongs to the other rows. */
   ruleMargin: number;
+  /**
+   * Share of the strip's WIDTH inked that makes a row of the margin evidence
+   * about nothing.
+   *
+   * A section banner is a solid black bar across the whole card, and roughly
+   * one row in eight on this card sits directly under one. Where a banner falls
+   * in the margin every column is inked there, so every column reads as "this
+   * mark carries on above the row" -- and since that is then one run wider than
+   * `ruleWidth`, the test decides the whole strip is not a rule and strikes
+   * NOTHING. The printed border survives, is dense and full height and
+   * perfectly upright, and is counted as a tally stroke. Three of the six wrong
+   * pre-fills in the audit of 2026-08-13 are this, and nothing else: 3.15 and
+   * 7.05 Seaport card 18, 6.21 Imperial card 14.
+   *
+   * A row inked all the way across cannot distinguish one column from another,
+   * so it is dropped from both sides of the measurement rather than counted as
+   * evidence for every column at once. This takes the row's own printed
+   * horizontal rules with it, which is a gain and not a cost: those were being
+   * left in deliberately, because STRIKING their pixels punched a hole through
+   * the vertical rule they cross and dropped it below the coverage bar.
+   * Dropping the row from the denominator does not.
+   */
+  ruleCrowd: number;
+  /**
+   * How much of a margin must survive that filter for it to be evidence at all.
+   *
+   * Where a banner fills the margin almost entirely, two or three usable rows
+   * are left and a column inked in both of them would clear any coverage bar.
+   * Below this the margin is treated as carrying no evidence, and the other side
+   * decides alone -- which is what happens on all three of the cells above, and
+   * it is enough, because a printed border runs through both.
+   */
+  ruleEvidence: number;
   /** Columns blanked either side of one, to take its anti-aliased fringe too. */
   ruleFringe: number;
   /** Ink pixels against a side before the tally counts as running off it. */
@@ -351,6 +384,8 @@ export const TALLY_DEFAULTS: TallyOptions = {
   insetLeft: 3,
   ruleCoverage: 0.55,
   ruleMargin: 0.2,
+  ruleCrowd: 0.3,
+  ruleEvidence: 0.5,
   ruleWidth: 6,
   ruleFringe: 2,
   edgeInk: 6,
@@ -665,10 +700,28 @@ function verticalRules(
   // The row's own band sits in the middle of the context; what is above and
   // below it belongs to the neighbouring rows.
   const margin = Math.round(height * o.ruleMargin);
+
+  // A row inked most of the way across is a section banner or a printed
+  // horizontal rule, and says the same thing about every column. See
+  // `ruleCrowd`: left in, one banner in the margin makes the whole strip read
+  // as a single rule too wide to be one, and the real border goes unstruck.
+  const crowded: boolean[] = [];
+  for (let y = 0; y < height; y++) {
+    let n = 0;
+    for (let x = 0; x < width; x++) n += mask[y * width + x]!;
+    crowded.push(n >= width * o.ruleCrowd);
+  }
+
   const inked = (x: number, from: number, to: number) => {
     let n = 0;
-    for (let y = from; y < to; y++) n += mask[y * width + x]!;
-    return n >= (to - from) * o.ruleCoverage;
+    let rows = 0;
+    for (let y = from; y < to; y++) {
+      if (crowded[y]) continue;
+      rows++;
+      n += mask[y * width + x]!;
+    }
+    if (rows < Math.max(4, (to - from) * o.ruleEvidence)) return false;
+    return n >= rows * o.ruleCoverage;
   };
 
   const full: boolean[] = [];

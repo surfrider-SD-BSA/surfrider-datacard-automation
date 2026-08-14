@@ -55,6 +55,29 @@ function stroke(img: MarkImage, x0: number, y0: number, x1: number, y1: number, 
 }
 
 /**
+ * A section banner: a solid bar across the card with the section's name
+ * reversed out of it in white.
+ *
+ * The lettering is not decoration. `inkMask` measures against a LOCAL paper
+ * level -- a maximum over a nine-pixel window -- so a uniformly dark band holds
+ * no ink at all by that definition: the paper level inside the band is the
+ * band. A real banner registers as ink over its whole height because the white
+ * letters give the filter something bright to measure against. Drawn flat, the
+ * case below passes with or without the fix and guards nothing.
+ */
+function banner(img: MarkImage, top: number, bottom: number) {
+  for (let y = top; y < bottom; y++) {
+    for (let x = 0; x < img.width; x++) img.data[y * img.width + x] = 40;
+  }
+  for (let x = 4; x < img.width - 6; x += 24) {
+    for (let dx = 0; dx < 6; dx++) {
+      for (let y = top + 4; y < bottom - 4; y++) img.data[y * img.width + x + dx] = 250;
+    }
+  }
+  return img;
+}
+
+/**
  * A group of five: four uprights and a fifth struck across them.
  *
  * The crossbar deliberately overhangs both ends, which is what it does on the
@@ -180,6 +203,24 @@ describe("countTally", () => {
       const img = printedRule(uprights(blank(), 40, 3), 420);
       const context = printedRule(blank(460, 116), 420);
       expect(count(img, { context }).count).toBe(3);
+    });
+
+    it("is still refused when a section banner fills the margin above the row", () => {
+      // The failure the 2026-08-13 pre-fill audit found, and the whole of it:
+      // three of the six wrong pre-fills were this and nothing else.
+      //
+      // A section banner is a solid bar across the card, and the rows directly
+      // under one are a good fraction of every scan. Where the banner lands in
+      // the context's margin, EVERY column is inked there, so every column
+      // reads as "this mark carries on above the row" -- and the run of such
+      // columns is then far wider than a rule may be, so the test concludes
+      // there is no rule and strikes nothing. The border survives, and it is
+      // dense, full height and perfectly upright: a flawless stroke by every
+      // other test in the file.
+      const img = printedRule(uprights(blank(), 40, 2), 420);
+      const context = printedRule(blank(460, 116), 420);
+      banner(context, 0, 23);
+      expect(count(img, { context }).count).toBe(2);
     });
 
     it("does not take a real full-height stroke with it", () => {
