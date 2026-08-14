@@ -18,7 +18,7 @@ State of the project, what is proven, and what to do next.
 | The UI | Dark, and only dark. Scan crops stay on white -- see the note in `style.css`. |
 | The web app | Runs end to end: drop a PDF, review crops, download the spreadsheet. |
 
-111 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
+113 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
 
 ## Registration: fixed
 
@@ -598,10 +598,79 @@ joined pairs. Whatever fixes touching digits has to recognise the JOIN, not the
 width.
 
 **The 26 cells where nothing is found at all are not faint pencil.** Dropping
-the ink threshold from 25 to 10 changes the figure by nothing, so it is the
-shape filters rejecting real writing, or cells that are blank on the card with a
-value in the sheet. That is the next thing to look at, and it is worth 8 points
-on its own.
+the ink threshold from 25 to 10 changes the figure by nothing.
+
+**They have now been rendered and looked at, and they are two different things.**
+`diagnose-segmentation.mjs --kind none --show` writes just that bucket out;
+attributing each one to the filter that rejected it gives, on 1.18 Imperial:
+
+```
+   4  a digit wider than 75% of the crop     -- real numbers, thrown away
+   6  only specks: no component of 12 pixels
+   5  too hollow (< 12% of its own box)
+   4  too short (h < 18% of the crop)
+   3  the threshold passed, but every dark pixel is inside the 6% inset
+   3  inkThreshold refused the cell outright
+   1  a horizontal bar (w/h > 3.5)
+```
+
+The first line is a defect and is **fixed**: `w > img.width * 0.75` was meant to
+catch a printed rule spanning the cell, and what it actually caught was a
+volunteer writing "30" across the whole box -- one component 76 pixels wide in a
+100-pixel crop, 33 tall, solid. Neither of the other two rule tests touches it.
+The bar can only ever fire on handwriting, because `inkMask` insets the crop by
+6% a side and no component can exceed 88% of it, so it is removed rather than
+loosened:
+
+```
+  cut into the right number of digits   1.18 Imperial  3.22 Pacific  8.23 Seaport
+    with the width test                     75.8%          74.7%        81.5%
+    without it                              76.8%          74.9%        81.5%
+```
+
+Cells cut into too many pieces do not move (28, 37, 7). Small, and free.
+
+**The rest are not a segmentation defect.** A box holding a wisp, a tick against
+the border, or nothing at all, with a number in the spreadsheet that was worked
+out somewhere else -- which is the thing this file says about every
+spreadsheet-scored figure, showing up here as well. Two are worth a further look
+and no more: the 3 whose only ink lies inside the inset are digits written hard
+against the box border, and the 5 "too hollow" have not been examined
+individually.
+
+### Regenerating the training set was called the cheapest win. It is measured, and it is not one
+
+The previous session's note predicted that regenerating the labels against the
+improved cutting would qualify more cells and buy accuracy for nothing. Done,
+for all 28 pairs:
+
+```
+                              digits   events   per digit   precision at >= 0.90
+  the set as it was found       3218      27       66.3%           84.2%
+  regenerated against the
+    gap-join cutting            3215      26       64.4%           83.7%
+  and again without the
+    width filter                3228      26       64.2%           83.5%
+```
+
+**The set does not grow and the model gets slightly worse each time it is made
+consistent with the code.** That is the finding, and it reframes the recognizer's
+headline numbers rather than adding to them: 66.3% and 84.2% were measured on
+labels produced by a segmentation the repository no longer contains. Once the
+labels match the code that would actually cut digits at run time, it is 64% and
+83.5%. The model did not get worse; the figure was flattering.
+
+The per-scan counts
+move a great deal -- 3.22 Pacific 464 to 487, 6.13 Seaport 12 to 0, 9.26 Mission
+15 to 3 -- so joining more eagerly gains cells and loses cells in almost equal
+measure. Losing an event entirely (6.13 Seaport now yields nothing) is why the
+event count drops.
+
+A hypothesis for the loss, unverified and worth checking before any more
+classifier work: the emit filter only asks that the number of boxes MATCHES the
+number of digits in the sheet's value, so a two-digit number whose pieces are
+joined across the wrong boundary still emits two boxes and labels both wrongly.
+More eager joining would produce more of exactly that.
 
 **Regenerate the training set after any change here.**
 `label-from-spreadsheet.mjs` only emits a cell when segmentation found as many
@@ -631,9 +700,16 @@ The shortest list of what is worth doing, in order:
 1. **Digit SEGMENTATION**, measured at 72.8% and capping everything downstream.
    The largest single lever on how much a volunteer has to type, and it is
    geometry rather than recognition. See "What it would take" above.
-2. **Tallies that continue onto the next row** -- see "Counting the tallies"
-   above. Now the dominant error in the counter and the thing standing between
-   it and the counts above five, which is where most of the volume is.
+2. **Ink that crosses a row boundary, in either direction** -- see "Counting the
+   tallies" above. A tally continuing onto the next row is the dominant error in
+   the counter and the thing standing between it and the counts above five,
+   which is where most of the volume is. The pre-fill audit of 2026-08-13 found
+   the mirror image of it and it is worse: another row's marks reaching INTO
+   this one -- a diagonal crossing three rows, the descenders of a word written
+   above -- put a number into a box whose own row holds no tally. Two of the
+   three remaining wrong pre-fills are this. One mechanism answers both: follow
+   each stroke's own line into the context above and below and refuse the
+   reading where the ink carries on.
 3. **The 131 cells the review list still offers with nothing in them** -- see
    "What is still on the list that should not be" below. Another quarter of a
    reviewer's time, and the remaining noise is a different kind from the ruling
@@ -668,6 +744,11 @@ per-digit accuracy, all digits                66.3%
   >= 0.70      1895 (59%)      80.3%       79.9%
   >= 0.90      1014 (32%)      84.2%       83.5%
 ```
+
+**Those figures are the stale ones.** They were measured on a training set built
+by a segmentation this repository no longer contains; regenerated against the
+current cutting the same measurement gives 64.2% per digit and 83.5% at the 0.90
+gate. See "Regenerating the training set" above.
 
 ### More scans have stopped helping. This is measured, and it is the finding
 

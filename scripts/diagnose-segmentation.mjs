@@ -21,6 +21,12 @@
  *
  * Usage:
  *   npx vite-node scripts/diagnose-segmentation.mjs -- [--show] [--only <name>]
+ *     [--kind none|over|under]   render only one kind of failure
+ *
+ * `--kind none` is the one worth looking at first. The cells where nothing is
+ * found at all are the largest single bucket and the least explained: dropping
+ * the ink threshold from 25 to 10 changes their number by exactly nothing, so
+ * they are not faint pencil.
  */
 
 import { mkdirSync } from "node:fs";
@@ -33,7 +39,7 @@ import { colName, contactSheet, matchedPairs, readSpreadsheet, scan } from "./di
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-function report(pair, show) {
+function report(pair, show, kind) {
   const s = scan(pair.dir);
   const sheet = readSpreadsheet(pair.sheet);
 
@@ -63,10 +69,9 @@ function report(pair, show) {
     const boxes = segmentDigits(c.total);
     if (boxes.length === truth.length) stats.right++;
     else {
-      if (boxes.length === 0) stats.none++;
-      else if (boxes.length > truth.length) stats.over++;
-      else stats.under++;
-      wrong.push({ ...c, boxes: boxes.length, truth });
+      const which = boxes.length === 0 ? "none" : boxes.length > truth.length ? "over" : "under";
+      stats[which]++;
+      wrong.push({ ...c, boxes: boxes.length, truth, kind: which });
     }
   }
 
@@ -78,13 +83,14 @@ function report(pair, show) {
       `none ${String(stats.none).padStart(3)}`,
   );
 
-  if (show && wrong.length) {
+  const shown = kind ? wrong.filter((w) => w.kind === kind) : wrong;
+  if (show && shown.length) {
     const out = join(ROOT, "out", "review", pair.name);
     mkdirSync(out, { recursive: true });
     const PER = 24;
-    for (let i = 0; i < Math.min(wrong.length, PER * 2); i += PER) {
-      const path = join(out, `segmentation-${String(i / PER).padStart(2, "0")}.png`);
-      contactSheet(path, wrong.slice(i, i + PER));
+    for (let i = 0; i < Math.min(shown.length, PER * 2); i += PER) {
+      const path = join(out, `segmentation-${kind ?? "all"}-${String(i / PER).padStart(2, "0")}.png`);
+      contactSheet(path, shown.slice(i, i + PER));
       console.log(`  wrote ${path}`);
     }
   }
@@ -95,12 +101,13 @@ function main() {
   const args = process.argv.slice(2);
   const show = args.includes("--show");
   const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
+  const kind = args.includes("--kind") ? args[args.indexOf("--kind") + 1] : null;
   const pairs = matchedPairs().filter((p) => !only || p.name === only);
 
   console.log(`${pairs.length} matched (scan, spreadsheet) pairs\n`);
   const totals = { cells: 0, right: 0, over: 0, under: 0, none: 0 };
   for (const p of pairs) {
-    const s = report(p, show);
+    const s = report(p, show, kind);
     for (const k of Object.keys(totals)) totals[k] += s[k];
   }
   const pct = (a, b) => (b ? ((a / b) * 100).toFixed(1) + "%" : "-");

@@ -671,11 +671,30 @@ function segmentDigits(img) {
   // Reject anything shaped like a rule rather than a digit. A leftover slice of
   // the printed border arrives as a very wide, very short component, or a very
   // tall hairline; a digit is neither.
+  //
+  // There used to be a fourth test here -- `w > img.width * 0.75` is a rule --
+  // and it was throwing away real numbers. A volunteer who writes "30" across
+  // the whole box leaves ONE component 76 pixels wide in a 100-pixel crop, and
+  // that is not a rule by any other measure: it is 33 tall, so the bar test
+  // (w/h > 3.5) does not touch it, and it is solid, so the hollow test does
+  // not either. Rendering the cells where segmentation found NOTHING is what
+  // turned it up; four of the twenty-six on 1.18 Imperial were digits struck by
+  // that one line, each of them plainly legible.
+  //
+  // Removed rather than loosened, because a bar this high can only ever fire on
+  // handwriting: `inkMask` insets the crop by 6% a side, so no component can be
+  // wider than 88% of it, and a printed rule spanning the cell is caught by the
+  // two tests that remain. Measured, it costs nothing anywhere:
+  //
+  //   cut into the right number of digits   1.18 Imperial  3.22 Pacific  8.23 Seaport
+  //     with the width test                     75.8%          74.7%        81.5%
+  //     without it                              76.8%          74.9%        81.5%
+  //
+  // and the cells cut into too MANY pieces do not move at all (28, 37, 7).
   boxes = boxes.filter((b) => {
     const w = b.maxX - b.minX + 1;
     const h = b.maxY - b.minY + 1;
     if (h < img.height * 0.18) return false; // too short to be a digit
-    if (w > img.width * 0.75) return false; // spans the cell: a rule
     if (w / h > 3.5) return false; // a horizontal bar
     // Ink should fill a fair share of a digit's own box; a hollow rectangle
     // outline (the cell border) does not.
