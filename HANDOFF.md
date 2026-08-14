@@ -273,7 +273,9 @@ on both axes at once:
 ```
 
 Every bucket in the by-shape table improves. Note the 81.4% quoted further down
-this file is stale: measured on the committed code it is 75.8%.
+this file is stale, and by two steps: measured on the code as it stood at the
+start of the session it is 75.8%, and after the neighbouring-row test below it
+is 79.8%.
 
 `tests/tally.test.ts` has the case. The synthetic banner has white lettering
 reversed out of it, and that detail is the test: `inkMask` measures against a
@@ -407,11 +409,11 @@ one of the three was 0.95.**
 the whole point: a confidence gate can only rank readings the counter
 understands, and this is a reading it misunderstands completely.
 
-`PREFILL_GATE` in `main.ts` is therefore set to 1.1 -- above any confidence, so
-nothing is pre-filled -- until a strip holding only the printed border is
-refused. Everything else about the counter is measured and works; this is the
-one thing between it and being useful. Put the gate back to 0.80 when that is
-fixed.
+`PREFILL_GATE` in `main.ts` was therefore set to 1.1 -- above any confidence, so
+nothing was pre-filled -- until a strip holding only the printed border is
+refused. **That was done, and the gate is 0.8 now; see the two sections above.**
+The border survived one more session than this paragraph expected, because the
+cause was not the one it assumes.
 
 **Fixed, at a cost.** Rendering the context crop answered it: the border on that
 card is a DOTTED vertical rule that stops dead at each horizontal row rule, so it
@@ -473,6 +475,12 @@ Of 249 marked strips on the test scan the counter answers 49. The declines:
    9  too dense                  7  no ink
    6  ragged groups              1  no common baseline
 ```
+
+*(Measured before the border and neighbouring-row work. The same scan reads 34
+answers today, and the shape of the declines has not changed: 66 run off the
+strip, 53 hold unexplained ink, 51 are not parallel. The argument below is
+unaffected -- the clipped-tally test is still the largest single cost, and it
+is still not worth removing.)*
 
 The clipped-tally test is the largest single cost, so it was worth attacking.
 Rendered, those 80 are a mix: numbers written in the strip, the word "(string)",
@@ -554,31 +562,36 @@ together. They share no code and fail for unrelated reasons, so agreement is
 much better evidence than either alone. Measured across the 27 pairs:
 
 ```
-  both readers answered                    175 cells
-  they agreed on                           151
-  where they agreed, and a sheet has it    93.5%  (of 77)
-  digits alone at their 0.9 gate           72.4%  (of 740)
-  tally alone                              80.8%  (of 402)
+  both readers answered                    184 cells
+  they agreed on                           155
+  where they agreed, and a sheet has it    91.4%  (of 81)
+  digits alone at their 0.9 gate           74.1%  (of 750)
+  tally alone                              79.8%  (of 436)
 ```
 
 **When they disagree, do not average them.** The chapter's owner asked for the
-midpoint, on the grounds that a count out by a couple is tolerable. On the 18
+midpoint, on the grounds that a count out by a couple is tolerable. On the 21
 disagreements with a value in a sheet:
 
 ```
-  the tally alone was right         9  (50%)
-  the digits alone were right       7  (39%)
-  halfway between was right         3  (17%)
+  the tally alone was right        10  (47.6%)
+  the digits alone were right       8  (38.1%)
+  halfway between was right         5  (23.8%)
 ```
 
-In 16 of the 18, one of the two readings WAS the answer. The readers do not
+In 18 of the 21, one of the two readings WAS the answer. The readers do not
 drift either side of the truth, which is the situation an average is for; one of
 them fails outright and the other is simply correct, so averaging a right answer
 with a wrong one reliably produces a third number that is on neither the tally
 nor the box. `reconcile` computes the midpoint, because it was asked for, and
-gives it a confidence of 0.17 to match -- which leaves it below the pre-fill
-gate. Raising `splitConfidence` is a one-line change if the chapter decides a
-one-in-six hit rate is worth the typing it saves.
+gives it a confidence of 0.17 -- which leaves it below the pre-fill gate.
+
+The midpoint's hit rate has moved from one in six to closer to one in four as
+the counter improved, and `splitConfidence` has NOT been moved with it. That is
+deliberate: 0.17 is a statement that the midpoint is the weakest of the three
+answers available, which is still true at 23.8% against 47.6%, and raising it
+past the gate would pre-fill a number that is on neither the tally nor the box.
+Raising it is a one-line change if the chapter decides otherwise.
 
 ## What it would take to get a volunteer down to 20 numbers
 

@@ -19,9 +19,18 @@
  * bright marks; anything running past them is not a volunteer's.
  *
  * Usage:
- *   npx vite-node scripts/audit-prefills.mjs -- [--gate 0.8] [--only <scan>]
+ *   npx vite-node scripts/audit-prefills.mjs -- [--only <scan>]
+ *     [--gate N]      the confidence to audit at; must match PREFILL_GATE in
+ *                     src/main.ts, which is what the tool actually fills at
  *     [--no-show]     list the cells without rendering them
  *     [--per N]       cells per contact sheet (default 12)
+ *     [--debug]       print the segments the decomposition found for each cell,
+ *                     which is how a wrong count gets attributed to a cause
+ *
+ * Writes out/audit/tiles/<n>-<scan>-card<n>-row<n>-said<n>.png, one per cell,
+ * and scores what it found against scans/eye-labels/prefill-audit.json.
+ * `scripts/sweep-row-escape.mjs` reads the same labels to set the bar that
+ * refuses a neighbouring row's ink.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

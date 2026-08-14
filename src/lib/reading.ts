@@ -51,11 +51,15 @@ export interface ReconcileOptions {
    * that is on neither the tally nor the box.
    *
    * So the midpoint is computed and reported, because that is what was asked
-   * for, and it is given a confidence that reflects being right one time in six
-   * -- which leaves it below the bar `main.ts` pre-fills at. The number is shown
-   * to the reviewer beside the picture rather than typed into the box for them.
-   * Raising `splitConfidence` above that bar is a one-line change if the chapter
-   * decides a 17% hit rate is worth the typing it saves.
+   * for, and it is given a confidence that leaves it below the bar `main.ts`
+   * pre-fills at. The number is shown to the reviewer beside the picture rather
+   * than typed into the box for them.
+   *
+   * That hit rate has moved from one in six to closer to one in four as the
+   * counter improved, and `splitConfidence` has deliberately NOT moved with it:
+   * 0.17 says the midpoint is the weakest of the three answers available, which
+   * is still true at 23.8% against the tally's 47.6%. Raising it above the gate
+   * is a one-line change if the chapter decides otherwise.
    *
    * The spread limit stays either way. Where the two are far apart they are not
    * two noisy readings of one number, they are two different numbers -- the
@@ -75,8 +79,8 @@ export interface ReconcileOptions {
 export const RECONCILE_DEFAULTS: ReconcileOptions = {
   maxSplit: 0.35,
   agreedConfidence: 0.99,
-  // Right about one time in six, measured. Deliberately below the gate
-  // `main.ts` pre-fills at; see maxSplit above.
+  // The weakest of the three answers available, measured. Deliberately below
+  // the gate `main.ts` pre-fills at; see maxSplit above.
   splitConfidence: 0.17,
   tallyConfidence: 0.97,
 };
