@@ -48,7 +48,7 @@ npx vite-node scripts/audit-prefills.mjs -- --debug --only <scan> --no-show
 
 It lists every cell that would clear gate 0.80 across all 29 page directories,
 renders each as **the strip beside its context with the row band ticked off**,
-and scores it against `scans/eye-labels/prefill-audit.json` — 46 cells counted by
+and scores it against `eye-labels/prefill-audit.json` — 46 cells counted by
 eye, keyed `scan:card:row` so the labels survive a change that moves which cells
 clear the gate. **That keying is the point**: the previous audit was keyed to
 nothing durable, went stale the moment the counter changed, and had to be redone
@@ -162,7 +162,7 @@ only after the cutting is fixed.
    tally alone was right 9 times, the digits 7, and halfway between **3**.
 9. **Anything under `assets/` is copied into the build verbatim.** Scans live in
    `/scans/`, outside it. Do not weaken `scripts/check-dist.mjs`.
-10. **`scans/eye-labels/` is the most valuable thing in the repo.** Hours of
+10. **`eye-labels/` is the most valuable thing in the repo.** Hours of
    looking, and now three separate label sets. Never throw it away.
 
 ## How to measure

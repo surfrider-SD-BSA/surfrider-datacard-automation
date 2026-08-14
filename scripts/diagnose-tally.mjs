@@ -9,7 +9,7 @@
  *
  * Usage:
  *   npx vite-node scripts/diagnose-tally.mjs -- <cache-name> [--show]
- *     [--labels scans/eye-labels/<file>.json]   score against counts read by eye
+ *     [--labels eye-labels/<file>.json]   score against counts read by eye
  *     [--declined]                              also render the declines
  *     [--reason <r>]                            only strips declined for <r>
  */

@@ -220,7 +220,7 @@ npx vite-node scripts/audit-prefills.mjs -- --debug --only <scan> --no-show
 It lists every cell that would clear the gate across all twenty-nine page
 directories, renders each one as **the strip beside its context with the row
 band ticked off**, and scores what the counter said against
-`scans/eye-labels/prefill-audit.json` -- 46 cells counted by eye. The labels are
+`eye-labels/prefill-audit.json` -- 46 cells counted by eye. The labels are
 keyed `scan:card:row`, so a change to the counter that moves which cells clear
 the gate does not invalidate them, which is exactly how the last audit went
 stale.
@@ -970,7 +970,7 @@ failure on a real scan before it was written.
 
 1. **730 cells of the test scan, read by eye.** Every TOTAL box, and every tally
    strip belonging to a cell the box test drops. Recorded in
-   `scans/eye-labels/test-long*.json`, keyed to a frozen crop cache so a filter
+   `eye-labels/test-long*.json`, keyed to a frozen crop cache so a filter
    can be re-scored against the same pixels in a second. Re-reading those cells
    is a couple of hours; do not throw the labels away.
 2. **A held-out scan.** The first version that scored perfectly on the test scan
@@ -1191,7 +1191,7 @@ screen and counting the strokes by eye.
 
 ## Ground truth for measuring
 
-`scans/eye-labels/test-long.json` and `test-long-tally.json` hold every cell of
+`eye-labels/test-long.json` and `test-long-tally.json` hold every cell of
 the 58-card test scan's review list, read by eye: 277 TOTAL boxes with writing
 against 450 without, and 49 tally strips with marks against 86 without. They are
 keyed to the cell ids of a `review-cache.mjs` cache, so re-scoring a candidate

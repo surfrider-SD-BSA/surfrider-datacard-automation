@@ -536,7 +536,7 @@ function renderCard(card: ExtractedCard): HTMLElement {
  * **What the setting is worth, measured the only way that means anything.**
  * `scripts/audit-prefills.mjs` lists every cell this gate would fill across all
  * twenty-nine page directories and renders it beside its context; all 46 were
- * counted by eye and are kept in `scans/eye-labels/prefill-audit.json`. At 0.80
+ * counted by eye and are kept in `eye-labels/prefill-audit.json`. At 0.80
  * the tool fills 42 of them and **40 are right**. Nothing here is scored on the
  * chapter's spreadsheets, which agree 79.8% and are a lower bound rather than a
  * precision -- a value in a sheet is not proof of what is on the card.

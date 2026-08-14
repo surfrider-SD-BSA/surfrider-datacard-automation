@@ -28,7 +28,7 @@
  *                     which is how a wrong count gets attributed to a cause
  *
  * Writes out/audit/tiles/<n>-<scan>-card<n>-row<n>-said<n>.png, one per cell,
- * and scores what it found against scans/eye-labels/prefill-audit.json.
+ * and scores what it found against eye-labels/prefill-audit.json.
  * `scripts/sweep-row-escape.mjs` reads the same labels to set the bar that
  * refuses a neighbouring row's ink.
  */
@@ -210,7 +210,7 @@ function main() {
   // Keyed scan:card:row rather than by position in this list, so the labels
   // survive a change to the counter that moves which cells clear the gate --
   // which is the whole reason the earlier audit went stale and had to be redone.
-  const labelPath = join(ROOT, "scans", "eye-labels", "prefill-audit.json");
+  const labelPath = join(ROOT, "eye-labels", "prefill-audit.json");
   if (existsSync(labelPath)) {
     const truth = JSON.parse(readFileSync(labelPath, "utf8")).counts ?? {};
     let right = 0;

@@ -67,7 +67,7 @@ function main() {
     escapeGap: opt("--gap", TALLY_DEFAULTS.escapeGap),
   };
 
-  const labels = join(ROOT, "scans", "eye-labels", "prefill-audit.json");
+  const labels = join(ROOT, "eye-labels", "prefill-audit.json");
   if (!existsSync(labels)) {
     console.error(
       `no ${labels}\n` +
