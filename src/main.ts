@@ -528,48 +528,44 @@ function renderCard(card: ExtractedCard): HTMLElement {
  * and gets more of them wrong. The measured cost of each setting is in
  * HANDOFF.md, per bucket, so the chapter can move it on evidence.
  *
- * SET ABOVE 1 -- PRE-FILLING IS OFF -- and the reason is a measurement, not
- * caution. Every cell the gate would fill across all 27 scans was rendered and
- * read by eye: 44 of them. Most were right. At least three counted the printed
- * border of the TOTAL box as a stroke, and returned a number for a strip with
- * no tally in it at all.
+ * At 0.80 the tool pre-fills counts of one to four whose ink is fully accounted
+ * for -- five boxes of the 453 on the 58-card test scan. The counter only ever
+ * sees the 66 cells with tally marks and no number; the other 387 hold
+ * handwriting, and reading those is the recognizer's problem, which is off.
  *
- * `verticalRules` is supposed to strike that border and does, on most scans.
- * Where it fails the failure is invisible from inside: the border is dense,
- * full-height and perfectly upright, so it reads as a flawless stroke, the ink
- * is fully accounted for, and the reading comes out at the TOP confidence this
- * tool issues. One of the three scored 0.95. So no threshold separates them --
- * raising the gate does not help, and that is exactly why the gate is not the
- * answer here.
+ * **What the setting is worth, measured the only way that means anything.**
+ * `scripts/audit-prefills.mjs` lists every cell this gate would fill across all
+ * twenty-nine page directories and renders it beside its context; all 46 were
+ * counted by eye and are kept in `scans/eye-labels/prefill-audit.json`. At 0.80
+ * the tool fills 42 of them and **40 are right**. Nothing here is scored on the
+ * chapter's spreadsheets, which agree 79.8% and are a lower bound rather than a
+ * precision -- a value in a sheet is not proof of what is on the card.
  *
- * Turn it back on by setting this to 0.80 once a strip with only the printed
- * border in it is refused. That is the one thing standing between this counter
- * and being useful; everything else about it is measured and working.
+ * That is 95.2%, and it is short of the ~99% this project set as the bar for a
+ * pre-fill. It ships at 0.80 because the chapter's owner asked for it after
+ * being shown these figures, and because the shortfall is no longer the kind
+ * the bar was written for:
  *
- * At 0.80 the tool pre-fills counts of one to four whose ink is fully
- * accounted for. Scored against the chapter's own twenty-seven datasheets those
- * run 75-95% right depending on the count, which is BELOW the ~99% this project
- * set as the bar for a pre-fill, and the shortfall is deliberate rather than
- * overlooked:
+ *   - Neither remaining error invents a number out of nothing. Both readings
+ *     that returned a count for a row holding no tally at all -- a diagonal
+ *     crossing three rows, and the descenders of a word written in the row
+ *     above -- are refused now; see `rowEscape` in tally.ts.
+ *   - What is left is a count out by one, and a digit written inside a drawn
+ *     circle read as three. The 99% bar exists because a recognizer reading
+ *     "2" where the card says "21" is wrong by nineteen; the chapter's owner
+ *     has said a count out by one or two is tolerable for aggregate debris.
+ *   - Every pre-filled box is tagged "counted: check it" in the list and
+ *     exported as `recognized` rather than `human`, so a reviewer who trusts it
+ *     and a reviewer who corrects it are told apart in the chapter's own audit
+ *     column.
  *
- *   - That figure is a lower bound, not a precision. A value in a spreadsheet
- *     is not proof of what is on the card, and reading the disagreements one at
- *     a time turns up cases where the sheet is wrong and the counter is right.
- *     Read by eye against the 58-card test scan, the counter got 9 of the 9
- *     cells it answered.
- *   - The errors here are not the kind the 99% bar was written for. That bar
- *     exists because a digit recognizer reading "2" where the card says "21" is
- *     wrong by nineteen. A miscounted tally is wrong by one stroke, and the
- *     chapter's owner has said a count out by one or two is tolerable for
- *     aggregate debris data.
- *   - Every pre-filled box is marked, in the list and in the exported audit
- *     column, as a machine reading nobody has checked.
- *
- * Set it to 0.95 to pre-fill only single strokes, which is the one shape
- * measured above 95%. Set it to 1.1 to turn pre-filling off entirely and leave
- * the tool exactly as it was.
+ * Set it to 0.95 to pre-fill only single strokes. Set it to 1.1 to turn
+ * pre-filling off entirely. Re-run the audit after ANY change to the counter:
+ * it is the only instrument here that has ever caught the failure it exists
+ * for, and every other one -- the spreadsheet score, both offline diagnostics,
+ * the whole test suite -- passed clean through it twice.
  */
-const PREFILL_GATE = 1.1;
+const PREFILL_GATE = 0.8;
 
 function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   const row = document.createElement("div");

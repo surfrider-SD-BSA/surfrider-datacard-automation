@@ -335,6 +335,66 @@ export interface TallyOptions {
   /** Ink pixels against a side before the tally counts as running off it. */
   edgeInk: number;
   /**
+   * How far ink may carry on past the strip, along a stroke's own line, before
+   * the mark is judged to belong to a NEIGHBOURING ROW -- as a share of the
+   * strip's height.
+   *
+   * `touchesSide` catches a tally that overruns the left or right of its crop.
+   * Nothing caught the other axis, and the pre-fill audit of 2026-08-13 found
+   * two of its three remaining wrong pre-fills there:
+   *
+   *   pacific-6.30    3:108   said 1, is 0   one long diagonal, running from
+   *                                          well above the row to well below it
+   *   moonlight-7.19  7:42    said 2, is 0   the descenders of "Paper", written
+   *                                          by the volunteer in the row ABOVE
+   *
+   * Both are the worst thing this tool can do: a number in a box whose own row
+   * holds no tally at all. Neither is visible from the strip. Cropped to the
+   * row, a diagonal crossing three rows is an ordinary slanted stroke of exactly
+   * band height, and a descender is an ordinary short one.
+   *
+   * This is deliberately a test on the STROKE'S LINE and not on its column.
+   * `verticalRules` already asks the column question -- is this column inked
+   * above or below -- and it cannot see a diagonal, which leaves its column
+   * within a few pixels after two rows. Walking the line the segment was found
+   * at can.
+   *
+   * **Only ink arriving from ABOVE counts, and the direction is the finding.**
+   * Measured both ways over all 46 cells of the audit, the two populations do
+   * not separate at all on total overrun: the marks that belong to another row
+   * reach 0.60, and so do four cells the counter reads correctly. Split by
+   * direction they very nearly do, and the reason is that a volunteer writes
+   * downward -- a tally stroke that runs out of room runs out BELOW its row,
+   * while a descender or a slash from the row above arrives from the top:
+   *
+   *     cell                      up    down   read
+   *     oceanbeach-8.02 3:109   0.02    0.59   right -- three strokes, all
+   *                                                    hanging below their row
+   *     moonlight-7.05 24:42    0.00    0.55   right
+   *     pacific-9.27   14:26    0.00    0.54   right, in this respect
+   *     moonlight-7.19  7:42    0.35    0.00   WRONG: descenders of "Paper"
+   *     pacific-6.30    3:108   0.60    0.60   WRONG: a diagonal crossing rows
+   *
+   * Refusing on the downward figure would throw away most of what the counter
+   * gets right. Refusing on the upward one costs two correct cells of
+   * forty-six and removes both readings that put a number into a box whose own
+   * row holds no tally at all -- the worst thing this tool can do, and the
+   * failure pre-filling was switched off for.
+   *
+   * **The bar is thin and it is tuned on 46 cells: re-sweep it when there are
+   * more.** The nearest correct cell sits at 0.28 and the nearer of the two
+   * targets at 0.35, which is about one cell of margin. The two correct cells
+   * it discards (`seaport-6.13 5:40` at 0.61, `moonlight-7.05 24:18` at 0.50)
+   * are rows whose neighbour above holds its own tally, touching this one --
+   * the same overlap that costs `verticalRules` coverage, and the reason this
+   * cannot be pushed lower.
+   */
+  rowEscape: number;
+  /** Columns either side of the extrapolated line that count as the same mark. */
+  escapeSlack: number;
+  /** Rows of white the trail may skip before it is a different mark. */
+  escapeGap: number;
+  /**
    * Ink a segment must carry per pixel of its length.
    *
    * A thinned pen stroke is a solid line, so it runs about 1.0. The fringe of a
@@ -389,6 +449,9 @@ export const TALLY_DEFAULTS: TallyOptions = {
   ruleWidth: 6,
   ruleFringe: 2,
   edgeInk: 6,
+  rowEscape: 0.35,
+  escapeSlack: 1,
+  escapeGap: 1,
   minDensity: 0.62,
   barDensity: 0.4,
   maxInk: 6000,
@@ -747,6 +810,103 @@ function verticalRules(
 }
 
 /**
+ * Where the strip sits inside its context, and where the counted band sits
+ * inside the strip.
+ *
+ * Three coordinate systems meet here and getting them wrong is silent: the mask
+ * that is decomposed has been trimmed on all four sides, and the context it is
+ * checked against has not. `insetRows` and `insetColumns` both decline to trim
+ * when what is left would be too small, so the offsets are derived by comparing
+ * the sizes rather than assumed from the options.
+ */
+interface Frame {
+  /** x in the context of the mask's column 0. */
+  left: number;
+  /** y in the context of the mask's row 0. */
+  top: number;
+  /** y in the context of the strip's own top and bottom edges. */
+  stripTop: number;
+  stripBottom: number;
+}
+
+/**
+ * How far does this stroke's ink carry on ABOVE the row it was found in?
+ *
+ * A pen stroke belonging to this row starts at it; a diagonal crossing the
+ * card, or the descender of a word written in the row above, comes down into
+ * it from somewhere else. The downward direction is deliberately not asked --
+ * see `rowEscape` for the measurement that settles why.
+ *
+ * **The ink is TRACED, not extrapolated, and that is the whole of it.** The
+ * obvious implementation follows the segment's own line out of the strip, and
+ * it measures nothing: a segment's angle is fitted to the straightest part of a
+ * mark, and handwriting curves. On `moonlight-7.19 7:42` the descender of a "P"
+ * reads as 2 degrees off vertical over the piece inside the row and leans about
+ * ten over its whole length, so a straight line drawn from it is six pixels
+ * wide of the ink twenty rows up and finds nothing at all. Following the ink
+ * row by row, taking the nearest hit within a couple of columns of where the
+ * last row put it, tracks the curve.
+ *
+ * The trace starts at the stroke's own end and has to reach the strip's edge
+ * unbroken before anything is counted. That matters as much as the tracing: the
+ * ink between the stroke and the edge was trimmed off by `rowInset` and is
+ * still this row's own, and requiring the mark to actually CROSS the boundary
+ * is what stops the trace hopping onto a neighbouring row's tally, which sits
+ * at similar columns and is the coverage this project has already lost once to
+ * a cruder version of this idea.
+ */
+function rowOverrun(
+  s: Segment,
+  whole: { mask: Uint8Array; width: number; height: number },
+  frame: Frame,
+  o: TallyOptions,
+): number {
+  const rad = (s.angle * Math.PI) / 180;
+  const sin = Math.sin(rad);
+  // A segment this shallow is a crossbar, and only uprights are asked.
+  if (Math.abs(sin) < 1e-3) return 0;
+  const slope = Math.cos(rad) / sin;
+  const cy = (s.minY + s.maxY) / 2 + frame.top;
+
+  const trace = () => {
+    const step = -1;
+    const edge = frame.stripTop;
+    let y = s.minY + frame.top;
+    let x = Math.round(s.midX + frame.left + (y - cy) * slope);
+    let run = 0;
+    let missed = 0;
+
+    for (;;) {
+      y += step;
+      if (y < 0 || y >= whole.height) break;
+
+      let found = -1;
+      for (let d = 0; d <= o.escapeSlack && found < 0; d++) {
+        for (const px of d === 0 ? [x] : [x - d, x + d]) {
+          if (px >= 0 && px < whole.width && whole.mask[y * whole.width + px]) {
+            found = px;
+            break;
+          }
+        }
+      }
+
+      if (found >= 0) {
+        x = found;
+        missed = 0;
+        if (y < edge) run++;
+      } else if (++missed > o.escapeGap) {
+        // Broken. If that happened before the edge, `run` is still zero, which
+        // is the answer: the mark never left the row.
+        break;
+      }
+    }
+    return run;
+  };
+
+  return trace();
+}
+
+/**
  * Is there ink against the left or right edge of the strip?
  *
  * A volunteer who runs out of tally space writes over the printed caption, and
@@ -935,7 +1095,20 @@ function prepare(img: MarkImage, options: Partial<TallyOptions & MarkOptions> & 
 
   let raw = 0;
   for (const v of mask) raw += v;
-  return { o, mask, width, height, raw, clipped };
+
+  // Where the counted band sits inside the context, for `escapesRow`. Derived
+  // from the sizes rather than from the options, because both insets decline to
+  // trim when what would be left is too small.
+  const margin = Math.round((whole.height - img.height) / 2);
+  const rowTrim = Math.round((img.height - band.height) / 2);
+  const frame: Frame = {
+    left: trimmed.width === band.width ? 0 : o.insetLeft,
+    top: margin + rowTrim,
+    stripTop: margin,
+    stripBottom: margin + img.height,
+  };
+
+  return { o, mask, width, height, raw, clipped, whole, frame };
 }
 
 /**
@@ -948,7 +1121,7 @@ export function countTally(
   img: MarkImage,
   options: Partial<TallyOptions & MarkOptions> & TallyContext = {},
 ): TallyReading {
-  const { o, mask, width, height, raw, clipped } = prepare(img, options);
+  const { o, mask, width, height, raw, clipped, whole, frame } = prepare(img, options);
   if (raw === 0) return DECLINE("no ink");
   if (raw > o.maxInk) return DECLINE("too dense");
   if (clipped) return DECLINE("runs off the strip");
@@ -996,6 +1169,17 @@ export function countTally(
     bars: bars.length,
     explained: explainedInk(bars),
   });
+
+  // Does any of this belong to a neighbouring row?
+  //
+  // Declined whole rather than counted short. One escaping stroke says the crop
+  // is not showing this row's tally in the first place -- a diagonal crossing
+  // the card, a word written above -- and what is left after dropping it is not
+  // a smaller tally, it is the remains of something else. See `rowEscape`.
+  const escape = Math.round((frame.stripBottom - frame.stripTop) * o.rowEscape);
+  if (escape > 0 && strokes.some((s) => rowOverrun(s, whole, frame, o) >= escape)) {
+    return DECLINE("ink continues past the row", state());
+  }
 
   // Near-parallel, or it is not a tally. Tilt is measured from vertical so that
   // a stroke leaning one way and one leaning the other are two degrees apart
@@ -1073,6 +1257,9 @@ export function countTally(
     ),
   };
 }
+
+/** Internal, so a diagnostic can sweep the overrun bar against real cells. */
+export { rowOverrun as _rowOverrun, type Frame as _Frame };
 
 /** Internal, so a diagnostic can show what the decomposition actually saw. */
 export function _debugSegments(

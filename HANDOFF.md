@@ -18,7 +18,7 @@ State of the project, what is proven, and what to do next.
 | The UI | Dark, and only dark. Scan crops stay on white -- see the note in `style.css`. |
 | The web app | Runs end to end: drop a PDF, review crops, download the spreadsheet. |
 
-113 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
+116 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
 
 ## Registration: fixed
 
@@ -99,7 +99,7 @@ node scripts/diagnose-registration.mjs out/pages/<name> --overlay 1,2
 The overlay is the thing to look at: it draws every TOTAL box on the registered
 page, red where the tool would read a number. The boxes must sit on the boxes.
 
-## Counting the tallies: built, measured, shipped behind a gate
+## Counting the tallies: built, measured, and switched on
 
 `src/lib/tally.ts` reads a tally strip and returns a number. This was the
 largest unexploited lever in the project -- across eleven scans, 1,217 of 1,611
@@ -280,44 +280,109 @@ reversed out of it, and that detail is the test: `inkMask` measures against a
 LOCAL paper level, so a uniformly dark band contains no ink by that definition
 and the flat version of this test passes with or without the fix.
 
-#### What is still wrong, and why the gate stays at 1.1
+#### Ink from a neighbouring row, and the direction that separates it
 
-**43 of 46 by eye, 93.5%** -- and the three failures are worth more than the
+Two of the four remaining failures were the same thing, and it is now refused.
+`rowOverrun` in `tally.ts` traces each stroke's ink out of the strip in the
+context and declines when it carries on above the row.
+
+**Three things about this were wrong when it was first written, and each cost a
+measurement.**
+
+*The ink has to be TRACED, not extrapolated.* Following the segment's own line
+out of the strip measures nothing: an angle is fitted to the straightest part of
+a mark and handwriting curves. On `moonlight-7.19 7:42` the descender reads 2
+degrees off vertical over the piece inside the row and leans about ten over its
+whole length, so a straight line drawn from it is six pixels wide of the ink
+twenty rows up and finds nothing at all.
+
+*Total overrun does not separate the populations, at any tolerance.* Measured
+over all 46 audited cells at five settings of the trace's gap and slack, the
+marks belonging to another row reach 0.60 of the strip's height -- and so do
+four cells the counter reads correctly. There is no threshold. This is the point
+at which the obvious version of the idea should have been abandoned.
+
+*The DIRECTION separates them, and that is the finding.* A volunteer writes
+downward, so a tally that runs out of room runs out BELOW its row, while a
+descender or a slash from above arrives at the top:
+
+```
+  cell                      up    down   read
+  oceanbeach-8.02 3:109   0.02    0.59   right -- all three strokes hang below
+  moonlight-7.05 24:42    0.00    0.55   right
+  pacific-9.27   14:26    0.00    0.54   right, in this respect
+  moonlight-7.19  7:42    0.35    0.00   WRONG: the descenders of "Paper"
+  pacific-6.30    3:108   0.60    0.60   WRONG: a diagonal crossing three rows
+```
+
+Refusing on the downward figure throws away most of what the counter gets right.
+Refusing on the upward one costs two correct cells of forty-six and removes both
+readings that put a number into a box whose own row holds no tally.
+
+```
+                          before        after
+  cells clearing the gate    46            42
+  right, by eye              42            40
+  wrong                       4             2
+  precision               91.3%         95.2%
+
+  against the 27 sheets: 769 answers at 79.5%  ->  754 at 79.8%
+```
+
+**The bar is thin and it is tuned on 46 cells.** The nearest correct cell sits at
+0.28 and the nearer target at 0.35 -- about one cell of margin. The two correct
+cells it discards are rows whose neighbour above holds its own tally, touching
+this one, which is the same overlap that costs `verticalRules` coverage. Re-sweep
+`rowEscape` when there are more labels; `audit-prefills.mjs` plus the eye labels
+make that an afternoon rather than a session.
+
+#### Pre-filling is ON, and what is still wrong
+
+`PREFILL_GATE` in `main.ts` is **0.8**. The chapter's owner asked for it after
+being shown the figures below twice, which is their call to make; every
+pre-filled box is tagged *counted: check it* in the list and exported as
+`recognized` rather than `human`.
+
+**Verified end to end in the browser, not only in the mirrors.** Dropping the
+10.1 Ocean Beach scan into the running app fills exactly one box -- card 2,
+Foam Cups, 2 -- tagged and marked, which matches the audit and the chapter's own
+sheet. (The pane runs its tab hidden, so `requestAnimationFrame` has to be
+shimmed first; see "Not a bug" below.)
+
+**The scale is small and should not be oversold.** On the 58-card test scan the
+review list is 453 cells and **5 of them arrive pre-filled**. The counter can
+only ever touch the 66 tally-only cells; the other 387 are handwritten numbers,
+and that is the digit recognizer's problem, which is still off.
+
+**40 of 42 by eye, 95.2%** -- and the two failures are worth more than the
 figure:
 
 ```
   pacific-3.22   14:21  said 3, is 1   a "1" inside a drawn circle; the two arcs
                                        pass as uprights and the ink comes out
                                        fully explained
-  pacific-6.30    3:108 said 1, is 0   one long diagonal, from well above the row
-                                       to well below it, cropped to band height
-  moonlight-7.19  7:42  said 2, is 0   the descenders of "Paper", written by the
-                                       volunteer in the row ABOVE
   pacific-9.27   14:26  said 3, is 4   four strokes, two of them hanging below
-                                       the band
+                                       the band, and one of the four missed
 ```
 
-**Two of the four are the same failure: ink that belongs to a neighbouring row.**
-That is the problem this file already names as the dominant one, arriving from
-the other direction -- not a tally that runs on past its row, but another row's
-marks reaching into this one. Both produce the worst outcome the tool can:
-a number in a box whose row holds no tally at all.
+**Neither is a number invented out of nothing any more**, which is the class the
+gate was shut for. One is a count out by one on a cell that does hold a tally;
+the other is a circled digit, where the reading is wrong by two. The chapter's
+owner has said a count out by one or two is tolerable for aggregate debris data,
+and both are marked in the list and in the export as machine readings nobody has
+checked.
 
-`moonlight-7.19 7:42` was admitted by the banner fix, which is the honest cost of
-it and is recorded in the labels. It is not a border case; nothing about the
-repair made it more likely than the failure it replaced.
+95.2% is still short of the ~99% this project set as the bar for a pre-fill, and
+that gap is the honest reason to keep looking rather than a reason to distrust
+what ships: on a 58-card event it is five boxes, of which the measurement says
+about one in twenty is wrong.
 
-So `PREFILL_GATE` stays at **1.1**. 93.5% is not the ~99% a pre-fill needs, and
-dropping to 0.95 -- single strokes only, the shape measured highest -- does not
-rescue it: of the five such cells, `pacific-6.30 3:108` is one of them.
+**The circled digit is the one to take next**, and it is harder than what came
+before. The circle's two arcs are near enough to vertical to pass as uprights,
+the angle spread, baseline and length tolerances all pass, and the ink comes out
+0.99 explained. Nothing cheap suggests itself. It is one cell in forty-six.
 
-The next thing to build is a test that a stroke is CONFINED TO ITS ROW: follow
-each stroke's own line into the context above and below, and refuse the reading
-when the ink carries on. That is one mechanism for two of the three failures, it
-is geometry rather than recognition, and the context crop needed for it is
-already being passed in.
-
-### Read all 44 pre-fills by eye. Three were wrong, and pre-filling is now OFF
+### Read all 44 pre-fills by eye. Three were wrong, and pre-filling was turned OFF
 
 *(What follows is the previous session's audit, kept because the reasoning in it
 is still right and the figures are what the section above is measured against.)*

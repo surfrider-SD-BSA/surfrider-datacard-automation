@@ -23,16 +23,21 @@ On the 58-card test scan: **453 cells** to review, ~329 with something written.
 ```
 
 So tally counting can only ever touch a fifth of it. **Reaching 30 means solving
-the digits.** Today the tool pre-fills NOTHING — see below.
+the digits.** Today the tool pre-fills 5 of those 453 — see below.
 
-## State: the tally counter works, and is still switched off
+## State: the tally counter works, and pre-filling is ON
 
 `src/lib/tally.ts` counts a strip of pencil strokes geometrically (Hough
 decomposition into straight segments, uprights vs crossbars, "explain every ink
-pixel or decline"). It is measured, tested (113 vitest tests pass), wired into
+pixel or decline"). It is measured, tested (116 vitest tests pass), wired into
 `extract.ts` and `main.ts`, and verified end to end in the BUILT bundle.
 
-`PREFILL_GATE` in `src/main.ts` is **1.1, i.e. pre-filling is OFF.**
+`PREFILL_GATE` in `src/main.ts` is **0.8, i.e. pre-filling is ON**, at the
+chapter owner's explicit request after being shown the figures. On the 58-card
+test scan that fills **5 boxes of 453** — the counter only ever sees the 66
+cells with tally marks and no written number, so it can touch a fifth of the
+problem at most. Every filled box is tagged *counted: check it* and exported as
+`recognized`.
 
 ### The audit is now a script, and it is the thing to run
 
@@ -49,58 +54,46 @@ clear the gate. **That keying is the point**: the previous audit was keyed to
 nothing durable, went stale the moment the counter changed, and had to be redone
 from scratch.
 
-Last run: **43 of 46 right.** Down from six wrong to three.
+Last run: **40 of 42 right, 95.2%.** Six wrong at the start of the session,
+four after the border fix, two now.
+
+Verified in the browser as well as in the mirrors: dropping the 10.1 Ocean Beach
+scan into the running app fills exactly one box (card 2, Foam Cups, 2), tagged,
+matching both the audit and the chapter's sheet. The pane runs its tab hidden,
+so shim `requestAnimationFrame` first — see the traps below.
 
 ## Start here, in this order
 
-### 1. Ink that belongs to a NEIGHBOURING ROW. Two of the three remaining failures
+### 1. The circled digit, and the count out by one
+
+Two cells still read wrong out of the 42 filled:
 
 ```
-  pacific-6.30    3:108  said 1, is 0   one long diagonal, from well above the
-                                        row to well below it, cropped to band
-                                        height and counted as a stroke
-  moonlight-7.19  7:42   said 2, is 0   the descenders of "Paper", written by
-                                        the volunteer in the row ABOVE
+  pacific-3.22  14:21  said 3, is 1   a "1" written inside a drawn circle
+  pacific-9.27  14:26  said 3, is 4   four strokes, two hanging below the band,
+                                      and one of the four never found
 ```
 
-Both put a number into a box whose own row **holds no tally at all**, which is
-the worst thing this tool can do and the exact failure pre-filling was switched
-off for. It is also the same problem as the counter's dominant *undercount* —
-a tally that runs on past its row — approached from the other side.
+Neither invents a number for a row with no tally any more — that class is
+refused. The circle is the harder one: its two arcs are near enough to vertical
+to pass as uprights, the angle spread, baseline and length tolerances all pass,
+and the ink comes out 0.99 explained. Nothing cheap suggests itself.
 
-**One mechanism answers both, and it is geometry rather than recognition:**
-follow each stroke's own line into the context above and below, and refuse the
-reading where the ink carries on. The context crop this needs is already being
-passed in to `countTally`. Note it must be a test on the STROKE's line, not on
-its column: `verticalRules` already asks the column question and cannot see a
-diagonal.
+### 2. Re-sweep `rowEscape` when there are more eye labels
 
-Guard against the obvious over-correction: real tally strokes commonly hang a
-little below the band (see `pacific-9.27 14:26`, `oceanbeach-8.02 3:109`). The
-mark to refuse is one that carries on for a good fraction of the band's height,
-not one that overshoots by a few pixels.
+The neighbouring-row test is set at 0.35 on a population of 46 cells, and the
+nearest correct cell sits at 0.28. That is about one cell of margin — thin
+enough that a new scan could land on the wrong side of it. The sweep is in
+HANDOFF.md; redoing it is an afternoon once more strips have been counted by
+eye, which is the ask at the bottom of this file.
 
-### 2. The third failure, and it is harder
+### 3. Re-run the audit after ANY change to the counter
 
-```
-  pacific-3.22   14:21  said 3, is 1   a "1" written inside a drawn circle
-```
-
-The circle's two arcs are near enough to vertical to pass as uprights and the
-ink comes out fully explained (0.99). No cheap guard suggests itself; the angle
-spread, the baseline test and the length tolerance all pass. Worth leaving until
-1 is done — it is one cell in 46, where 1 is two.
-
-### 3. Then re-run the audit, and set the gate on the evidence
-
-If it comes back clean, set `PREFILL_GATE = 0.8` in `src/main.ts` and mirror it
-in `scripts/run-shipping-path.mjs`. **Do not set it on the spreadsheet score.**
-93.5% by eye against 79.5% agreement with the sheets is the gap between what the
-sheets can tell you and what is true; the sheets are a lower bound.
-
-Note that dropping the gate to 0.95 — single strokes only, the shape that
-measures highest — does NOT rescue it: `pacific-6.30 3:108` is one of the five
-single-stroke cells.
+`PREFILL_GATE` is live now, so a regression puts wrong numbers in front of a
+volunteer. **Do not judge a change on the spreadsheet score.** 95.2% by eye
+against 79.8% agreement with the sheets is the gap between what the sheets can
+tell you and what is true; the sheets are a lower bound, and they have been
+wrong about four of the audited cells where the counter was right.
 
 ### 4. Digit segmentation — still the largest lever on the owner's goal
 
@@ -159,13 +152,17 @@ only after the cutting is fixed.
    never fires and pdf.js hangs forever with no error. Use
    `window.requestAnimationFrame = (cb) => setTimeout(cb, 0)` as a harness shim,
    or front the tab.
-6. **`wallEdge: 0` does not disable the mark test's wall rule** — `marks.ts`
+6. **Total overrun does not tell a neighbouring row's ink from a tally's own.**
+   Both reach 0.60 of the strip's height, at every tolerance tried. Only the
+   DIRECTION separates them, because a volunteer writes downward. Measured over
+   all 46 audited cells; see `rowEscape`.
+7. **`wallEdge: 0` does not disable the mark test's wall rule** — `marks.ts`
    floors the edge at two columns. Use `wallFrac: 2`.
-7. **Do not average two disagreeing readers.** Measured on 18 disagreements the
+8. **Do not average two disagreeing readers.** Measured on 18 disagreements the
    tally alone was right 9 times, the digits 7, and halfway between **3**.
-8. **Anything under `assets/` is copied into the build verbatim.** Scans live in
+9. **Anything under `assets/` is copied into the build verbatim.** Scans live in
    `/scans/`, outside it. Do not weaken `scripts/check-dist.mjs`.
-9. **`scans/eye-labels/` is the most valuable thing in the repo.** Hours of
+10. **`scans/eye-labels/` is the most valuable thing in the repo.** Hours of
    looking, and now three separate label sets. Never throw it away.
 
 ## How to measure
@@ -191,8 +188,10 @@ what the browser runs. They agree today.
 ## What the owner could supply, and it is worth asking again
 
 **~100 tally strips counted by eye.** The spreadsheets can only ever give a lower
-bound, which is why the counter's precision is quoted as "79.5% against the
-sheets, 93.5% by eye on the cells that would actually be pre-filled". A hundred
-real counts would let the gate be set on evidence rather than on 46 cells.
+bound, which is why the counter's precision is quoted as "79.8% against the
+sheets, 95.2% by eye on the cells that are actually pre-filled". A hundred real
+counts would let both the gate and `rowEscape` be set on evidence rather than on
+46 cells — and `rowEscape` in particular is currently one cell from its nearest
+correct neighbour.
 Generate the contact sheets with `diagnose-tally.mjs --show`; someone reads them
 and writes numbers. It is an hour and it outlasts any session.

@@ -25,10 +25,16 @@ count as breaking.
 - A digit recognizer, measured and deliberately **not** switched on: 64% per
   digit and 83.5% precision where it is most confident, against the ~99% a
   pre-filled box needs before it stops being a liability. See `HANDOFF.md`.
-- A tally counter, also measured and also **not** switched on. It reads a run of
-  pencil strokes geometrically rather than as handwriting, and on the cells it
-  would actually pre-fill it is right 43 times in 46, counted by eye. Three
-  wrong in forty-six is not enough. See `HANDOFF.md`.
+- **Tally marks are counted, and the count is pre-filled into the box for you to
+  check.** It reads a run of pencil strokes geometrically rather than as
+  handwriting, which is why it works where digit recognition does not. Every
+  cell it would fill was rendered and counted by eye — 46 of them, across every
+  scan the chapter has — and it is right on 40 of the 42 it fills. Each one is
+  tagged *counted: check it* in the list and recorded as a machine reading in
+  the exported audit column, so a number nobody checked can always be told from
+  one a person typed. It is a small share of the work: five boxes of 453 on a
+  58-card event, because only the cells with tally marks and no written total
+  can be read this way. See `HANDOFF.md` for the measurement.
 - CI job for the browser tool: typecheck, tests, and a build that fails if
   anything data-shaped reaches the bundle.
 - Contribution guide, code of conduct, and security/privacy policy.

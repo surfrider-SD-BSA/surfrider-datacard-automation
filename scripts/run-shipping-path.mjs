@@ -53,7 +53,7 @@ function decodePng(path) {
 }
 
 /** Mirrors PREFILL_GATE in src/main.ts. */
-const PREFILL_GATE = 1.1;
+const PREFILL_GATE = 0.8;
 
 function main() {
   const dir = process.argv[2];

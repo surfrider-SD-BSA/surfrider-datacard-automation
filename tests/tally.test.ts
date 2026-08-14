@@ -236,6 +236,70 @@ describe("countTally", () => {
     });
   });
 
+  describe("ink that belongs to a neighbouring row", () => {
+    /**
+     * Draw the taller slice of the page first and cut the strip out of it.
+     *
+     * Drawing the two separately is how the first version of these cases went
+     * wrong: a mark drawn only in the context, perfectly upright, holds its
+     * column all the way through the margin and `verticalRules` strikes it as a
+     * printed rule -- so the reading was refused, the assertion passed, and it
+     * was measuring the wrong thing entirely. Real descenders lean, which is
+     * why they survive that test on the card, so these lean too.
+     */
+    function slice(draw: (ctx: MarkImage) => void) {
+      const context = blank(460, 116);
+      draw(context);
+      const top = Math.round((context.height - 58) / 2);
+      return {
+        context,
+        img: {
+          width: context.width,
+          height: 58,
+          data: context.data.subarray(top * context.width, (top + 58) * context.width),
+        } as MarkImage,
+      };
+    }
+
+    it("refuses a mark that comes down into the row from above", () => {
+      // `moonlight-7.19 7:42`: the volunteer wrote the item name "Paper" in the
+      // row above and its descenders hang into this row, where they are two
+      // perfectly ordinary short uprights. The tool read 2 into a box whose own
+      // row holds no tally at all, which is the worst thing it can do.
+      const { img, context } = slice((ctx) => {
+        uprights(ctx, 40, 1, 41, 75);
+        stroke(ctx, 66, 3, 76, 72);
+      });
+      expect(count(img, { context }).count).toBeNull();
+    });
+
+    it("still counts a stroke that overruns the row below it", () => {
+      // The other direction is NOT refused, and the asymmetry is the whole
+      // finding: a volunteer writes downward, so a tally that runs out of room
+      // runs out below its row. Measured over the 46 audited cells, refusing on
+      // the downward figure throws away most of what the counter gets right --
+      // `oceanbeach-8.02 3:109` has all three of its strokes hanging below.
+      const { img, context } = slice((ctx) => {
+        uprights(ctx, 40, 1, 41, 75);
+        stroke(ctx, 66, 41, 76, 112);
+      });
+      expect(count(img, { context }).count).toBe(2);
+    });
+
+    it("does not follow a separate mark sitting above the row", () => {
+      // The row above commonly holds its own tally at similar columns, and this
+      // is the coverage a cruder version of the idea already cost this project.
+      // What separates it from a descender is that it does not touch: the trace
+      // has to reach the strip's edge unbroken before anything is counted.
+      const { img, context } = slice((ctx) => {
+        uprights(ctx, 40, 1, 41, 75);
+        stroke(ctx, 66, 41, 70, 72);
+        stroke(ctx, 62, 3, 64, 22);
+      });
+      expect(count(img, { context }).count).toBe(2);
+    });
+  });
+
   it("counts a stroke written hard against the left edge", () => {
     // The mark test strikes thin dark columns near the edge of a crop, which is
     // right for a TOTAL box -- the border is at the edge, a volunteer writes
