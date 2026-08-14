@@ -232,6 +232,129 @@ describe("patchSheetXml", () => {
   });
 });
 
+/**
+ * Read a filled workbook back the way an OUTSIDER would: unzip it, walk the
+ * sheet, and collect every numeric cell by its reference.
+ *
+ * Deliberately shares no code with the writer. Every other check in this file
+ * asserts that the export produced a particular string, which cannot catch the
+ * failure that matters most -- a value landing in the wrong volunteer's column
+ * or against the wrong debris item. Both the writer and an assertion about the
+ * writer's own output agree about where C18 is; a second parser starting from
+ * the bytes does not have to.
+ */
+function readNumericCells(bytes: Uint8Array): Map<string, number> {
+  const sheet = text(parts(bytes)["xl/worksheets/sheet1.xml"]);
+  const out = new Map<string, number>();
+
+  // Self-closing cells have to be matched explicitly. `<c r="C18" s="10"/>` is
+  // how the template stores an empty cell, and a pattern that only knows about
+  // `<c ...>…</c>` runs past it to the next closing tag and reads a DIFFERENT
+  // cell's value under this cell's reference. That is how the first version of
+  // this test reported 166 misplaced numbers that were all in the right place.
+  const cell = /<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>((?:(?!<c[ >])[\s\S])*?)<\/c>)/g;
+
+  for (const m of sheet.matchAll(cell)) {
+    const [, ref, attrs, body] = m;
+    if (body === undefined) continue; // empty cell
+    // t="s" is an index into sharedStrings and t="inlineStr" is text; neither
+    // is a count. A cell holding a formula is skipped as well: its <v> is
+    // Excel's cached result, not anything this tool wrote.
+    if (/t="(?:s|str|inlineStr|b|e)"/.test(attrs!)) continue;
+    if (/<f[ >]/.test(body)) continue;
+    const v = /<v>([^<]*)<\/v>/.exec(body);
+    if (!v) continue;
+    const n = Number(v[1]);
+    if (Number.isFinite(n)) out.set(ref!, n);
+  }
+  return out;
+}
+
+describe("a typed number comes back out of the file in the right cell", () => {
+  /**
+   * Every taxonomy row, spread across the volunteer columns, with a value that
+   * encodes where it was supposed to go.
+   *
+   * The value is `card * 1000 + row`, so a number landing one column across or
+   * one item down does not merely fail the assertion -- it says exactly how far
+   * it moved. A spot check of one cell cannot do that, and a wrong OFFSET is
+   * the shape this failure takes: it is uniform, it looks like ordinary data,
+   * and nothing downstream of the export could ever detect it.
+   */
+  const rows = TAXONOMY.map((item) => item.row);
+  const cards = [1, 2, 7, MAX_VOLUNTEERS - 1, MAX_VOLUNTEERS];
+  const input: ExportInput = {
+    ...baseInput,
+    cards: cards.map((cardNumber, i) => ({
+      cardNumber,
+      pageNumbers: [i * 2 + 1, i * 2 + 2],
+      cardType: "total" as const,
+      values: rows.map((row) => ({
+        row,
+        value: cardNumber * 1000 + row,
+        confidence: 0.9,
+        corrected: false,
+      })),
+    })),
+  };
+
+  const cells = readNumericCells(fillTemplate(template, input));
+  const before = readNumericCells(template);
+
+  /**
+   * The column a card's numbers belong in.
+   *
+   * Card NUMBER, not position in the list: card 7 belongs in column I whether
+   * or not cards 3 to 6 were scanned. Writing this as "the third card I was
+   * handed goes in the third column" is how a scan with a missing card silently
+   * attributes every value after it to the wrong volunteer.
+   */
+  const columnFor = (cardNumber: number) => columnName(2 + cardNumber);
+
+  it("puts every item of every card where the chapter reads it", () => {
+    const misplaced: string[] = [];
+    for (const cardNumber of cards) {
+      for (const row of rows) {
+        const ref = `${columnFor(cardNumber)}${row}`;
+        const want = cardNumber * 1000 + row;
+        if (cells.get(ref) !== want) {
+          misplaced.push(`${ref}: expected ${want}, found ${cells.get(ref) ?? "nothing"}`);
+        }
+      }
+    }
+    expect(misplaced).toEqual([]);
+  });
+
+  it("writes nothing into any cell it was not asked to", () => {
+    // The other half of the same property: a value in a column no card owns is
+    // a number attributed to a volunteer who did not record it.
+    //
+    // Compared against the numeric cells the TEMPLATE already carries, not
+    // against an empty sheet. The template is a working spreadsheet with its
+    // own contents, and asserting that the filled copy holds nothing else would
+    // be asserting something false about the file the chapter gave us.
+    const wanted = new Set([
+      ...cards.flatMap((cardNumber) => rows.map((row) => `${columnFor(cardNumber)}${row}`)),
+      // The event header, which is numeric in two places: the head count and
+      // the weight of trash. Named rather than pattern-matched, so that a value
+      // escaping into column B -- where the template's own SUM formulas live,
+      // and where a written number would silently replace the total of a row --
+      // fails this test rather than being waved through as "something in A or B".
+      "A10", // volunteers
+      "A12", // pounds of trash
+    ]);
+    const added = [...cells.keys()].filter((ref) => !before.has(ref));
+    expect(added.filter((ref) => !wanted.has(ref))).toEqual([]);
+  });
+
+  it("covers every item on the card, not just the ones with a convenient row", () => {
+    // Guards the guard: if the taxonomy or the template ever stops lining up,
+    // the two cases above could pass by checking almost nothing.
+    expect(rows.length).toBe(83);
+    expect(new Set(rows).size).toBe(83);
+  });
+});
+
 describe("fillTemplate against the real template", () => {
   const filled = fillTemplate(template, baseInput);
   const before = parts(template);

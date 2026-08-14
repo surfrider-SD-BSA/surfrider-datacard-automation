@@ -37,6 +37,8 @@ count as breaking.
   can be read this way. See `HANDOFF.md` for the measurement.
 - CI job for the browser tool: typecheck, tests, and a build that fails if
   anything data-shaped reaches the bundle.
+- The front page says what the tool does **not** do — you still type the
+  numbers — so a first-time reviewer is not waiting for handwriting to be read.
 - Contribution guide, code of conduct, and security/privacy policy.
 - Issue and pull request templates.
 - Continuous integration: ruff lint and format checks, pytest, shellcheck.
@@ -46,6 +48,14 @@ count as breaking.
 
 ### Fixed
 
+- Nothing verified that a number typed against one volunteer's card came back
+  out of the downloaded spreadsheet in that volunteer's column. Every export
+  check asserted the writer had produced a particular string, which cannot catch
+  a value landing one column across — a failure that looks like ordinary data
+  and that nothing downstream could detect. Both halves are now pinned: in CI,
+  every one of the 83 items across five cards read back with an independent
+  parser, and by hand, 61 values typed into the running app on a real scan and
+  found in the right cell of the real download.
 - The built bundle could not start: it requested the cell maps from a path
   `publicDir` does not produce, so the tool worked under the dev server and
   404ed for anyone who ran `npm run build`.

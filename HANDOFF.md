@@ -17,8 +17,9 @@ State of the project, what is proven, and what to do next.
 | Card pairing | Handles a card fed in backwards, and resynchronises after a missing page. |
 | The UI | Dark, and only dark. Scan crops stay on white -- see the note in `style.css`. |
 | The web app | Runs end to end: drop a PDF, review crops, download the spreadsheet. |
+| The export, end to end | 61 values typed into the running app on a real scan come back out of the downloaded file in the right cell, all 61. Pinned in CI as well: every one of the 83 items across five cards, including the last volunteer column. |
 
-116 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
+119 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
 
 ## Registration: fixed
 
@@ -934,6 +935,56 @@ fix, every one is an *empty* TOTAL box (ink 0.000-0.003 against 0.025 for a
 written cell). The old registration had landed those boxes on a section banner,
 so the reader saw the printed word TOTAL. They are listed under `resolvedEmpty`
 so the count of 181 still reconciles.
+
+## Shipping: what a first real event needs, and what it has
+
+**The export is proven end to end, which it was not before.** Every other check
+in this repository asserts that the writer produced a particular string, and
+none of them could catch the failure that would actually corrupt the chapter's
+data: a value landing in the wrong volunteer's column or against the wrong
+debris item. That failure is uniform, it looks like ordinary data, and nothing
+downstream of the export could ever detect it.
+
+Two checks now close it, and they are deliberately independent of the writer:
+
+- `tests/xlsx-export.test.ts` fills the real template with `card * 1000 + row`
+  in every one of the 83 items across five cards -- including card 1, card 78
+  (column BZ) and the gaps between -- then reads the bytes back with a parser
+  that shares no code with the writer, so a misplaced number reports how far it
+  moved. It also asserts the export adds numbers NOWHERE else, compared against
+  the numeric cells the template already carries.
+- The same property was then driven through the running app on a real scan:
+  61 values typed into the boxes, the download button clicked, the resulting
+  file unzipped in the page, all 61 in the right cell and the head count with
+  them.
+
+Two things about writing those are worth keeping. The card-to-column mapping is
+by card NUMBER, not by position in the list -- writing it as "the third card I
+was handed goes in the third column" is how a scan with a missing card silently
+attributes every value after it to the wrong volunteer. And the first version of
+the round-trip parser did not handle self-closing cells, so it ran past
+`<c r="C18" s="10"/>` to the next closing tag and read a different cell's value
+under this cell's reference: it reported 166 misplaced numbers that were all in
+the right place. A test's own parser is code too.
+
+**The app now says what it does not do**, above the drop zone and before anyone
+has committed an afternoon to it. A volunteer arriving expecting the numbers to
+be read for them meets 450 empty boxes and concludes the tool is broken; it is
+not, and filling those boxes is the job. That sentence is cheaper than any
+amount of accuracy work.
+
+### Still wanted before it goes wider than a trial
+
+- **Someone downstream opening a filled spreadsheet.** The format is verified
+  against the template and the values are verified into the right cells, but
+  nobody has confirmed the chapter's data person accepts a real one.
+- **A second browser.** Safari private mode is handled explicitly (localStorage
+  throws there, and the review page says so rather than letting an hour of
+  typing vanish), but every click-through so far has been Chrome.
+- **A real event with a real volunteer, watched.** Every serious bug in this
+  project was found that way and not by measurement: three boxes holding numbers
+  nobody typed, a pre-fill short by one stroke. The whole test suite passed
+  through both.
 
 ## The review list: halved, and nothing written was dropped
 

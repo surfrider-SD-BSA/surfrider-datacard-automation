@@ -47,6 +47,22 @@ header { padding-top: 32px; padding-bottom: 8px; }
 h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
 .sub { margin: 0 0 20px; color: var(--muted); max-width: 62ch; }
 
+/*
+ * What the tool does NOT do, said before anyone drops a file in.
+ *
+ * A volunteer who arrives expecting the numbers to be read for them meets 450
+ * empty boxes and concludes the thing is broken. It is not: filling those boxes
+ * is the job, and what the tool saves is the hunting. Setting that expectation
+ * is cheaper than any amount of accuracy work, and it is the one thing standing
+ * between "this saved me an afternoon" and "this did not work".
+ */
+.sub.caveat {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  margin-top: -8px;
+}
+.sub.caveat strong { color: var(--ink); }
+
 h2 { font-size: 19px; margin: 0 0 4px; }
 h3 { font-size: 15px; margin: 0; }
 
