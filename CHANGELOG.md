@@ -22,9 +22,13 @@ count as breaking.
   the review list short enough to work through: 730 cells to 453 on a 58-card
   event, with every written value kept.
 - Typed values are saved as you go and offered back if the tab closes.
-- A digit recognizer, measured and deliberately **not** switched on: 66.3% per
-  digit and 84% precision where it is most confident, against the ~99% a
+- A digit recognizer, measured and deliberately **not** switched on: 64% per
+  digit and 83.5% precision where it is most confident, against the ~99% a
   pre-filled box needs before it stops being a liability. See `HANDOFF.md`.
+- A tally counter, also measured and also **not** switched on. It reads a run of
+  pencil strokes geometrically rather than as handwriting, and on the cells it
+  would actually pre-fill it is right 43 times in 46, counted by eye. Three
+  wrong in forty-six is not enough. See `HANDOFF.md`.
 - CI job for the browser tool: typecheck, tests, and a build that fails if
   anything data-shaped reaches the bundle.
 - Contribution guide, code of conduct, and security/privacy policy.
