@@ -694,11 +694,49 @@ function segmentDigits(img) {
   boxes = boxes.filter((b) => {
     const w = b.maxX - b.minX + 1;
     const h = b.maxY - b.minY + 1;
-    if (h < img.height * 0.18) return false; // too short to be a digit
+    // Too short to be a digit.
+    //
+    // 0.18 was set by eye, like the hollow line below, and moving it was tried
+    // properly: swept over 28 scans and then carried all the way through a
+    // regenerated training set and a retrain, because segmentation figures on
+    // their own do not say whether a change is good.
+    //
+    // Lowering it to 0.16 DOES cut more cells correctly -- 73.0% -> 73.5%, with
+    // cells nothing is found in falling 274 -> 260. It was still reverted:
+    //
+    //                          digits   accuracy   precision   cells offered
+    //   short 0.18              3,325      70.3%       86.0%      938 @ 85.7%
+    //   short 0.16              3,387      69.5%       85.6%      947 @ 85.3%
+    //
+    // The 62 extra digits are harder than the ones already there, so both
+    // accuracy and precision fall. Net it is about four more cells read right
+    // and about as many more read WRONG, which is not a trade this project
+    // makes: a blank box costs a keystroke, a confident wrong number costs the
+    // chapter's data.
+    //
+    // The lesson is the method, not the constant. A segmentation sweep alone
+    // would have shipped this as a clear win.
+    if (h < img.height * 0.18) return false;
     if (w / h > 3.5) return false; // a horizontal bar
-    // Ink should fill a fair share of a digit's own box; a hollow rectangle
-    // outline (the cell border) does not.
-    return b.count >= w * h * 0.12;
+    // Ink should fill some of a digit's own box; a hollow rectangle outline
+    // (the cell border) does not.
+    //
+    // This was 0.12 and set by eye, and it was throwing away legible digits by
+    // a hair -- of the cells where segmentation found NOTHING on 1.18 Imperial,
+    // four were rejected here at fills of 0.100, 0.113, 0.114 and 0.118. A
+    // digit drawn as a large open loop by someone who writes roundly is exactly
+    // this shape. Swept over nine scans, cells cut into the right number of
+    // digits against cells cut into too MANY (the failure this test guards):
+    //
+    //   hollow   1.18 Imp   3.22 Pac   8.23 Sea   7.05 Moon   8.02 OB   over
+    //     0.12      76.8%      74.9%      81.5%       67.9%     62.7%    176
+    //     0.06      79.2%      77.2%      82.0%       70.5%     65.3%    175
+    //
+    // No scan gets worse and the over-cut count does not move, because the
+    // border this test was meant to catch is already gone: inkMask insets the
+    // crop by 6% a side. Lowered rather than removed -- a one-pixel outline
+    // still scores below 0.06 -- and it is a floor now, not a filter.
+    return b.count >= w * h * 0.06;
   });
   if (boxes.length === 0) return [];
 

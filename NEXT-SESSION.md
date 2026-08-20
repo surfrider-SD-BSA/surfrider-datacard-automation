@@ -39,6 +39,18 @@ This file is only what is still open.
   someone asks for a target: 90% precision costs all but 14.6% of the digits,
   and 95% and 100% are not reachable at any setting. 90% accuracy is 20 points
   away and not a tuning problem.
+- **Digit CUTTING improved for the first time in three sessions.** The hollow
+  shape test was rejecting legible digits and guarding nothing. Over 28 scans
+  and 3,285 cells: cut right **71.7% → 73.0%**, cells nothing is found in
+  **306 → 274**, over-cut unchanged. The training set grew **3,228 → 3,325**
+  (+97) — the first regeneration that has ever gained anything, because this
+  time the cutting really changed.
+- **A change that looked good was measured and thrown away.** Lowering the
+  `short` constant improves every segmentation number and makes the reader
+  worse. See item 2; the reasoning is in the code beside the constant.
+- New instruments: `scripts/diagnose-none.mjs` (which test killed this cell)
+  and `scripts/sweep-segment-shape.mjs` (move one shape constant, hold the
+  rest, report the failure it guards as well as the headline).
 - Remember that none of the above is in the app yet: `src/main.ts` passes
   `null` for the digit reader and nothing loads `digit-model.json`.
 
@@ -92,12 +104,36 @@ PDF on 7% of written cells against a 30% floor.
 The classifier ceiling is not in the labels, and it is not in the voting either
 (measured below). Start at item 2.
 
-### 2. The 26 cells segmentation finds nothing in
+### 2. The cells segmentation finds nothing in — half answered, half is real
 
-Not faint pencil — dropping the ink threshold from 25 to 10 changes the figure
-by exactly nothing. So it is the shape filters in `segmentDigits` rejecting real
-writing, or cells blank on the card with a value in the sheet. Worth 8 points
-and still unexplained. **Render them and look.**
+**Done:** the hollow shape test was rejecting legible digits at fills of 0.100
+to 0.118 against a 0.12 line, and it was guarding nothing, because the printed
+border it existed to catch is already removed by the 6% inset. Lowered to 0.06.
+Across 28 scans: cut right **71.7% → 73.0%**, found nothing **306 → 274**,
+cut into too many pieces unchanged. `HANDOFF.md` has the sweep.
+
+**The instrument matters more than the fix.** `scripts/diagnose-none.mjs` says
+which test killed each cell and with what numbers. Rendering alone could not:
+the picture shows a legible digit in a box the code calls empty, and the eye
+cannot name the filter. Use it before touching any shape constant.
+
+**Still open, and the honest half:** of the 22 on 1.18 Imperial, six were only
+specks and three were refused by `inkThreshold` outright. Those are almost
+certainly empty boxes with a number typed from somewhere else — trap 1, not a
+defect. Confirm that by eye before spending anything on them.
+
+**The `short` constant was tried and rejected, and how it was rejected is the
+part worth keeping.** Lowering it 0.18 → 0.16 cuts more cells correctly
+(73.0% → 73.5%, nothing-found 274 → 260) and a segmentation sweep alone would
+have shipped it. Carried through a regenerated training set and a retrain it
+goes the other way: 62 more digits, but harder ones, so accuracy 70.3% → 69.5%
+and precision 86.0% → 85.6%. Net about four more cells read right and about as
+many more read wrong — not a trade this project makes.
+
+**So: never judge a cutting change on segmentation figures alone.** Regenerate
+and retrain, and look at precision. The constant is back at 0.18 with the table
+in the code beside it.
+
 
 ### 3. Buy back the tally coverage `verticalRules` costs
 
@@ -177,6 +213,8 @@ npx vite-node scripts/sweep-row-escape.mjs -- --both          # where the neighb
 npx vite-node scripts/diagnose-tally.mjs -- test-long [--show --declined --reason R]
 npx vite-node scripts/diagnose-tally-sheets.mjs --            # tally vs 27 sheets
 npx vite-node scripts/diagnose-segmentation.mjs -- [--show]   # digit cutting
+npx vite-node scripts/diagnose-none.mjs -- <scan>              # which test killed each unreadable cell
+npx vite-node scripts/sweep-segment-shape.mjs -- --param short # move one shape constant, hold the rest
 npx vite-node scripts/diagnose-agreement.mjs --               # both readers
 npx vite-node scripts/run-shipping-path.mjs -- out/pages/<name>
 node scripts/train-digits.mjs                                 # knn precision curve

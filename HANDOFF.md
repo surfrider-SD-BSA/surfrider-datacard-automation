@@ -824,6 +824,73 @@ sees only after the model is emitted, shipped and wired in, which is a separate
 piece of work with its own asset-size and `check-dist` consequences.
 
 
+### The hollow test was throwing away legible digits, and it was guarding nothing
+
+The bucket where segmentation finds NOTHING was the largest and least explained
+failure, and the brief had said for two sessions to render it and look. Looking
+is necessary and it is not sufficient: the renders show a plainly legible digit
+sitting in a box the code insists is empty, and the eye cannot say which of the
+four shape tests threw it away. `scripts/diagnose-none.mjs` attributes each one
+with the numbers that decided it. On 1.18 Imperial, of 22 such cells:
+
+```
+   6  only specks: no component of 12 pixels
+   4  a bar and a short mark (w/h > 3.5, h < 18%)
+   4  too hollow (< 12% of its own box)
+   3  every dark pixel inside the 6% inset
+   3  inkThreshold refused the cell outright
+   1  short alone
+   1  bar + hollow + short
+```
+
+The four hollow rejections were fills of **0.100, 0.113, 0.114 and 0.118**
+against a threshold of 0.12 -- every one a legible digit missed by a hair, which
+is the signature of a constant set by eye rather than swept. A digit drawn as a
+large open loop by someone who writes roundly is exactly that shape.
+
+Swept over nine scans, moving only the hollow line and holding the rest:
+
+```
+  hollow   1.18 Imp   3.15 Imp   3.22 Pac   8.23 Sea   7.05 Moon   8.02 OB   over
+    0.12      76.8%      79.6%      74.9%      81.5%       67.9%     62.7%    176
+    0.10      78.3%      80.6%      75.8%      81.5%       70.1%     62.7%    175
+    0.06      79.2%      81.0%      77.2%      82.0%       70.5%     65.3%    175
+    0.00      79.2%      81.5%      77.4%      82.0%       70.5%     65.3%    174
+```
+
+**No scan gets worse at any value, and the over-cut count -- the failure this
+test exists to prevent -- never rises.** It is not protecting anything, because
+the printed border it was meant to catch is already gone: `inkMask` insets the
+crop by 6% a side before components are found. Set to 0.06 rather than removed,
+since a one-pixel outline still scores below that; it is a floor now, not a
+filter. The last two rows are worth about a third of a point and were left on
+the table deliberately, to keep a guard against a hollow rectangle that a future
+crop change might let through.
+
+Across all 28 scans and 3,285 cells with a typed value, in one pass:
+
+```
+  hollow    cut right    found nothing    cut into too many
+    0.12       71.7%          306                252
+    0.06       73.0%          274                251
+```
+
+What it bought, end to end:
+
+```
+                                    before     after
+  cells where nothing is found        22         17     (1.18 Imperial)
+  labelled training digits          3,228      3,325    (+97, +3.0%)
+  digits read right                  70.0%      70.3%
+  whole cells the reader can offer     927        938
+```
+
+The training set had never gained from a regeneration before -- see the section
+above, where it is measured as byte-identical twice over. It gains here because
+this time the cutting genuinely changed, which is what that standing instruction
+was always for.
+
+
 ### The toolchain everyone assumed was absent
 
 Both of these install on this machine in about a minute with
