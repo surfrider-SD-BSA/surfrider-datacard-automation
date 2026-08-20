@@ -1,15 +1,47 @@
 # Brief: the tool pre-fills now, and the digits are still the whole problem
 
-Project: `~/surfrider-datacard-web`, branch `feature/read-the-numbers` — 17
-commits on top of `publish/browser-tool`, **pushed to
-`origin/feature/read-the-numbers`**. The PR to
-`surfrider-SD-BSA/surfrider-datacard-automation` had not merged as of the last
-check; the repo is public.
+Project: `~/surfrider-datacard-web`, branch `feature/read-the-numbers`, pushed
+to `origin/feature/read-the-numbers`. The repo is public.
+
+**The PR merged.** `surfrider-SD-BSA/surfrider-datacard-automation` took it as
+squashed commit `1229993` (#12) and `origin/publish/browser-tool` — this
+branch's base — was deleted on the remote. `main` has moved on once since.
+This branch has NOT been rebased onto it. When you do:
+`git rebase --onto origin/main publish/browser-tool feature/read-the-numbers`.
+The two differ only in CI, Dependabot and dependency pins plus `CHANGELOG.md`;
+nothing under `src/` or `scripts/`, so `CHANGELOG.md` is the one conflict to
+expect. It needs a force-push, which is why it was left for the owner.
 
 **Read `HANDOFF.md` first** — it has every measurement behind what follows.
 This file is only what is still open.
 
 ---
+
+## What changed 19 Aug 2026
+
+- **The regeneration item was disproved and closed.** See item 1. It had been
+  the top of the list twice and was already done both times.
+- **The digit recognizer got materially better**, by changing how digits are
+  compared rather than what it is trained on: deskew and recentre, a 3x3 blur,
+  and trying the query at nine one-pixel offsets.
+
+  ```
+                          accuracy    precision at the top gate   answered at 0.80
+    before                  64.2%          83.5%                     49%
+    after                   70.0%          86.0%                     54%
+  ```
+
+  Better on both axes at once, so there is nothing traded away. `HANDOFF.md`
+  has the per-step table and the two dead ends that were measured first
+  (class-frequency balancing costs eleven points; an absolute distance cutoff
+  does nothing at any value).
+- **The reachable-precision table now exists**, which is what to quote when
+  someone asks for a target: 90% precision costs all but 14.6% of the digits,
+  and 95% and 100% are not reachable at any setting. 90% accuracy is 20 points
+  away and not a tuning problem.
+- Remember that none of the above is in the app yet: `src/main.ts` passes
+  `null` for the digit reader and nothing loads `digit-model.json`.
+
 
 ## What changed last session
 
@@ -45,13 +77,20 @@ of 329 filled correctly, and **almost all of that has to come from the digits.**
 
 ## Start here, in this order
 
-### 1. Regenerate the digit training set. Still the cheapest win, still not done
+### 1. SETTLED — do not regenerate the training set again
 
-`label-from-spreadsheet.mjs` only emits training digits from cells where the
-cutting already matched the sheet. Segmentation improved from 72.8% to 75.8%
-two sessions ago and **the training set has never been regenerated against it**,
-so more cells now qualify and nobody has collected them. Run it for all 27 pairs
-and retrain.
+This item was wrong in the last two briefs and has now cost a third session to
+disprove. `HANDOFF.md` had already recorded the work as done, and as NOT a win;
+what kept it alive was a leftover sentence contradicting its own section, which
+is now removed.
+
+Re-verified 19 Aug 2026: all 28 pairs re-run against the current cutting, every
+event byte-identical — **3,228 digits from 26 events, zero change**. The 28th
+pair (`pacific-9.27`) is correctly refused, its spreadsheet agreeing with its
+PDF on 7% of written cells against a 30% floor.
+
+The classifier ceiling is not in the labels, and it is not in the voting either
+(measured below). Start at item 2.
 
 ### 2. The 26 cells segmentation finds nothing in
 
@@ -141,6 +180,7 @@ npx vite-node scripts/diagnose-segmentation.mjs -- [--show]   # digit cutting
 npx vite-node scripts/diagnose-agreement.mjs --               # both readers
 npx vite-node scripts/run-shipping-path.mjs -- out/pages/<name>
 node scripts/train-digits.mjs                                 # knn precision curve
+node scripts/sweep-digit-rules.mjs --rules                    # what precision is reachable, and its cost
 PYTHONPATH=<dir-with-sklearn> python3 scripts/train_digits.py # MLP
 ```
 

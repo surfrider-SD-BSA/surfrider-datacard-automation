@@ -753,9 +753,76 @@ More eager joining would produce more of exactly that.
 
 **Regenerate the training set after any change here.**
 `label-from-spreadsheet.mjs` only emits a cell when segmentation found as many
-boxes as the sheet's number has digits, so better cutting means more labelled
-digits -- which has not been done for the improvement above and is the cheapest
-remaining gain on the classifier.
+boxes as the sheet's number has digits, so a change to the cutting changes which
+cells qualify. That regeneration has been done against the current cutting and
+re-verified on 19 Aug 2026 -- all 28 pairs re-run, every event byte-identical,
+3,228 digits from 26 events, zero change. There is no pending gain here.
+
+### How the digits are COMPARED was the ceiling, not the labels or the poll
+
+The training set is not the lever and neither is the voting; both were measured
+and ruled out before anything was changed.
+
+```
+  voting rules, on the labels as they stand
+    balanced by class frequency        accuracy 64.2% -> 53.6%   much worse
+    margin instead of share-of-vote    no change to the ceiling
+    more neighbours (K=15)             86.3% precision at 9% coverage
+    absolute distance cutoff           changes nothing at any value tried
+```
+
+Class balancing is the interesting failure. The commonest digit is `1` at 1,134
+of 3,228, and the confusion matrix is full of "read as 1", so dividing each
+vote by how common the digit is looks obviously right. It costs eleven points.
+The rare classes are rare AND badly drawn, and promoting them promotes noise.
+
+What actually moved was the comparison itself. Straight L2 over raw pixels
+punishes a stroke drawn one pixel over exactly as hard as a different digit,
+and punishes a writer's slant harder than either.
+
+```
+                                      accuracy   precision at the top gate
+  raw pixels (what was measured)        64.2%           83.5% @ 32%
+  + deskew and recentre                 67.3%           84.7% @ 35%
+  + 3x3 blur                            68.4%           85.4% @ 35%
+  + nine one-pixel query offsets        70.0%           86.0% @ 37%
+```
+
+Coverage rose at every threshold as well, so this is not a precision-for-
+coverage trade: at the 0.80 gate it is 49% -> 54% of digits answered. All three
+steps are in `train-digits.mjs`; a query must get the same preparation as the
+exemplars or the distances are meaningless, which is why the emitted model's
+note now says so.
+
+**What the targets actually cost, measured over K in {5,9,15,21,25} and both
+confidence rules.** This is the table to quote when someone asks for a number:
+
+```
+  target precision    digits it can still answer      reachable
+    80%                2408 of 3228  (74.6%)            yes
+    85%                1681 of 3228  (52.1%)            yes
+    90%                 470 of 3228  (14.6%)            yes
+    95%                  --                             NO, at any setting
+   100%                  --                             NO, at any setting
+```
+
+Precision above 90% is not a threshold that has not been found; it does not
+exist on this data with this model. Even the digits where all twenty-five
+nearest neighbours agree contain errors, so no confidence gate can isolate a
+clean subset. **90% accuracy -- every digit right, nothing declined -- is 20
+points away and is not reachable by tuning.** The honest routes are better
+cutting first (item 2 of the brief) and then a convolutional net, in that
+order, because a classifier cannot read a digit that was never cut out.
+
+**None of this is in the shipping app.** `src/main.ts` calls
+`reconcile(tally, null)`: the digit reader is passed as `null` and
+`assets/reference/digit-model.json` is written by the trainer and read by
+nothing. The recognizer is offline research, the README is right that the tool
+does not read handwriting, and the five pre-filled cells on the test scan all
+come from the tally counter. Improving these numbers changes what a volunteer
+sees only after the model is emitted, shipped and wired in, which is a separate
+piece of work with its own asset-size and `check-dist` consequences.
+
 
 ### The toolchain everyone assumed was absent
 
