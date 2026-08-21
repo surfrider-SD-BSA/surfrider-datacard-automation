@@ -3,7 +3,7 @@
   "produced_by": "npx vite-node scripts/audit-prefills.mjs --",
   "read": "2026-08-13, and again after the banner fix",
   "how": "each cell rendered as strip + context with the row band ticked off, in out/audit/tiles, and counted by eye at 3x-8x; the context is what settles whether a mark belongs to this row",
-  "note": "`count` is what a person reads off the card, not what a spreadsheet says. Where the two differ the spreadsheet is the one that is wrong -- see moonlight-7.05:33:27, oceanbeach-9.06:31:31, seaport-6.13:5:39 and 5:40. The four delmar/moonlight/seaport cells at the top were admitted by the banner fix and read afterwards.",
+  "note": "`count` is what a person reads off the card, not what a spreadsheet says. Where the two differ the spreadsheet is the one that is wrong -- see moonlight-7.05:33:27, oceanbeach-9.06:31:31, seaport-6.13:5:39 and 5:40. The four delmar/moonlight/seaport cells at the top were admitted by the banner fix and read afterwards. Three more were added on 20 Aug 2026: they were surfaced by an experiment that required a printed rule to be inked on BOTH sides of the row band, which was then reverted (see HANDOFF). The counts are facts about the cards and stand regardless -- imperial-6.06:6:53 is one stroke, the mark at the far right runs past the band and is the printed border; moonlight-7.05:19:31 is four, the fifth stroke sits below the band and belongs to the next row; pacific-9.27:22:75 is ONE, read at 7x -- a single curved stroke with a faint pressure trail to its lower left, which the counter read as two.",
   "counts": {
     "delmar-6.20:5:18": 4,
     "moonlight-7.05:24:18": 4,
@@ -50,7 +50,10 @@
     "test-long:33:36": 4,
     "test-long:33:62": 3,
     "test-long:53:93": 4,
-    "moonlight-7.19:7:42": 0
+    "moonlight-7.19:7:42": 0,
+    "imperial-6.06:6:53": 1,
+    "moonlight-7.05:19:31": 4,
+    "pacific-9.27:22:75": 1
   },
   "wrong_when_last_run": {
     "pacific-3.22:14:21": "said 3, is 1. A '1' written inside a hand-drawn circle. The two arcs of the circle are near enough to vertical over their length to pass as uprights, and the reading came out fully explained.",

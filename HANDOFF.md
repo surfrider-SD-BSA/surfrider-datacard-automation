@@ -444,6 +444,44 @@ taller slice -- and look at what that mark actually does above and below the
 row. Everything built so far assumes an answer to that question which the
 measurement says is wrong.
 
+**The narrowing this section proposes was tried on 20 Aug 2026, and reverted.**
+The suggestion above is to narrow the test so it stops striking genuine strokes.
+The cheapest form of that is to demand a printed rule be inked on BOTH sides of
+the row band rather than either -- a border runs past the row in both
+directions, a neighbouring row's tally reaches in from one side only. One
+character, `||` to `&&`.
+
+It does exactly what the coverage argument predicts and still loses:
+
+```
+                                 answered on test-long   cells pre-filled   precision
+  either side (ships today)         34 of 249 (14%)            42             95.2%
+  both sides                        48 of 249 (19%)            40             95.0%
+```
+
+**Answers rose by 14 and the cells that actually reach a volunteer FELL by two.**
+The extra strips are answered at lower confidence and do not clear the gate,
+while the guard that was loosened let a border back in: it fixed
+`pacific-9.27:14:26` and introduced `pacific-9.27:22:75`, said 2, which is one
+stroke with a faint pressure trail beside it, read at 7x.
+
+Two things worth carrying:
+
+1. **`answered` in `diagnose-tally.mjs` is not the product metric.** It counts
+   strips the counter is willing to answer at any confidence. What a volunteer
+   sees is cells clearing `PREFILL_GATE`, and the two moved in OPPOSITE
+   directions here. Quote the audit, not the diagnostic.
+2. The premise is sound and the implementation is not. Ink on both sides is a
+   real signal; requiring it symmetrically is too blunt, because the dotted
+   border stops dead at each row rule and is not reliably present on both sides
+   either. The angle-and-straightness form this section suggests is still
+   untried and is still the right idea.
+
+Three cells were read by eye to settle it and are now in
+`eye-labels/prefill-audit.json`, which is 49 labels rather than 46. They were
+surfaced by the experiment and outlive it.
+
+
 Worth noting how it was found, because none of the other instruments caught it:
 the spreadsheet score is a lower bound and absorbed it, the offline diagnostics
 agreed with the browser, and all 112 tests passed. It took listing every cell

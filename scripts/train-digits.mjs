@@ -41,6 +41,8 @@ import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { distance, prepare, shiftVariants, unitNorm } from "../src/lib/digits.ts";
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TRAINING = join(ROOT, "out", "training");
 const REF = join(ROOT, "assets", "reference");
@@ -55,74 +57,12 @@ const K = 5;
  * carries, so a heavily-written 1 can sit closer to a 0 than to a light 1.
  * Normalizing leaves only the shape.
  */
-export function unitNorm(bitmap) {
-  const out = Float32Array.from(bitmap);
-  let norm = 0;
-  for (const v of out) norm += v * v;
-  norm = Math.sqrt(norm) || 1;
-  for (let i = 0; i < out.length; i++) out[i] /= norm;
-  return out;
-}
-
-const SIDE = 28;
-
-const at = (b, x, y) => (x < 0 || y < 0 || x >= SIDE || y >= SIDE ? 0 : b[y * SIDE + x]);
-
-/** Bilinear sample, so a shear does not alias the strokes into steps. */
-function sampleAt(b, x, y) {
-  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
-  return (
-    at(b, x0, y0) * (1 - fx) * (1 - fy) + at(b, x0 + 1, y0) * fx * (1 - fy) +
-    at(b, x0, y0 + 1) * (1 - fx) * fy + at(b, x0 + 1, y0 + 1) * fx * fy
-  );
-}
-
 /**
- * Shear out the writer's slant and put the centre of ink in the middle.
- *
- * Two people writing the same digit at different slants are further apart in
- * pixels than two different digits at the same slant, which is a property of
- * the comparison and not of the handwriting. Removing the slant first is the
- * standard repair and it is worth 3 points of accuracy here.
+ * The preparation and the distance both live in src/lib/digits.ts now, so the
+ * browser and this measurement run the same code. A query prepared any
+ * differently from the exemplars is comparing nothing, which is exactly the
+ * kind of drift a second copy invites.
  */
-export function deskewRecentre(b) {
-  let m = 0, cx = 0, cy = 0;
-  for (let y = 0; y < SIDE; y++) for (let x = 0; x < SIDE; x++) { const v = b[y * SIDE + x]; m += v; cx += x * v; cy += y * v; }
-  if (!m) return b;
-  cx /= m; cy /= m;
-  let mu11 = 0, mu02 = 0;
-  for (let y = 0; y < SIDE; y++) for (let x = 0; x < SIDE; x++) { const v = b[y * SIDE + x]; mu11 += (x - cx) * (y - cy) * v; mu02 += (y - cy) ** 2 * v; }
-  const skew = mu02 > 1e-6 ? mu11 / mu02 : 0;
-  const ctr = (SIDE - 1) / 2;
-  const out = new Float32Array(SIDE * SIDE);
-  for (let y = 0; y < SIDE; y++) for (let x = 0; x < SIDE; x++) {
-    const sy = y + (cy - ctr);
-    out[y * SIDE + x] = sampleAt(b, x + (cx - ctr) + skew * (sy - cy), sy);
-  }
-  return out;
-}
-
-/**
- * 3x3 blur.
- *
- * Straight L2 punishes a stroke drawn one pixel over as hard as it punishes a
- * different digit. Blurring first lets a near-miss score as a near-miss.
- */
-export function blur3(b) {
-  const k = [1, 2, 1, 2, 4, 2, 1, 2, 1];
-  const out = new Float32Array(SIDE * SIDE);
-  for (let y = 0; y < SIDE; y++) for (let x = 0; x < SIDE; x++) {
-    let s = 0, w = 0, i = 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++, i++) { s += at(b, x + dx, y + dy) * k[i]; w += k[i]; }
-    out[y * SIDE + x] = s / w;
-  }
-  return out;
-}
-
-/** Everything a bitmap gets before it is ever compared. */
-export function prepare(bitmap) {
-  return unitNorm(blur3(deskewRecentre(bitmap)));
-}
 
 export function loadTrainingSet() {
   const samples = [];
@@ -143,43 +83,17 @@ export function loadTrainingSet() {
   return samples;
 }
 
-/** Squared L2 distance, with early exit once it cannot make the poll. */
-export function distance(a, b, cutoff) {
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) {
-    const d = a[i] - b[i];
-    sum += d * d;
-    if (sum > cutoff) return Infinity;
-  }
-  return sum;
-}
-
 /**
  * Classify by polling the K nearest training digits.
  *
  * Confidence is the share of the poll won by the top class, weighted by
  * closeness. It is what the pre-fill is gated on, so it is checked below that
  * it actually tracks correctness rather than merely correlating with it.
- */
-/**
- * How many nearest are pulled before the shift re-score.
  *
- * The re-score is the expensive step, so it is spent only on the candidates a
- * plain comparison already thinks are close. 25 is well past the 5 that get
- * polled, which is the room the reordering needs.
+ * The pool size, the shift re-score and the distance all come from
+ * src/lib/digits.ts, which is what the browser runs.
  */
 const POOL = 25;
-
-const SHIFTS = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
-
-/** The query moved a pixel each way, so a near-miss can score as a near-miss. */
-function shiftVariants(b) {
-  return SHIFTS.map(([dx, dy]) => {
-    const o = new Float32Array(SIDE * SIDE);
-    for (let y = 0; y < SIDE; y++) for (let x = 0; x < SIDE; x++) o[y * SIDE + x] = at(b, x + dx, y + dy);
-    return unitNorm(o);
-  });
-}
 
 function classify(bitmap, train, k = K) {
   const pool = [];
