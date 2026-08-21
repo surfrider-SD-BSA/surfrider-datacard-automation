@@ -30,6 +30,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- App Store Connect asks about encryption on every single upload.
+	     This app makes no network calls at all: the bundle is served from
+	     inside the app package and the scan never leaves the device, so there
+	     is nothing to declare. Answering it here stops the prompt recurring. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Photograph a data card so the app can find the boxes somebody wrote in. The photo stays on this device.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
