@@ -2,15 +2,25 @@
  * Beach cleanup data cards -> the chapter's Excel spreadsheet.
  *
  * The tool locates every cell a volunteer wrote in and shows a cropped picture
- * of each one beside a box to type it into. It deliberately does not try to
- * read the handwriting: deciding *whether* a box has writing is easy and
- * reliable, while reading *what* it says is neither, and a confidently wrong
- * number is worse than no number. The human reads ~10 crops per card instead of
- * hunting 83 rows on paper.
+ * of each one beside a box to type it into. The human reads ~10 crops per card
+ * instead of hunting 83 rows on paper.
+ *
+ * Two readers offer a first guess at what the box says. `tally.ts` counts
+ * marks geometrically and is good; `digits.ts` recognises handwriting and is
+ * not -- 70% of digits right, 86% where it is most confident. Both are on, and
+ * the asymmetry is the design: deciding *whether* a box has writing is easy and
+ * reliable, reading *what* it says is neither, and a confidently wrong number
+ * is worse than no number because it invites agreement.
+ *
+ * What makes that survivable is that nothing here is presented as an answer.
+ * Every filled box is tagged with which reader filled it, sits beside a picture
+ * of the handwriting, and is exported as machine-read rather than human-entered
+ * so the chapter's own audit column can tell them apart. See `PREFILL_GATE`.
  */
 
 import { loadCellMap, type CellMap } from "./lib/cells";
 import { reconcile, type Reading } from "./lib/reading";
+import { decodeModel, type DigitModel } from "./lib/digits";
 import {
   assembleCard,
   cellsForSide,
@@ -108,17 +118,38 @@ async function loadReferenceImage(url: string): Promise<GrayImage> {
 let referencesPromise: Promise<{
   images: { front: GrayImage; back: GrayImage };
   maps: { front: CellMap; back: CellMap };
+  digits: DigitModel | null;
 }> | null = null;
+
+/**
+ * The handwriting model, or null if it will not load.
+ *
+ * Null is a supported state and not an error path: the tally counter is the
+ * older and better-measured reader, it needs nothing fetched, and a scan is
+ * still worth reviewing without the digits. A 3.4MB fetch failing on a phone
+ * at a beach is a thing that will happen, and when it does the tool should
+ * quietly do less rather than refuse to open.
+ */
+async function loadDigitModel(): Promise<DigitModel | null> {
+  try {
+    const res = await fetch("reference/digit-model.json");
+    if (!res.ok) return null;
+    return decodeModel(await res.json());
+  } catch {
+    return null;
+  }
+}
 
 function loadReferences() {
   referencesPromise ??= (async () => {
-    const [front, back, frontMap, backMap] = await Promise.all([
+    const [front, back, frontMap, backMap, digits] = await Promise.all([
       loadReferenceImage("reference/blank-front.png"),
       loadReferenceImage("reference/blank-back.png"),
       loadCellMap("front", async (u) => (await fetch(u)).json()),
       loadCellMap("back", async (u) => (await fetch(u)).json()),
+      loadDigitModel(),
     ]);
-    return { images: { front, back }, maps: { front: frontMap, back: backMap } };
+    return { images: { front, back }, maps: { front: frontMap, back: backMap }, digits };
   })();
   return referencesPromise;
 }
@@ -153,7 +184,13 @@ async function processFile(file: File) {
         trusted: registered.trusted,
         bannerOverlap: registered.bannerOverlap,
         cells: registered.trusted
-          ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side)
+          ? cellsForSide(
+              registered.image,
+              pageNumber,
+              refs.maps[registered.side],
+              registered.side,
+              refs.digits,
+            )
           : [],
       });
       renderProgress(`Reading page ${pageNumber} of ${total}…`, (pageNumber / total) * 0.98);
@@ -564,8 +601,32 @@ function renderCard(card: ExtractedCard): HTMLElement {
  * it is the only instrument here that has ever caught the failure it exists
  * for, and every other one -- the spreadsheet score, both offline diagnostics,
  * the whole test suite -- passed clean through it twice.
+ *
+ * ---------------------------------------------------------------------------
+ * THE HANDWRITING READER IS ON, AND THIS NUMBER IS NOW ALSO ITS GATE.
+ *
+ * Everything above was written when the tally counter was the only reader, and
+ * it still describes the tally side exactly. The digit reader is weaker and the
+ * gate is shared, so what this number buys is no longer one thing:
+ *
+ *   gate   digits answered   right, of those        the tally side
+ *   0.90        36%               86%           unchanged from 0.8
+ *   0.80        53%               84%           as measured in the audit
+ *   0.70        64%               83%
+ *   0.60        74%               81%
+ *   0.50        82%               78%
+ *
+ * Set at 0.50 on the chapter owner's instruction, which was to fill as many
+ * boxes as possible. That is a deliberate purchase of coverage with accuracy:
+ * around one pre-filled number in five is wrong at this setting, against about
+ * one in seven at 0.8. Every one of them is tagged "check it" and sits beside a
+ * picture of the handwriting, which is the only reason it is defensible.
+ *
+ * Raise it to 0.8 to go back to roughly one in seven, or set `digitsAlone`
+ * false in reading.ts to return to tally-only pre-filling.
+ * ---------------------------------------------------------------------------
  */
-const PREFILL_GATE = 0.8;
+const PREFILL_GATE = 0.5;
 
 function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   const row = document.createElement("div");
@@ -624,11 +685,20 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   // agreement rather than correction.
   const reading = reconcile(
     cell.tallyCount === null ? null : { value: cell.tallyCount, confidence: cell.tallyConfidence },
-    null,
+    cell.digitValue === null ? null : { value: cell.digitValue, confidence: cell.digitConfidence },
   );
   const prefill = reading && reading.confidence >= PREFILL_GATE ? reading : null;
   if (prefill) {
-    label.innerHTML += ` &middot; <span class="tag counted">counted: check it</span>`;
+    // Say WHICH reader spoke, because they are not worth the same and the
+    // reviewer is entitled to know which claim they are being asked to check.
+    // "read" is the weakest of the three and is named differently on purpose.
+    const how =
+      prefill.source === "digits"
+        ? "read: check it"
+        : prefill.source === "agreed"
+          ? "counted twice: check it"
+          : "counted: check it";
+    label.innerHTML += ` &middot; <span class="tag counted">${how}</span>`;
     row.classList.add("prefilled");
   }
 
@@ -731,7 +801,11 @@ function updateGate() {
           // have actually looked at.
           `${entered} value${entered === 1 ? "" : "s"} ready` +
           (prefilledCount() > 0
-            ? ` — ${prefilledCount()} counted from tally marks, not yet checked.`
+            ? // "filled in by the tool", not "counted from tally marks": most of
+              // them are now read off the handwriting, and the two are not
+              // equally trustworthy. Saying the wrong one here would tell a
+              // reviewer the weaker readings are the stronger kind.
+              ` — ${prefilledCount()} filled in by the tool, not yet checked.`
             : ".");
 }
 

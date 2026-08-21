@@ -9,6 +9,7 @@
  */
 
 import type { CellMap, Rect } from "./cells";
+import { readDigits, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
 import { boxMarked, cropGray, stripMarked } from "./marks";
 import { countTally } from "./tally";
@@ -58,6 +59,10 @@ export interface ExtractedCell {
    * making anyway, and a strip it counts wrongly costs data integrity. See the
    * head of `tally.ts`.
    */
+  /** What the digit recognizer read in the TOTAL box, if it read one. */
+  digitValue: number | null;
+  /** 0-1. The WORST digit in the number: see readDigits. */
+  digitConfidence: number;
   tallyCount: number | null;
   /** How far that count can be trusted, 0-1. See `confidence` in tally.ts. */
   tallyConfidence: number;
@@ -146,6 +151,14 @@ export function cellsForSide(
   pageNumber: number,
   map: CellMap,
   side: CardSide,
+  /**
+   * The digit model, or null to leave the TOTAL box unread.
+   *
+   * Optional because every offline script that cuts cells wants the geometry
+   * and not the reading, and loading 3,325 exemplars to throw them away is
+   * pure cost.
+   */
+  model: DigitModel | null = null,
 ): ExtractedCell[] {
   const out: ExtractedCell[] = [];
 
@@ -206,6 +219,14 @@ export function cellsForSide(
     // Take the row's pixels now and let the page go. Everything the reviewer
     // is shown comes out of this crop, so nothing else about the page has to
     // stay in memory once every cell on it has been cut out.
+    // Read the number, where there is a number to read.
+    //
+    // The mirror of the tally above: that one only runs where the box is
+    // EMPTY, this one only where it holds something. No cell is ever read
+    // twice by the same reader, and a cell with both is what reconcile() is
+    // for.
+    const digitReading = model && hasValue ? readDigits(cropGray(image, cell.total), model) : null;
+
     const region = cropRegion(cell.total, cell.tally, image);
     out.push({
       row: cell.row,
@@ -216,6 +237,8 @@ export function cellsForSide(
       tallyInk,
       hasValue,
       tallyOnly,
+      digitValue: digitReading?.value ?? null,
+      digitConfidence: digitReading?.confidence ?? 0,
       tallyCount: tallyReading?.count ?? null,
       tallyConfidence: tallyReading?.confidence ?? 0,
       rect: rebase(cell.total, region),

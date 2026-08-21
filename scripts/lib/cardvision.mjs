@@ -18,10 +18,21 @@ import { PNG } from "pngjs";
 import { boxMarked as boxMarkedImpl, stripMarked as stripMarkedImpl } from "../../src/lib/marks.ts";
 import {
   components,
-  inkThreshold,
-  normalizeDigit,
-  segmentDigits,
+  inkThreshold as inkThresholdImpl,
+  normalizeDigit as normalizeDigitImpl,
+  segmentDigits as segmentDigitsImpl,
 } from "../../src/lib/digits.ts";
+
+/**
+ * These scripts call a grayscale plane `gray`; src calls it `data`. One shim
+ * here beats renaming the field through a dozen diagnostics, and beats keeping
+ * a second copy of the cutting -- which is what this import replaced.
+ */
+const asDigitImage = (img) => ({ width: img.width, height: img.height, data: img.gray });
+
+const inkThreshold = (img) => inkThresholdImpl(asDigitImage(img));
+const segmentDigits = (img) => segmentDigitsImpl(asDigitImage(img));
+const normalizeDigit = (img, box) => normalizeDigitImpl(asDigitImage(img), box);
 
 /**
  * Banner overlap below this is not trusted; see MIN_BANNER_OVERLAP in

@@ -74,6 +74,10 @@ export interface ReconcileOptions {
   splitConfidence: number;
   /** Ceiling on what the tally alone is worth, whatever its own shape says. */
   tallyConfidence: number;
+  /** Whether the digit reader may pre-fill a box with no tally to corroborate it. */
+  digitsAlone: boolean;
+  /** Cap on what a digits-only reading is worth. */
+  digitsConfidence: number;
 }
 
 export const RECONCILE_DEFAULTS: ReconcileOptions = {
@@ -83,18 +87,40 @@ export const RECONCILE_DEFAULTS: ReconcileOptions = {
   // the gate `main.ts` pre-fills at; see maxSplit above.
   splitConfidence: 0.17,
   tallyConfidence: 0.97,
+  digitsAlone: true,
+  // The recognizer's measured precision where it is most confident, and so the
+  // most a reading by it alone can ever be worth. Below the tally cap on
+  // purpose: one reader that is right 86% of the time should never outrank one
+  // that is right 95%.
+  digitsConfidence: 0.86,
 };
 
 /**
  * Combine what the two readers said, or return null to leave the box empty.
  *
- * A digit reading ON ITS OWN is deliberately not enough. Measured leave-one-
- * event-out over 3,218 labelled digits it is right about 84% of the time where
- * it is most confident, so one pre-filled cell in six would be wrong -- worse
- * than an empty box beside a legible picture, because a confident wrong number
- * invites agreement. It earns its place only as a second opinion: as
- * corroboration when it matches the tally, and as one end of the range when it
- * does not.
+ * **A digit reading on its own used to be refused here, and now is not.** That
+ * was not a small decision and it is the chapter owner's, made knowingly, so
+ * the reasoning on both sides is kept rather than replaced.
+ *
+ * The case against: measured leave-one-event-out over 3,325 labelled digits,
+ * the recognizer is right 86% of the time where it is MOST confident and 70%
+ * overall. So roughly one pre-filled cell in six is wrong at the top of its
+ * range, and worse below it -- and a wrong number is not the same cost as an
+ * empty box. An empty box beside a legible picture costs one keystroke from
+ * somebody who was going to look anyway. A confident wrong number invites
+ * agreement, and the chapter's data is the thing that pays.
+ *
+ * The case for, which is the one that won: a volunteer facing 453 blank boxes
+ * concludes the tool is broken and stops using it. 387 of those cells hold a
+ * handwritten number and only the digit reader can ever reach them, so refusing
+ * digits alone caps the tool at the 66 tally-only cells no matter how good the
+ * recognizer gets. The owner's goal is ~30 typed values per scan; that is not
+ * reachable without this.
+ *
+ * `digitsAlone` is the switch, and setting it false restores the old refusal
+ * exactly. `PREFILL_GATE` in main.ts is the other half: it decides how much of
+ * the recognizer's range is trusted, and the precision at each setting is in
+ * HANDOFF.md rather than guessed at.
  */
 export interface ReaderResult {
   value: number;
@@ -141,5 +167,14 @@ export function reconcile(
       ...values,
     };
   }
+  if (digits && o.digitsAlone) {
+    return {
+      value: digits.value,
+      confidence: Math.min(digits.confidence, o.digitsConfidence),
+      source: "digits",
+      ...values,
+    };
+  }
+
   return null;
 }

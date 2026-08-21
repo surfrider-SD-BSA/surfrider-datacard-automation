@@ -72,6 +72,9 @@ export function loadTrainingSet() {
       samples.push({
         label: s.label,
         bitmap: prepare(s.bitmap),
+        // Kept unprepared for --emit: the shipped model stores raw 0-255
+        // bytes and the app prepares them, which is a third of the size.
+        raw: Uint8Array.from(s.bitmap),
         source: s.source ?? data.source ?? file.replace(/\.json$/, ""),
         // A cell is identified by scan + card + row; its digits stand or fall
         // together when a value is judged.
@@ -248,13 +251,19 @@ function main() {
       note:
         "Nearest-neighbour digit model. Bitmaps are 28x28, ink 0-255, scaled " +
         "to fit 20x20 and centred by centre of mass (MNIST convention). " +
-        "Exemplars are stored AFTER deskew + recentre + 3x3 blur, then " +
-        "unit-normalized. A query must be put through the same preparation or " +
-        "the distances mean nothing. At read time the query is also tried at " +
-        "nine one-pixel offsets and the closest is kept.",
+        "Exemplars are RAW bytes, base64: run prepare() from src/lib/digits.ts " +
+        "over each one before comparing, and over the query too, or the " +
+        "distances mean nothing. At read time the query is also tried at nine " +
+        "one-pixel offsets and the closest is kept.",
       digitAccuracy: Number(acc.toFixed(4)),
       trainedOn: scans,
-      samples: samples.map((s) => ({ label: s.label, b: Array.from(s.bitmap) })),
+      // Raw bytes, base64. Storing the PREPARED float vectors instead costs
+      // 8.1MB against 3.5MB, and the preparation is a few milliseconds over the
+      // whole set at load time.
+      samples: samples.map((s) => ({
+        label: s.label,
+        b: Buffer.from(s.raw).toString("base64"),
+      })),
     };
     const path = join(REF, "digit-model.json");
     writeFileSync(path, JSON.stringify(model));

@@ -17,11 +17,16 @@
  * ---------------------------------------------------------------------------
  */
 
-/** A grayscale crop: 0 is black, 255 is paper. */
+/**
+ * A grayscale crop: 0 is black, 255 is paper.
+ *
+ * Structurally the same as MarkImage in marks.ts and deliberately named the
+ * same way, so a crop can be handed to either reader without being reshaped.
+ */
 export interface DigitImage {
   width: number;
   height: number;
-  gray: Uint8Array;
+  data: Uint8Array;
 }
 
 export interface DigitBox {
@@ -40,8 +45,8 @@ export interface DigitBox {
  */
 function otsu(img: DigitImage): number {
   const hist = new Array(256).fill(0);
-  for (const v of img.gray) hist[v]++;
-  const total = img.gray.length;
+  for (const v of img.data) hist[v]++;
+  const total = img.data.length;
 
   let sum = 0;
   for (let i = 0; i < 256; i++) sum += i * hist[i];
@@ -79,7 +84,7 @@ function otsu(img: DigitImage): number {
  * The paper level is the median; anything meaningfully darker is a mark.
  */
 export function inkThreshold(img: DigitImage): number {
-  const sorted = Uint8Array.from(img.gray).sort();
+  const sorted = Uint8Array.from(img.data).sort();
   const paper = sorted[sorted.length >> 1]!;
   const dark = sorted[Math.floor(sorted.length * 0.02)]!;
 
@@ -108,7 +113,7 @@ export function inkMask(img: DigitImage): Uint8Array {
   for (let y = iy; y < img.height - iy; y++) {
     for (let x = ix; x < img.width - ix; x++) {
       const i = y * img.width + x;
-      mask[i] = img.gray[i]! <= t ? 1 : 0;
+      mask[i] = img.data[i]! <= t ? 1 : 0;
     }
   }
   return mask;
@@ -366,7 +371,7 @@ export function normalizeDigit(img: DigitImage, box: DigitBox): Uint8Array {
       let n = 0;
       for (let sy = sy0; sy < sy1 && sy < img.height; sy++) {
         for (let sx = sx0; sx < sx1 && sx < img.width; sx++) {
-          if (img.gray[sy * img.width + sx]! <= t) ink++;
+          if (img.data[sy * img.width + sx]! <= t) ink++;
           n++;
         }
       }
@@ -647,4 +652,32 @@ export function readDigits(
   const value = Number(text);
   if (!Number.isFinite(value)) return null;
   return { value, confidence: worst };
+}
+
+/** The shipped model's on-disk shape: raw 0-255 bytes, base64 per exemplar. */
+interface EncodedModel {
+  k: number;
+  samples: { label: number; b: string }[];
+}
+
+/**
+ * Turn the shipped JSON into something comparable.
+ *
+ * The file stores raw bytes because that is a third of the size of the
+ * prepared float vectors; the preparation happens here, once, at load. It must
+ * be the SAME preparation the query gets, which is why both go through
+ * `prepare` rather than each having its own.
+ */
+export function decodeModel(raw: unknown): DigitModel {
+  const m = raw as EncodedModel;
+  if (!m || !Array.isArray(m.samples)) throw new Error("digit model is not in the expected shape");
+
+  const exemplars: Exemplar[] = [];
+  for (const s of m.samples) {
+    const bin = atob(s.b);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    exemplars.push({ label: s.label, v: prepare(bytes) });
+  }
+  return { k: m.k ?? 5, exemplars };
 }

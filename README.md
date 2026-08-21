@@ -13,10 +13,16 @@ picture of each one, download the chapter's spreadsheet. Verified end to end on 
 scan: 58 cards in about 70 seconds, no page refused.
 
 What is proven, and what is not, is set out in [HANDOFF.md](HANDOFF.md) with the measurements
-behind it. The short version: locating the writing works and generalizes; **reading handwritten
-numbers** does not work well enough to ship and is deliberately switched off. Counting **tally
-marks** does work, because it is geometry rather than recognition, and those counts are filled in
-for the reviewer to check — five boxes of 453 on a 58-card event.
+behind it. The short version: locating the writing works and generalizes. Counting **tally marks**
+works well, because it is geometry rather than recognition. **Reading handwritten numbers** is on
+as of 20 August 2026 and is the weak part — 70% of digits right overall, 86% where it is most
+confident — so it is switched on as an aid to be checked, not as an answer.
+
+That was the chapter's call, made against the measurement rather than around it: 387 of the 453
+cells on a 58-card event hold a handwritten number, and nothing but the recognizer can ever reach
+them. Every filled box is tagged, sits beside a picture of the handwriting, and is recorded in the
+spreadsheet as machine-read rather than human-entered. To turn it off, set `digitsAlone` to false
+in `src/lib/reading.ts`.
 
 ## The problem
 
@@ -26,9 +32,11 @@ transcription errors are hard to catch after the fact.
 
 ## The approach
 
-The tool does not try to read handwriting. Deciding **whether** a box has writing in it is easy
-and reliable; reading **what it says** is neither, and a confidently wrong number is worse than
-no number at all — it invites agreement.
+Deciding **whether** a box has writing in it is easy and reliable; reading **what it says** is
+neither. The tool does both, and treats them very differently. Locating the writing is what it is
+built on. Reading it is offered as a first guess to correct, because a confidently wrong number is
+worse than no number at all — it invites agreement — and the only defence against that is that the
+reviewer is looking at a picture of the handwriting while they decide.
 
 So it answers the easy question, and shows a person a cropped picture of each cell to type from.
 The one exception is a tally strip, which is a run of pencil strokes rather than a shape to be
