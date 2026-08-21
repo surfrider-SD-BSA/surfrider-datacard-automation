@@ -29,7 +29,7 @@ import {
   type PageCells,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
-import { rasterizePdf } from "./lib/pdf";
+import { rasterizeImage, rasterizePdf } from "./lib/pdf";
 import {
   pairIntoCards,
   referenceTargets,
@@ -161,7 +161,7 @@ function loadReferences() {
 async function processFile(file: File) {
   state.fileName = file.name;
   state.fileSize = file.size;
-  renderProgress("Reading the PDF…", 0);
+  renderProgress(file.type.startsWith("image/") ? "Reading the photo…" : "Reading the PDF…", 0);
 
   try {
     const refs = await loadReferences();
@@ -176,7 +176,11 @@ async function processFile(file: File) {
     // pages at the same time, so nothing keeps two: each page is rendered,
     // aligned, cut into cells, and dropped before the next one is read.
     const pages: PageCells[] = [];
-    const pageCount = await rasterizePdf(file, ({ pageNumber, image, total }) => {
+    // A PDF from a scanner, or a photograph from a phone. Same pipeline after
+    // this line -- see rasterizeImage for what a photo does and does not get.
+    const isImage = file.type.startsWith("image/");
+    const rasterize = isImage ? rasterizeImage : rasterizePdf;
+    const pageCount = await rasterize(file, ({ pageNumber, image, total }) => {
       const registered = registerAgainstBestSide(image, targets, pageNumber);
       pages.push({
         pageNumber,
@@ -196,7 +200,7 @@ async function processFile(file: File) {
       renderProgress(`Reading page ${pageNumber} of ${total}…`, (pageNumber / total) * 0.98);
     });
 
-    if (pageCount === 0) throw new Error("That PDF has no pages.");
+    if (pageCount === 0) throw new Error("That file has no pages.");
 
     const { cards, problems } = pairIntoCards(pages);
 
@@ -389,9 +393,9 @@ function seedEventFromFilename(name: string) {
 function renderUpload() {
   app.innerHTML = `
     <div id="drop">
-      <strong>Drop a scanned PDF here</strong>
+      <strong>Drop a scanned PDF or a photo here</strong>
       <span class="hint">or click to choose a file</span>
-      <input type="file" accept="application/pdf" hidden />
+      <input type="file" accept="application/pdf,image/*" capture="environment" hidden />
     </div>
     <p class="hint">
       One PDF per cleanup event, scanned front-and-back in card order.
