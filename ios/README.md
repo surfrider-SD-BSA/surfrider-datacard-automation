@@ -63,6 +63,58 @@ This needs the iOS platform installed, which a stock Xcode does not include:
 xcodebuild -downloadPlatform iOS
 ```
 
+## Getting it onto a phone
+
+There are two routes and they are not the same amount of work.
+
+### The 7-day route, today, free
+
+Xcode will sign an app with a plain Apple ID and install it on a device plugged
+into this Mac. It expires after seven days and has to be reinstalled, which is
+fine for looking at it and useless for a volunteer at a cleanup.
+
+Open `ios/SurfriderDataCards.xcodeproj`, select the target, Signing &
+Capabilities, add your Apple ID under Team, plug in the phone and press Run.
+
+### TestFlight
+
+`ios/testflight.sh` does the whole build and upload. What it cannot do is be
+you: **every blocker here is an account, not a line of code.** Confirmed by
+trying it -- archiving fails with "Signing for Data Cards requires a development
+team", and this machine has no signing identities, no provisioning profiles and
+no App Store Connect keys installed.
+
+What you have to do once:
+
+1. **Apple Developer Program membership**, $99/year. TestFlight is not available
+   on a free account.
+2. **Pick a bundle identifier you own** and register an App ID for it.
+   `org.surfrider.sd.datacards` is a placeholder and almost certainly wrong --
+   it should sit under a domain the chapter controls.
+3. **Create the app record** in App Store Connect with that bundle ID.
+4. **Generate an App Store Connect API key** with the App Manager role, and put
+   the `AuthKey_XXXXXXXX.p8` in `~/.appstoreconnect/private_keys/`. Do not
+   commit it. Nothing in this repository should ever contain it.
+
+Then:
+
+```sh
+export TEAM_ID=ABCDE12345
+export BUNDLE_ID=org.yourdomain.datacards
+export ASC_KEY_ID=XXXXXXXXXX
+export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+./ios/testflight.sh
+```
+
+The script refreshes the web bundle, archives, exports a signed `.ipa`,
+validates it, and uploads. Build numbers come from the clock, because App Store
+Connect refuses a `CFBundleVersion` it has already seen rather than replacing
+it.
+
+**Internal testers** -- up to 100 people on your team -- get the build as soon
+as it finishes processing, with no review. **External testers** need Beta App
+Review first, which is a day or so and does look at the app.
+
 ## What has NOT been done
 
 - **It builds, installs, launches and renders** on an iPhone 17 simulator

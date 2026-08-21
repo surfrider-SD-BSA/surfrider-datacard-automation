@@ -73,3 +73,7 @@ assets/reference/lines-*.png
 # put a second 3.4MB digit model in the history and let the app drift from src/
 # without the diff ever showing it.
 ios/SurfriderDataCards/web/
+
+# Xcode archives and exported .ipa files. Large, rebuildable, and an .ipa is a
+# signed artefact that has no business in a public repository.
+ios/build/
