@@ -23,10 +23,13 @@ struct ReviewScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
 
+    /// The TOTAL box, enlarged. Always shown, never replaced.
     @State private var crop: UIImage?
+    /// The whole row, shown as a strip beneath it.
+    @State private var row: UIImage?
     @State private var marks: UIImage?
 
-    /// Show the whole row rather than the TOTAL box alone.
+    /// Show the whole row as a strip beneath the box.
     ///
     /// On by default, and remembered. The desktop tool shows the box alone
     /// because its first build cropped the whole row and "the handwritten
@@ -36,9 +39,12 @@ struct ReviewScreen: View {
     /// what tells you the ink in this box belongs to THIS item and not the one
     /// above it, which is the mistake a reviewer cannot otherwise catch.
     ///
-    /// So the row is shown at a height the handwriting can be read at and
-    /// scrolled sideways instead, parked on the TOTAL box. Nothing is squeezed
-    /// and nothing has to be tapped.
+    /// So the row does not REPLACE the box, which was the first attempt at this
+    /// and was wrong twice over: the box is the thing being read, and a row
+    /// squeezed to the width of a phone is unreadable anyway. It is added
+    /// beneath the box as its own strip, at a height the handwriting survives,
+    /// scrolled sideways and parked on the TOTAL box. Nothing is squeezed,
+    /// nothing has to be tapped, and the box cannot go missing.
     @AppStorage("tally.showWholeRow") private var showWholeRow = true
 
     var body: some View {
@@ -129,50 +135,47 @@ struct ReviewScreen: View {
 
     private func cropBlock(_ flat: FlatCell) -> some View {
         VStack(spacing: 7) {
-            ZStack {
-                RoundedRectangle(cornerRadius: Nocturne.Radius.base).fill(Nocturne.Paper.fill)
-
+            // The TOTAL box, enlarged. This is the picture the number is read
+            // from and it is never traded for anything else.
+            paper(height: 118) {
                 if let crop {
-                    if showWholeRow {
-                        // Full height, natural width, scrolled to the right --
-                        // the TOTAL box is at the end of the row, so that is
-                        // where it opens. Swipe left for the item's own
-                        // caption and the tally space beside it.
-                        ScrollViewReader { proxy in
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                Image(uiImage: crop)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(height: 106)
-                                    .id("row")
-                            }
-                            .onAppear { proxy.scrollTo("row", anchor: .trailing) }
-                            .onChange(of: flat.key) { _ in proxy.scrollTo("row", anchor: .trailing) }
-                        }
-                        .padding(.vertical, 6)
-                    } else {
-                        Image(uiImage: crop)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .padding(6)
-                    }
+                    Image(uiImage: crop)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .padding(6)
                 } else {
                     ProgressView().tint(Nocturne.Paper.border)
                 }
             }
-            .frame(height: 118)
-            .clipShape(RoundedRectangle(cornerRadius: Nocturne.Radius.base))
-            .overlay(
-                RoundedRectangle(cornerRadius: Nocturne.Radius.base)
-                    .stroke(Nocturne.Paper.border, lineWidth: 1)
-            )
+
+            // The row it sits in, as a strip. Context for whether this ink
+            // belongs to THIS item -- the one mistake nothing downstream can
+            // catch -- without costing the box any size.
+            if showWholeRow, let row {
+                paper(height: 42) {
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            // The width is computed rather than inferred. A
+                            // resizable image with `.fit` inside a horizontal
+                            // ScrollView is proposed an unbounded width, and
+                            // resolves to nothing -- which is how this shipped
+                            // once as an empty white card.
+                            Image(uiImage: row)
+                                .resizable()
+                                .frame(width: stripWidth(row), height: 34)
+                                .id("row")
+                        }
+                        .onAppear { proxy.scrollTo("row", anchor: .trailing) }
+                        .onChange(of: flat.key) { _ in proxy.scrollTo("row", anchor: .trailing) }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
 
             HStack {
-                Text(showWholeRow
-                     ? "Card \(flat.key.card), the whole row — swipe it"
-                     : "The TOTAL box, enlarged 2.4×")
+                Text(showWholeRow ? "The TOTAL box at 2.4×, over its row — swipe it" : "The TOTAL box, enlarged 2.4×")
                 Spacer()
-                Button(showWholeRow ? "Just the box" : "Show the whole row") { showWholeRow.toggle() }
+                Button(showWholeRow ? "Hide the row" : "Show the whole row") { showWholeRow.toggle() }
                     .buttonStyle(TextButtonStyle(size: 11))
             }
             .font(Nocturne.Face.label(11))
@@ -180,6 +183,22 @@ struct ReviewScreen: View {
         }
         .pageMargin()
         .padding(.top, 16)
+    }
+
+    /// Scanned crops sit on white. See the note at the top of this file.
+    private func paper<Content: View>(height: CGFloat, @ViewBuilder content: () -> Content) -> some View {
+        ZStack { RoundedRectangle(cornerRadius: Nocturne.Radius.base).fill(Nocturne.Paper.fill); content() }
+            .frame(height: height)
+            .clipShape(RoundedRectangle(cornerRadius: Nocturne.Radius.base))
+            .overlay(
+                RoundedRectangle(cornerRadius: Nocturne.Radius.base)
+                    .stroke(Nocturne.Paper.border, lineWidth: 1)
+            )
+    }
+
+    private func stripWidth(_ image: UIImage) -> CGFloat {
+        guard image.size.height > 0 else { return 0 }
+        return 34 * (image.size.width / image.size.height)
     }
 
     /// A tally-only cell has no number to read. What the reviewer has to do is
@@ -270,10 +289,16 @@ struct ReviewScreen: View {
     private func loadCrops() async {
         guard let flat = model.current else { return }
         crop = nil
+        row = nil
         marks = nil
         crop = try? await model.engine
-            .crop(card: flat.key.card, row: flat.key.row, kind: showWholeRow ? "context" : "total")
+            .crop(card: flat.key.card, row: flat.key.row, kind: "total")
             .image
+        if showWholeRow {
+            row = try? await model.engine
+                .crop(card: flat.key.card, row: flat.key.row, kind: "context")
+                .image
+        }
         if flat.cell.tallyOnly {
             marks = try? await model.engine
                 .crop(card: flat.key.card, row: flat.key.row, kind: "marks")
