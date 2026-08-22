@@ -1,20 +1,53 @@
-# The iOS app
+# Tally — the iOS app
 
-A native shell around the web tool. It is deliberately thin.
+The data-card tool on the phone that is already at the cleanup. Eight screens in
+SwiftUI, over the same reading pipeline the browser tool runs.
 
-## Why it is thin
+## What is native and what is not
 
-The reading is not reimplemented in Swift and should not be. Registration,
-tally counting and digit recognition are measured in `HANDOFF.md` against the
-TypeScript in `src/`, and a Swift port would be a second implementation to keep
-in step with a set of figures that took months to establish. This app loads the
-same built bundle out of its own package and runs it offline.
+**The interface is native. The reading is not, and should never be.**
 
-That means a fix to the reading is a change to `src/`, not to anything here.
+Registration, tally counting and digit recognition are measured in `HANDOFF.md`
+against the TypeScript in `src/`, on 1,606 pages. A Swift port would be a second
+implementation to keep in step with a set of figures that took months to
+establish, and the first time the two drifted nobody would know which one the
+numbers described. So the pipeline runs unchanged, in a WKWebView with no
+interface attached:
 
-## What the shell actually adds
+| Piece | Where it lives |
+| --- | --- |
+| The eight screens, navigation, keypad, drafts | `SurfriderDataCards/Tally/` |
+| The bridge to the pipeline | `Tally/Engine.swift` ⇄ `src/engine.ts` |
+| Rasterizing, registration, cells, marks, digits, xlsx | `src/lib/`, untouched |
 
-Two things a web page cannot do by itself on iOS.
+**A fix to the reading is a change to `src/`, followed by `ios/sync-web.sh`. It
+is never a change to anything under `Tally/`.**
+
+The design the screens come from is `design_handoff_mobile_companion` in the
+Claude Design project, recreated with the platform's own conventions --
+`NavigationStack`, system controls, SF Symbols in place of Phosphor -- rather
+than by porting the prototype's markup. Its tokens are transcribed once, in
+`Tally/Theme.swift`, and nothing else writes a colour literal.
+
+## The bridge
+
+`engine.html` is a second Vite entry point: `src/engine.ts` with an empty body.
+Swift calls `window.tally.dispatch(json)` and every answer comes back through
+`webkit.messageHandlers.tally`, because `evaluateJavaScript` cannot return a
+promise. Five methods: `open`, `process`, `crop`, `export`, `reset`.
+
+Two things deliberately do not cross the bridge.
+
+**Page images.** A letter page at 200 DPI is 3.7MB of grayscale and a 116-page
+scan is 430MB of them. They are cut into row crops in the page and dropped, and
+Swift asks for one cell picture at a time by card and row.
+
+**The scan.** It goes the other way, as a resource rather than a string:
+`WebAssetSchemeHandler` stages the file under a one-shot token and the page
+fetches `/__inbox/<token>`. Base64 through `evaluateJavaScript` would be the
+whole scan as a JavaScript string literal, parsed by JavaScriptCore, on a phone.
+
+## What the shell still adds
 
 **Its own origin.** The page fetches the reference card, the cell maps and the
 3.4MB digit model with `fetch()`. WKWebView refuses cross-origin fetches from
@@ -23,23 +56,32 @@ anything. `WebAssetSchemeHandler` serves the bundle under a `cleanup://` scheme,
 which is treated as a proper origin, and the page runs unchanged.
 
 Watch the MIME types there. `pdf.worker.min.mjs` served as anything but a
-JavaScript type is rejected by the module loader, and the app then hangs on
-"Reading the PDF…" with nothing in the console, because the failure is inside a
-worker nobody is watching.
+JavaScript type is rejected by the module loader, and the app then hangs while
+reading with nothing in the console, because the failure is inside a worker
+nobody is watching.
 
-**Getting the spreadsheet out.** The page builds a blob and clicks an
-`<a download>`. In WKWebView that is a navigation to a `blob:` URL, which is
-cancelled silently — the button appears to do nothing. `WebScreen` intercepts
-the download, writes it to a temp file and offers the share sheet, which is how
-a file leaves an app on iOS anyway: Files, AirDrop, Mail.
+**Getting the spreadsheet out.** The engine hands back workbook bytes, Swift
+writes them to a temp file, and the share sheet takes it from there -- Files,
+AirDrop, Mail -- which is how a file leaves an app on iOS anyway. The old
+`<a download>` interception is gone with the web interface it belonged to.
 
-There used to be a third: the camera. An earlier version accepted a photograph
-through `<input type="file" accept="image/*" capture="environment">`, which
-raises the native picker on its own but needs `NSCameraUsageDescription` and
-`NSPhotoLibraryUsageDescription` in `Info.plist` -- without them iOS kills the
-app rather than refusing the picker. The input is now `accept="application/pdf"`
-and nothing else, so both keys are deliberately absent. Read the comment where
-they would go in `Info.plist` before putting image input back.
+## The camera is not wired up
+
+The design's screen 3 is a live viewfinder with a shutter. It ships as the same
+frame with a document picker under it, and says so on screen.
+
+This is the repository's existing decision rather than an omission. Image input
+was **removed** earlier, and `NSCameraUsageDescription` and
+`NSPhotoLibraryUsageDescription` with it -- see the comment where they would go
+in `Info.plist`. A photograph held at an angle keystones, and registration
+corrects rotation and scale but not that. The pipeline also expects 200 DPI on
+the card's short edge, and whether a phone camera clears that handheld in beach
+light has never been measured; the design handoff calls it "the biggest open
+risk in the whole concept".
+
+**Measure that first.** Everything else is then small: put the shutter back,
+restore the two usage strings, and feed frames in where `CaptureScreen` calls
+`read(pdf:)`.
 
 ## Building it
 
@@ -140,15 +182,19 @@ Review first, which is a day or so and does look at the app.
 
 ## What has NOT been done
 
-- **It builds, installs, launches and renders** on an iPhone 17 simulator
-  (iOS 26.5) and on a physical iPhone: the bundle is served through `cleanup://`
-  and the front screen comes up. `digit-model.json` and `pdf.worker.min.mjs` are
-  both confirmed present in the built `.app`.
+- **The SwiftUI app compiles clean** against the iOS Simulator SDK, with no
+  warnings. The bridge protocol is verified from the other end: `open` loads
+  the reference card, the cell maps and the digit model, and success, failure
+  and unknown-method replies all come back correctly addressed.
 - **Reading a card INSIDE the app has not been exercised.** Doing that means
   driving the file picker, which nothing here automates. So the PDF path is
-  proven on the web side and assumed here. **Load a card as the first thing you
-  do**, and if it hangs on "Reading the PDF…" with nothing in the console, the
-  MIME type note above is where to look.
+  proven on the web side -- and through `scripts/run-shipping-path.mjs`, which
+  runs real pages through the shipping modules offline -- and assumed here.
+  **Load a card as the first thing you do**, and if it hangs while reading with
+  nothing in the console, the MIME type note above is where to look.
+- **No screen has been seen on a device.** The layout is transcribed from the
+  handoff's measurements rather than checked against a running app, so expect
+  to nudge spacing. The values to nudge are all in `Tally/Theme.swift`.
 - **Development signing only.** A free personal team signs
   `com.mateobesse.datacards`, and Xcode issues a provisioning profile that
   expires seven days after it is created, so the app stops launching a week after
@@ -156,8 +202,6 @@ Review first, which is a day or so and does look at the app.
   identifier the chapter owns, so TestFlight is still out of reach.
 - **No custom launch screen.** `UILaunchScreen` is an empty dict, which takes the
   system default. There is an app icon, generated by `ios/make-icon.mjs`.
-- **Nothing measured on phone photographs.** This is a decision rather than a
-  gap: the input is `accept="application/pdf"` and image input was removed. A
-  photograph held at an angle keystones, and registration corrects rotation and
-  scale but not that. Restoring image input means restoring the two
-  usage-description keys with it.
+- **Nothing measured on phone photographs.** See "The camera is not wired up"
+  above. This is a decision rather than a gap, and the thing to do about it is
+  a measurement, not a feature.

@@ -11,6 +11,21 @@ count as breaking.
 
 ### Added
 
+- **Tally — an iOS app, and the interface the phone now shows.** Eight screens
+  in SwiftUI, built from the design handoff in
+  `design_handoff_mobile_companion`: pick up a draft, the event's header
+  fields, choose a scan, watch it read, look at a page it refused, check one
+  cell at a time on a thumb-sized keypad, see everything typed, and make the
+  spreadsheet. It replaces the WKWebView that used to show the desktop tool
+  inside the app.
+- **The reading pipeline runs headless, and is unchanged.** `src/engine.ts`
+  builds as a second entry point (`engine.html`) with no interface attached,
+  and SwiftUI drives it over a small JSON bridge. There is no Swift port of
+  registration, tally counting or digit recognition, and there should never
+  be one: every figure in HANDOFF.md was measured against the TypeScript, and
+  a second implementation would be a second set of numbers to keep in step.
+  A fix to the reading is still a change to `src/` followed by
+  `ios/sync-web.sh`.
 - **The implementation.** A browser-only tool: drop a scanned PDF, check each
   cell against a picture of it, download the chapter's spreadsheet. No server,
   no account, no API key; the scan never leaves the machine.
@@ -45,6 +60,14 @@ count as breaking.
 - Pre-commit hooks, including a check that blocks committing volunteer data.
 - Dependabot for pip and GitHub Actions updates.
 - Branch protection runbook at `docs/repo-setup.md`.
+
+### Changed
+
+- `PREFILL_GATE` and the "check it" tag moved out of `src/main.ts` into
+  `src/lib/prefill.ts`. Two front ends now decide the same thing about the
+  same cell, and the whole argument is about one number; two copies of it is
+  exactly the drift this repository keeps warning about. Behaviour on the web
+  is unchanged.
 
 ### Fixed
 
