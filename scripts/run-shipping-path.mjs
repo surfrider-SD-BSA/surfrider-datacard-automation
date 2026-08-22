@@ -24,6 +24,7 @@ import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
 import { extractCard } from "../src/lib/extract";
+import { PREFILL_GATE } from "../src/lib/prefill";
 import { reconcile } from "../src/lib/reading.ts";
 import { pairIntoCards, referenceTargets, registerAgainstBestSide } from "../src/lib/register";
 
@@ -52,8 +53,10 @@ function decodePng(path) {
   return { width: png.width, height: png.height, data: luma(png.data, png.width * png.height) };
 }
 
-/** Mirrors PREFILL_GATE in src/main.ts. */
-const PREFILL_GATE = 0.8;
+// Imported rather than mirrored. This was a hand-copied `0.8` describing
+// itself as mirroring main.ts, and it had been wrong since the gate moved --
+// a diagnostic reporting a threshold the tool does not use is worse than one
+// that reports nothing.
 
 function main() {
   const dir = process.argv[2];

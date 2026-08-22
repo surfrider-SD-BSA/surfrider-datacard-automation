@@ -1,7 +1,7 @@
 /**
  * Every cell the tool would PRE-FILL, rendered so it can be counted by eye.
  *
- * This is the check that matters before `PREFILL_GATE` in `src/main.ts` is
+ * This is the check that matters before `PREFILL_GATE` in `src/lib/prefill.ts` is
  * lowered, and it is the only instrument in this repository that has ever
  * caught the failure it exists for. The counter's spreadsheet score is a lower
  * bound and absorbed it; both offline diagnostics agreed with the browser; every
@@ -21,7 +21,7 @@
  * Usage:
  *   npx vite-node scripts/audit-prefills.mjs -- [--only <scan>]
  *     [--gate N]      the confidence to audit at; must match PREFILL_GATE in
- *                     src/main.ts, which is what the tool actually fills at
+ *                     src/lib/prefill.ts, which is what the tool actually fills at
  *     [--no-show]     list the cells without rendering them
  *     [--per N]       cells per contact sheet (default 12)
  *     [--debug]       print the segments the decomposition found for each cell,

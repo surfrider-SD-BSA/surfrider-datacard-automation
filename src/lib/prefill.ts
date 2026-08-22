@@ -79,8 +79,45 @@ import type { ExtractedCell } from "./extract";
  * Raise it to 0.8 to go back to roughly one in seven, or set `digitsAlone`
  * false in reading.ts to return to tally-only pre-filling.
  * ---------------------------------------------------------------------------
+ *
+ * LOWERED TO 0.30 ON 22 AUGUST 2026, on the chapter owner's instruction to
+ * fill more boxes automatically. What that buys, measured on the 58-card
+ * test-long scan by `scripts/gate-coverage.mjs`:
+ *
+ *   gate   boxes filled   of 453 cells
+ *   0.80        125           27.6%
+ *   0.70        160           35.3%
+ *   0.60        194           42.8%
+ *   0.50        219           48.3%     <- previous setting
+ *   0.40        243           53.6%
+ *   0.30        269           59.4%     <- now
+ *   0.20        278           61.4%
+ *
+ * 0.30 rather than lower because of the shape of that curve, not a feeling
+ * about risk. The readers only ever OFFER 278 readings on this scan -- 267
+ * from the digits, 11 from the tally -- so 61.4% is the ceiling however far
+ * the gate falls, and 0.30 already takes 269 of the 278. The last nine cost
+ * a third of the remaining headroom above `splitConfidence`, which is 0.17
+ * and must stay below the gate: at or under it the midpoint taken when the
+ * two readers disagree starts being pre-filled, and that is the weakest
+ * answer available -- right under a quarter of the time. Buying nine boxes
+ * by opening that door is a bad trade.
+ *
+ * WHAT THIS COSTS, SAID PLAINLY. The precision figures in the table above
+ * this one stop at 0.50, and they were falling steadily -- 86, 84, 83, 81,
+ * 78. **Precision below 0.50 has not been measured**, and on that trend
+ * something nearer three in four right than four in five is the honest
+ * expectation for a filled box. Every one is still tagged "read: check it"
+ * and still sits under a picture of the handwriting, which remains the only
+ * reason any of this is defensible.
+ *
+ * The tally side is untouched by the change, and that is measured rather
+ * than assumed: `audit-prefills.mjs --gate 0.25` fills the same 62 cells at
+ * the same 95.3% precision as `--gate 0.5`. The counter's own confidences
+ * are quantised at 0.60/0.75/0.80 and it declines everything else outright,
+ * so the gate was never what limited it.
  */
-export const PREFILL_GATE = 0.5;
+export const PREFILL_GATE = 0.3;
 
 /** What the two readers make of one cell, reconciled. Null when both declined. */
 export function readingFor(cell: ExtractedCell): Reading | null {
