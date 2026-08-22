@@ -81,4 +81,9 @@ ios/build/
 # Xcode per-user state: window positions, breakpoints, scheme ordering.
 # Not the project, and it changes every time anybody opens it.
 ios/**/xcuserdata/
-ios/**/project.xcworkspace/xcuserdata/
+
+# The workspace Xcode generates inside the .xcodeproj the first time the project
+# is opened or built. It is recreated on demand and says nothing the project file
+# does not, so building should not leave the tree dirty. This supersedes the
+# narrower xcuserdata rule above for anything under it.
+ios/**/project.xcworkspace/
