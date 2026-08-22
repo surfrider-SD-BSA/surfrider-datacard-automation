@@ -301,13 +301,13 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
       );
       break;
     case "context":
-      // 3x, not the 1.4x this started at. The row is shown at a height the
-      // handwriting can be read at and scrolled sideways, rather than squeezed
-      // to the screen's width -- so it needs the pixels to stand being
-      // enlarged, not just to fit.
+      // 2x. The row is shown as a 34pt strip beneath the box, scrolled
+      // sideways rather than squeezed to the screen's width, so it needs
+      // enough pixels to stand being read at that height and no more --
+      // every one of them crosses the bridge as base64.
       canvas = cropToCanvas(
         cell.image,
-        cell.contextRect.x, cell.contextRect.y, cell.contextRect.width, cell.contextRect.height, 3.0,
+        cell.contextRect.x, cell.contextRect.y, cell.contextRect.width, cell.contextRect.height, 2.0,
       );
       break;
     default:
