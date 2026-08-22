@@ -47,6 +47,34 @@
 	     app that invites the question why. -->
 	<key>NSCameraUsageDescription</key>
 	<string>Tally photographs the cleanup data cards so it can find the boxes somebody wrote in. The pictures stay on this phone; only the finished spreadsheet is ever shared.</string>
+	<!-- Accept a PDF from any other app: Files, Mail, Messages, AirDrop, the
+	     share sheet. Getting a scan onto a phone is most of the work of using
+	     this thing, and the document picker alone is a thin way to do it -- it
+	     can only see what is already filed somewhere it can reach.
+
+	     LSSupportsOpeningDocumentsInPlace is deliberately false. Opening in
+	     place would give this app write access to the original, which it has
+	     no business having; a copy in the inbox is all it needs, and
+	     `openExternal` copies that out again before the system reclaims it.
+	     Rank is Alternate because a PDF reader is a better default for a PDF
+	     than this is. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Scanned data cards</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.adobe.pdf</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

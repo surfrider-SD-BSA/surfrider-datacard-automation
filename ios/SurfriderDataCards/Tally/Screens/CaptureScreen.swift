@@ -68,6 +68,21 @@ struct CaptureScreen: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 10) {
+                if let waiting = model.pendingPDF {
+                    Button {
+                        model.pendingPDF = nil
+                        Task { await model.read(pdf: waiting) }
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: Nocturne.Icon.spreadsheet)
+                            Text("Read \(waiting.lastPathComponent)")
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
+
                 Button {
                     scanning = true
                 } label: {
@@ -88,6 +103,15 @@ struct CaptureScreen: View {
                     }
                 }
                 .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
+                .sheet(isPresented: $picking) {
+                    PDFPicker { url in
+                        picking = false
+                        Task { await model.read(pdf: url) }
+                    } onCancel: {
+                        picking = false
+                    }
+                    .ignoresSafeArea()
+                }
 
                 if let problem {
                     Text(problem)
@@ -109,16 +133,6 @@ struct CaptureScreen: View {
             .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
-        .fileImporter(isPresented: $picking, allowedContentTypes: [.pdf]) { result in
-            switch result {
-            case .success(let url):
-                Task { await model.read(pdf: url) }
-            case .failure(let error):
-                // Said out loud. A picker that closes with nothing and no
-                // explanation reads as a broken button.
-                problem = "That file could not be opened: \(error.localizedDescription)"
-            }
-        }
         .fullScreenCover(isPresented: $scanning) {
             DocumentScanner { pages in
                 scanning = false
