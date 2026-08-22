@@ -20,8 +20,21 @@
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<!-- App Store Connect asks about encryption on every upload and the answer
+	     never changes: this app makes no network calls at all. The bundle is
+	     served from inside the app package and the scan never leaves the
+	     device, so there is nothing to declare. Xcode strips comments when it
+	     rewrites this file; if this one is gone, that is why. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- There is deliberately no NSCameraUsageDescription and no
+	     NSPhotoLibraryUsageDescription. The tool takes a scanned PDF and
+	     nothing else, so the file input never raises the camera or the photo
+	     library, and an app that asks for permissions it does not use is an app
+	     that invites the question why. Restore them alongside any change that
+	     puts image input back. -->
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
@@ -30,15 +43,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- App Store Connect asks about encryption on every single upload.
-	     This app makes no network calls at all: the bundle is served from
-	     inside the app package and the scan never leaves the device, so there
-	     is nothing to declare. Answering it here stops the prompt recurring. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>NSCameraUsageDescription</key>
-	<string>Photograph a data card so the app can find the boxes somebody wrote in. The photo stays on this device.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose a photo or scan of a data card to read. The image stays on this device.</string>
 </dict>
 </plist>
