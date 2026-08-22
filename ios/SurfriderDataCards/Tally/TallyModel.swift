@@ -38,7 +38,18 @@ struct FlatCell: Identifiable, Hashable {
 }
 
 struct EventForm: Codable, Equatable {
-    var date = ""
+    /// Today, not the empty string.
+    ///
+    /// This was `""`, and it cost an afternoon. The date picker's getter falls
+    /// back to `Date()` when the string will not parse, so the screen showed
+    /// today's date while the model held nothing -- and the setter only fires
+    /// when somebody CHANGES the date. Accept the date already on screen, type
+    /// a beach, and "Scan the cards" stayed disabled with no way to see why,
+    /// because the field it was complaining about looked filled in.
+    ///
+    /// A control must not display a value the model does not have. Defaulting
+    /// here is what makes the two agree from the first frame.
+    var date = DateFormatter.iso.string(from: Date())
     var shoreline = ""
     var volunteers = ""
     var pounds = ""
@@ -87,6 +98,13 @@ final class TallyModel: ObservableObject {
     @Published private(set) var cells: [FlatCell] = []
     @Published private(set) var readingError: String?
 
+    /// A PDF another app handed us — AirDrop, Mail, Files, the share sheet.
+    ///
+    /// Not read on arrival. The event's date and beach come first, and a scan
+    /// that started reading the instant it landed would skip the one screen
+    /// that gates the export. It is offered on the capture screen instead.
+    @Published var pendingPDF: URL?
+
     /// Pages the pipeline refused, worst first. A page that will not line up is
     /// surfaced rather than cropped from -- a misregistered page yields
     /// ordinary-looking numbers attached to the wrong debris items, and nothing
@@ -133,9 +151,28 @@ final class TallyModel: ObservableObject {
 
     // MARK: - Starting
 
+    /// Another app opened a PDF with us. Start a cleanup and hold the file.
+    func openExternal(_ url: URL) {
+        // Copied out of the inbox immediately: the system deletes what it puts
+        // there, on its own schedule, and a scan that vanishes between the tap
+        // and the read is a bug nobody could reproduce.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let copy = dir.appendingPathComponent(url.lastPathComponent)
+
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { return }
+
+        startNewCleanup()
+        pendingPDF = copy
+    }
+
     func startNewCleanup() {
         event = EventForm()
         clearScan()
+        pendingPDF = nil
         path = [.event]
     }
 
@@ -252,11 +289,22 @@ final class TallyModel: ObservableObject {
 
     func press(_ key: String) {
         guard let current else { return }
+
+        // A box the tool filled is REPLACED by the first digit, not appended to.
+        //
+        // The desktop tool puts its readings in a text field, where typing over
+        // one is what a text field does. Here the number is on a keypad, and
+        // appending to a pre-filled 14 gives 143 -- so correcting the tool's
+        // guess would mean spotting that you have to clear it first, on the one
+        // screen where the whole job is correcting the tool's guesses.
+        let replacingMachineReading = untouched[current.key] != nil
+
         switch key {
         case "C": entry = ""
-        case "<": entry = String(entry.dropLast())
-        default: entry = String((entry + key).prefix(4))
+        case "<": entry = replacingMachineReading ? "" : String(entry.dropLast())
+        default: entry = String(((replacingMachineReading ? "" : entry) + key).prefix(4))
         }
+
         // The moment a person touches the keypad this box is theirs, however it
         // started out, and the export stops calling it a machine reading.
         untouched.removeValue(forKey: current.key)
