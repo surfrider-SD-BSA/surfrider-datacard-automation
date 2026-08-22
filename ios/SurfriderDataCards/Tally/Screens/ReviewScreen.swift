@@ -25,7 +25,21 @@ struct ReviewScreen: View {
 
     @State private var crop: UIImage?
     @State private var marks: UIImage?
-    @State private var zoomed = false
+
+    /// Show the whole row rather than the TOTAL box alone.
+    ///
+    /// On by default, and remembered. The desktop tool shows the box alone
+    /// because its first build cropped the whole row and "the handwritten
+    /// number was a few pixels across the far right of a very wide strip --
+    /// unreadable". That is a fact about squeezing a 900px row into the width
+    /// of a phone, not about the row being the wrong thing to show: the row is
+    /// what tells you the ink in this box belongs to THIS item and not the one
+    /// above it, which is the mistake a reviewer cannot otherwise catch.
+    ///
+    /// So the row is shown at a height the handwriting can be read at and
+    /// scrolled sideways instead, parked on the TOTAL box. Nothing is squeezed
+    /// and nothing has to be tapped.
+    @AppStorage("tally.showWholeRow") private var showWholeRow = true
 
     var body: some View {
         ScreenBody {
@@ -56,7 +70,7 @@ struct ReviewScreen: View {
         }
         .navigationBarBackButtonHidden()
         .task(id: model.current?.key) { await loadCrops() }
-        .onChange(of: zoomed) { _ in Task { await loadCrops() } }
+        .onChange(of: showWholeRow) { _ in Task { await loadCrops() } }
     }
 
     // MARK: - Blocks
@@ -117,11 +131,31 @@ struct ReviewScreen: View {
         VStack(spacing: 7) {
             ZStack {
                 RoundedRectangle(cornerRadius: Nocturne.Radius.base).fill(Nocturne.Paper.fill)
+
                 if let crop {
-                    Image(uiImage: crop)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .padding(6)
+                    if showWholeRow {
+                        // Full height, natural width, scrolled to the right --
+                        // the TOTAL box is at the end of the row, so that is
+                        // where it opens. Swipe left for the item's own
+                        // caption and the tally space beside it.
+                        ScrollViewReader { proxy in
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                Image(uiImage: crop)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(height: 106)
+                                    .id("row")
+                            }
+                            .onAppear { proxy.scrollTo("row", anchor: .trailing) }
+                            .onChange(of: flat.key) { _ in proxy.scrollTo("row", anchor: .trailing) }
+                        }
+                        .padding(.vertical, 6)
+                    } else {
+                        Image(uiImage: crop)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .padding(6)
+                    }
                 } else {
                     ProgressView().tint(Nocturne.Paper.border)
                 }
@@ -134,9 +168,11 @@ struct ReviewScreen: View {
             )
 
             HStack {
-                Text(zoomed ? "Card \(flat.key.card), the row this box sits in" : "The TOTAL box, enlarged 2.4×")
+                Text(showWholeRow
+                     ? "Card \(flat.key.card), the whole row — swipe it"
+                     : "The TOTAL box, enlarged 2.4×")
                 Spacer()
-                Button(zoomed ? "Just the box" : "Show the whole row") { zoomed.toggle() }
+                Button(showWholeRow ? "Just the box" : "Show the whole row") { showWholeRow.toggle() }
                     .buttonStyle(TextButtonStyle(size: 11))
             }
             .font(Nocturne.Face.label(11))
@@ -236,7 +272,7 @@ struct ReviewScreen: View {
         crop = nil
         marks = nil
         crop = try? await model.engine
-            .crop(card: flat.key.card, row: flat.key.row, kind: zoomed ? "context" : "total")
+            .crop(card: flat.key.card, row: flat.key.row, kind: showWholeRow ? "context" : "total")
             .image
         if flat.cell.tallyOnly {
             marks = try? await model.engine
