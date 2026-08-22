@@ -18,6 +18,15 @@ count as breaking.
   cell at a time on a thumb-sized keypad, see everything typed, and make the
   spreadsheet. It replaces the WKWebView that used to show the desktop tool
   inside the app.
+- **Photographing the cards, as its own button.** Capture goes through
+  VisionKit's document scanner, which rectifies the page's perspective before
+  the image reaches the pipeline — which is what answers the keystoning
+  objection that kept image input out of the app until now. The captured pages
+  are bound into a PDF laid out so that rasterizing at 200 DPI returns exactly
+  the pixels the camera captured. Choosing a scanned PDF is the second button
+  and is unchanged. `NSCameraUsageDescription` is back; the photo-library key
+  is still deliberately absent. **The resolution a real card lands at is still
+  unmeasured**, and the screen says the scanner is the surer route.
 - **The reading pipeline runs headless, and is unchanged.** `src/engine.ts`
   builds as a second entry point (`engine.html`) with no interface attached,
   and SwiftUI drives it over a small JSON bridge. There is no Swift port of

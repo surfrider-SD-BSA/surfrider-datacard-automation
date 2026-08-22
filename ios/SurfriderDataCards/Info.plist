@@ -29,12 +29,24 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<!-- There is deliberately no NSCameraUsageDescription and no
-	     NSPhotoLibraryUsageDescription. The tool takes a scanned PDF and
-	     nothing else, so the file input never raises the camera or the photo
-	     library, and an app that asks for permissions it does not use is an app
-	     that invites the question why. Restore them alongside any change that
-	     puts image input back. -->
+	<!-- The camera is used, and this key is required rather than optional:
+	     without it iOS kills the app the moment the scanner is presented,
+	     rather than refusing the picker.
+
+	     It was deliberately absent until 22 August 2026, when photographing
+	     the cards was added as its own button on the capture screen. The
+	     objection that kept image input out was that a photograph held at an
+	     angle keystones and registration does not correct for that; what
+	     answers it is that capture goes through VisionKit's document scanner,
+	     which rectifies the perspective before the image reaches the pipeline.
+	     See ios/SurfriderDataCards/Tally/DocumentScanner.swift.
+
+	     There is still no NSPhotoLibraryUsageDescription. Nothing here reads
+	     the library or writes to it -- the scanner hands its pages straight
+	     over -- and an app that asks for a permission it does not use is an
+	     app that invites the question why. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Tally photographs the cleanup data cards so it can find the boxes somebody wrote in. The pictures stay on this phone; only the finished spreadsheet is ever shared.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

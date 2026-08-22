@@ -26,6 +26,7 @@
 		AA000000000000000000020C /* ReviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010C /* ReviewScreen.swift */; };
 		AA000000000000000000020D /* CardsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* CardsScreen.swift */; };
 		AA000000000000000000020E /* FinishScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010E /* FinishScreen.swift */; };
+		AA0000000000000000000230 /* DocumentScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000130 /* DocumentScanner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +51,7 @@
 		AA000000000000000000010C /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ReviewScreen.swift; path = Tally/Screens/ReviewScreen.swift; sourceTree = "<group>"; };
 		AA000000000000000000010D /* CardsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CardsScreen.swift; path = Tally/Screens/CardsScreen.swift; sourceTree = "<group>"; };
 		AA000000000000000000010E /* FinishScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FinishScreen.swift; path = Tally/Screens/FinishScreen.swift; sourceTree = "<group>"; };
+		AA0000000000000000000130 /* DocumentScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentScanner.swift; path = Tally/DocumentScanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +88,7 @@
 				AA0000000000000000000100 /* Theme.swift */,
 				AA0000000000000000000101 /* Components.swift */,
 				AA0000000000000000000102 /* Engine.swift */,
+				AA0000000000000000000130 /* DocumentScanner.swift */,
 				AA0000000000000000000103 /* TallyModel.swift */,
 				AA0000000000000000000104 /* Stores.swift */,
 				AA0000000000000000000105 /* RootView.swift */,
@@ -180,6 +183,7 @@
 				AA0000000000000000000200 /* Theme.swift in Sources */,
 				AA0000000000000000000201 /* Components.swift in Sources */,
 				AA0000000000000000000202 /* Engine.swift in Sources */,
+				AA0000000000000000000230 /* DocumentScanner.swift in Sources */,
 				AA0000000000000000000203 /* TallyModel.swift in Sources */,
 				AA0000000000000000000204 /* Stores.swift in Sources */,
 				AA0000000000000000000205 /* RootView.swift in Sources */,
