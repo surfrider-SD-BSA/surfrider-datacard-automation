@@ -80,44 +80,58 @@ import type { ExtractedCell } from "./extract";
  * false in reading.ts to return to tally-only pre-filling.
  * ---------------------------------------------------------------------------
  *
- * LOWERED TO 0.30 ON 22 AUGUST 2026, on the chapter owner's instruction to
- * fill more boxes automatically. What that buys, measured on the 58-card
- * test-long scan by `scripts/gate-coverage.mjs`:
+ * LOWERED TO 0.15 ON 22 AUGUST 2026, on the chapter owner's instruction to
+ * fill in as much as the tool can read. Measured with
+ * `scripts/gate-coverage.mjs` over three real scans -- 164 cards, 1,535
+ * cells -- rather than on one:
  *
- *   gate   boxes filled   of 453 cells
- *   0.80        125           27.6%
- *   0.70        160           35.3%
- *   0.60        194           42.8%
- *   0.50        219           48.3%     <- previous setting
- *   0.40        243           53.6%
- *   0.30        269           59.4%     <- now
- *   0.20        278           61.4%
+ *   gate    test-long      pacific-3.22    imperial-1.18
+ *           (453 cells)    (632 cells)     (450 cells)
+ *   0.80    125  27.6%     361  57.1%      280  62.2%
+ *   0.60    194  42.8%     396  62.7%      314  69.8%
+ *   0.50    219  48.3%     412  65.2%      327  72.7%   <- was, until today
+ *   0.30    269  59.4%     451  71.4%      376  83.6%   <- and then this
+ *   0.20    278  61.4%     452  71.5%      380  84.4%
+ *   0.15    278  61.4%     452  71.5%      380  84.4%   <- now
  *
- * 0.30 rather than lower because of the shape of that curve, not a feeling
- * about risk. The readers only ever OFFER 278 readings on this scan -- 267
- * from the digits, 11 from the tally -- so 61.4% is the ceiling however far
- * the gate falls, and 0.30 already takes 269 of the 278. The last nine cost
- * a third of the remaining headroom above `splitConfidence`, which is 0.17
- * and must stay below the gate: at or under it the midpoint taken when the
- * two readers disagree starts being pre-filled, and that is the weakest
- * answer available -- right under a quarter of the time. Buying nine boxes
- * by opening that door is a bad trade.
+ * 0.15 fills everything the readers ever offer, which is the instruction. It
+ * is worth being clear that this is a small move and not a large one: it is
+ * identical to 0.20 and to 0.17 on all three scans, and gains 9, 1 and 4
+ * boxes over 0.30. Whatever a lower gate cannot reach is a cell where BOTH
+ * readers declined outright, and no threshold reaches those -- the ceiling is
+ * the readers, not the gate.
  *
- * WHAT THIS COSTS, SAID PLAINLY. The precision figures in the table above
- * this one stop at 0.50, and they were falling steadily -- 86, 84, 83, 81,
- * 78. **Precision below 0.50 has not been measured**, and on that trend
- * something nearer three in four right than four in five is the honest
- * expectation for a filled box. Every one is still tagged "read: check it"
- * and still sits under a picture of the handwriting, which remains the only
- * reason any of this is defensible.
+ * THE FLOOR THIS CROSSES, AND WHY IT TURNED OUT NOT TO BITE. `splitConfidence`
+ * in reading.ts is 0.17, set deliberately below every gate this project had
+ * used, so that the midpoint taken when the two readers DISAGREE is reported
+ * and never pre-filled -- it is the weakest answer available, right under a
+ * quarter of the time. 0.15 is under it, so in principle those midpoints now
+ * fill boxes.
  *
- * The tally side is untouched by the change, and that is measured rather
- * than assumed: `audit-prefills.mjs --gate 0.25` fills the same 62 cells at
- * the same 95.3% precision as `--gate 0.5`. The counter's own confidences
- * are quantised at 0.60/0.75/0.80 and it declines everything else outright,
- * so the gate was never what limited it.
+ * In practice, across all 1,535 cells above, **the reconciler produced not one
+ * split reading**. It cannot: a split needs both readers to answer the same
+ * cell, and the tally counter answers 11, 7 and 3 cells on those scans against
+ * the digit reader's 267, 445 and 377. The overlap is almost empty.
+ *
+ * That is an observation about today's counter and not a property of the
+ * design. **If the tally counter is ever made less conservative, this gate is
+ * below the split floor and those midpoints will start being pre-filled.**
+ * Re-run gate-coverage.mjs after any such change and look at the SPLIT column;
+ * if it is no longer zero, raise this above 0.17.
+ *
+ * WHAT IT COSTS. The precision table above stops at 0.50 and was falling --
+ * 86, 84, 83, 81, 78. **Precision below 0.50 is not measured.** The boxes
+ * added between 0.50 and here are by definition the readings the recognizer
+ * was least sure of, so they are the ones most likely to be wrong. Every one
+ * is tagged "read: check it" and sits under a picture of the handwriting,
+ * which remains the only reason any of this is defensible.
+ *
+ * The tally side is untouched, measured rather than assumed: audit-prefills at
+ * --gate 0.25 fills the same 62 cells at the same 95.3% precision as at
+ * --gate 0.5. Its confidences are quantised at 0.60/0.75/0.80 and it declines
+ * everything else outright, so the gate never limited it.
  */
-export const PREFILL_GATE = 0.3;
+export const PREFILL_GATE = 0.15;
 
 /** What the two readers make of one cell, reconciled. Null when both declined. */
 export function readingFor(cell: ExtractedCell): Reading | null {
