@@ -80,7 +80,7 @@ import type { ExtractedCell } from "./extract";
  * false in reading.ts to return to tally-only pre-filling.
  * ---------------------------------------------------------------------------
  *
- * LOWERED TO 0.15 ON 22 AUGUST 2026, on the chapter owner's instruction to
+ * LOWERED TO 0.20 ON 22 AUGUST 2026, on the chapter owner's instruction to
  * fill in as much as the tool can read. Measured with
  * `scripts/gate-coverage.mjs` over three real scans -- 164 cards, 1,535
  * cells -- rather than on one:
@@ -91,33 +91,40 @@ import type { ExtractedCell } from "./extract";
  *   0.60    194  42.8%     396  62.7%      314  69.8%
  *   0.50    219  48.3%     412  65.2%      327  72.7%   <- was, until today
  *   0.30    269  59.4%     451  71.4%      376  83.6%   <- and then this
- *   0.20    278  61.4%     452  71.5%      380  84.4%
- *   0.15    278  61.4%     452  71.5%      380  84.4%   <- now
+ *   0.20    278  61.4%     452  71.5%      380  84.4%   <- now
+ *   0.15    278  61.4%     452  71.5%      380  84.4%   (tried; identical)
  *
- * 0.15 fills everything the readers ever offer, which is the instruction. It
+ * 0.20 fills everything the readers ever offer, which is the instruction. It
  * is worth being clear that this is a small move and not a large one: it is
- * identical to 0.20 and to 0.17 on all three scans, and gains 9, 1 and 4
+ * identical to 0.17 and to 0.15 on all three scans, and gains 9, 1 and 4
  * boxes over 0.30. Whatever a lower gate cannot reach is a cell where BOTH
  * readers declined outright, and no threshold reaches those -- the ceiling is
  * the readers, not the gate.
  *
- * THE FLOOR THIS CROSSES, AND WHY IT TURNED OUT NOT TO BITE. `splitConfidence`
- * in reading.ts is 0.17, set deliberately below every gate this project had
- * used, so that the midpoint taken when the two readers DISAGREE is reported
- * and never pre-filled -- it is the weakest answer available, right under a
- * quarter of the time. 0.15 is under it, so in principle those midpoints now
- * fill boxes.
+ * 0.20 RATHER THAN LOWER, THOUGH LOWER WAS TRIED FIRST. This sat at 0.15 for
+ * part of a day. 0.15 and 0.20 fill exactly the same boxes -- the same 278,
+ * 452 and 380 on the three scans -- so nothing was gained by the lower
+ * number, and one thing was given up.
  *
- * In practice, across all 1,535 cells above, **the reconciler produced not one
- * split reading**. It cannot: a split needs both readers to answer the same
- * cell, and the tally counter answers 11, 7 and 3 cells on those scans against
- * the digit reader's 267, 445 and 377. The overlap is almost empty.
+ * `splitConfidence` in reading.ts is 0.17, set deliberately below every gate
+ * this project uses so that the midpoint taken when the two readers DISAGREE
+ * is reported and never pre-filled: it is the weakest answer available, right
+ * under a quarter of the time. 0.15 was underneath that floor and 0.20 is
+ * above it, at no cost in coverage whatsoever.
  *
- * That is an observation about today's counter and not a property of the
- * design. **If the tally counter is ever made less conservative, this gate is
- * below the split floor and those midpoints will start being pre-filled.**
- * Re-run gate-coverage.mjs after any such change and look at the SPLIT column;
- * if it is no longer zero, raise this above 0.17.
+ * It is worth being precise about what the floor was worth in practice, so
+ * that nobody reads more into this than is there. Across all 1,535 cells
+ * measured, the reconciler produced **not one split reading** -- a split needs
+ * both readers to answer the same cell, and the tally counter answers 11, 7
+ * and 3 cells against the digit reader's 267, 445 and 377. So 0.15 was not
+ * doing any harm that could be measured today.
+ *
+ * The argument for 0.20 is not that 0.15 was hurting. It is that 0.15 depended
+ * on a property of today's tally counter -- that it almost never answers --
+ * and 0.20 does not depend on anything. Make the counter less conservative and
+ * a gate under 0.17 starts pre-filling midpoints with no signal that anything
+ * changed. A free guarantee is worth taking when the alternative buys nothing.
+ * `gate-coverage.mjs` prints a SPLIT column so the assumption stays visible.
  *
  * WHAT IT COSTS. The precision table above stops at 0.50 and was falling --
  * 86, 84, 83, 81, 78. **Precision below 0.50 is not measured.** The boxes
@@ -131,7 +138,7 @@ import type { ExtractedCell } from "./extract";
  * --gate 0.5. Its confidences are quantised at 0.60/0.75/0.80 and it declines
  * everything else outright, so the gate never limited it.
  */
-export const PREFILL_GATE = 0.15;
+export const PREFILL_GATE = 0.2;
 
 /** What the two readers make of one cell, reconciled. Null when both declined. */
 export function readingFor(cell: ExtractedCell): Reading | null {
