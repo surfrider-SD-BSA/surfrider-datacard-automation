@@ -49,11 +49,6 @@ struct RootView: View {
             // arrives rather than a second later.
             await model.engine.open()
         }
-        .onOpenURL { url in
-            // A PDF sent to the app from Files, Mail, Messages or AirDrop.
-            // The other way in besides the two buttons on screen 3.
-            model.openExternal(url)
-        }
         .onChange(of: scenePhase) { phase in
             // The draft is debounced while typing. Going to the background is
             // the one moment that gap matters, so it is closed here.

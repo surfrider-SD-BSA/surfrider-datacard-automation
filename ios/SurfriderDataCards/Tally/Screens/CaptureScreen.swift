@@ -1,39 +1,35 @@
 //
 //  3 — Capture
 //
-//  Two ways in, as two separate buttons, because they are two different jobs:
-//  photographing the cards at the cleanup, and picking up a scan somebody made
-//  on the chapter's scanner.
+//  THE CAMERA IS NOT WIRED UP, AND THAT IS A DECISION RATHER THAN A GAP.
 //
-//  THE CAMERA CAME BACK, AND HOW. Image input was removed from this app once,
-//  deliberately -- ios/README.md: "a photograph held at an angle keystones, and
-//  registration corrects rotation and scale but not that." That is right about
-//  a plain camera, which is why this is not one. VisionKit's document scanner
-//  finds the page's corners and rectifies the perspective before handing the
-//  image over, so the pipeline gets a flat page. See DocumentScanner.swift.
+//  The design has a live viewfinder and a shutter. What the repository has, in
+//  ios/README.md and in the comment where the keys would go in Info.plist, is
+//  the opposite decision, taken deliberately: image input was REMOVED and
+//  NSCameraUsageDescription with it, because a photograph held at an angle
+//  keystones, and registration corrects rotation and scale but not that. The
+//  pipeline also expects 200 DPI on the card's short edge, and whether a phone
+//  camera clears that handheld in beach light has never been measured. The
+//  handoff calls that "the biggest open risk in the whole concept".
 //
-//  WHAT IS STILL UNMEASURED is resolution: the pipeline expects 200 DPI on the
-//  card's short edge, and whether a handheld capture clears that in beach light
-//  has never been tested on a real card. The capture path preserves whatever
-//  the camera gives rather than resampling it, and the screen says plainly that
-//  the scanner is the surer route. It is a warning, not a wall.
+//  So the screen is built and the input is a scanned PDF. That keeps the flow
+//  honest end to end today, and leaves exactly one thing to do when somebody
+//  measures the resolution: put the shutter back, restore the two usage strings
+//  in Info.plist, and feed the frames in where `read(pdf:)` is called.
 //
-//  The frame below is drawn rather than live, and is doing real work as a
-//  picture of what a usable page looks like: all four corners in, flat paper,
-//  no shadow across the totals column. That is the advice that decides whether
-//  a page registers.
+//  The frame below is drawn rather than live for the same reason. It is the
+//  design's card guide, and it is doing real work as a picture of what a usable
+//  page looks like -- all four corners in, flat paper, no shadow across the
+//  totals column -- which is the advice that decides whether a scan registers.
 //
 
 import SwiftUI
 import UniformTypeIdentifiers
-import VisionKit
 
 struct CaptureScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
     @State private var picking = false
-    @State private var scanning = false
-    @State private var problem: String?
 
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: Nocturne.safeTop) {
@@ -68,32 +64,6 @@ struct CaptureScreen: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 10) {
-                if let waiting = model.pendingPDF {
-                    Button {
-                        model.pendingPDF = nil
-                        Task { await model.read(pdf: waiting) }
-                    } label: {
-                        HStack(spacing: 9) {
-                            Image(systemName: Nocturne.Icon.spreadsheet)
-                            Text("Read \(waiting.lastPathComponent)")
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                }
-
-                Button {
-                    scanning = true
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: Nocturne.Icon.capture)
-                        Text("Take pictures of the cards")
-                    }
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!CapturedPages.scanningAvailable)
-
                 Button {
                     picking = true
                 } label: {
@@ -102,60 +72,25 @@ struct CaptureScreen: View {
                         Text("Choose a scanned PDF")
                     }
                 }
-                .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
-                .sheet(isPresented: $picking) {
-                    PDFPicker { url in
-                        picking = false
-                        Task { await model.read(pdf: url) }
-                    } onCancel: {
-                        picking = false
-                    }
-                    .ignoresSafeArea()
-                }
+                .buttonStyle(PrimaryButtonStyle())
 
-                if let problem {
-                    Text(problem)
-                        .font(Nocturne.Face.label(12))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(Nocturne.accent400)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text(hint)
-                        .font(Nocturne.Face.label(12))
-                        .lineSpacing(2)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(Nocturne.text(42))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                // Said plainly rather than left as a shutter that does nothing.
+                Text("Photographing the cards is not switched on yet — a phone photo keystones, and the reading needs 200 DPI on the card's short edge. Until that is measured, this takes the scanner's PDF.")
+                    .font(Nocturne.Face.label(12))
+                    .lineSpacing(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Nocturne.text(42))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .pageMargin()
             .padding(.top, 14)
             .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
-        .fullScreenCover(isPresented: $scanning) {
-            DocumentScanner { pages in
-                scanning = false
-                guard !pages.isEmpty else { return }
-                do {
-                    let pdf = try CapturedPages.pdf(from: pages)
-                    Task { await model.read(pdf: pdf) }
-                } catch {
-                    problem = "Those pictures could not be prepared: \(error.localizedDescription)"
-                }
-            } onCancel: {
-                scanning = false
-            }
-            .ignoresSafeArea()
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.pdf]) { result in
+            guard case .success(let url) = result else { return }
+            Task { await model.read(pdf: url) }
         }
-    }
-
-    /// What to say under the two buttons.
-    private var hint: String {
-        if !CapturedPages.scanningAvailable {
-            return "This device has no document scanner, so the cards have to come from a PDF. Scanned front-and-back, in card order."
-        }
-        return "Photograph both sides of every card, in order. The scanner's PDF is the surer route where you have one — the reading wants 200 DPI, and a phone capture has not been measured against that yet."
     }
 
     // MARK: - The card guide
