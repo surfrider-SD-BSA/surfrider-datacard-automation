@@ -47,7 +47,7 @@ const maps = { front: JSON.parse(readFileSync(join(REF, "cells.front.json"), "ut
 const targets = referenceTargets({ front: decodePng(join(REF, "blank-front.png")), back: decodePng(join(REF, "blank-back.png")) }, maps);
 const model = decodeModel(JSON.parse(readFileSync(join(REF, "digit-model.json"), "utf8")));
 
-const GATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2];
+const GATES = [0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.17, 0.15, 0.1];
 const dir = process.argv[2];
 const files = readdirSync(dir).filter((f) => /\.jpe?g$/i.test(f))
   .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
@@ -61,6 +61,7 @@ const { cards } = pairIntoCards(pages);
 
 let total = 0;
 const filled = Object.fromEntries(GATES.map((g) => [g, 0]));
+const splits = Object.fromEntries(GATES.map((g) => [g, 0]));
 const bySource = {};
 for (const card of cards) {
   for (const side of ["front", "back"]) {
@@ -71,12 +72,12 @@ for (const card of cards) {
         c.digitValue === null ? null : { value: c.digitValue, confidence: c.digitConfidence },
       );
       if (!r) continue;
-      for (const g of GATES) if (r.confidence >= g) filled[g]++;
+      for (const g of GATES) if (r.confidence >= g) { filled[g]++; if (r.source === "split") splits[g] = (splits[g] ?? 0) + 1; }
       bySource[r.source] = (bySource[r.source] ?? 0) + 1;
     }
   }
 }
 console.log(`\n${cards.length} cards, ${total} cells to review`);
 console.log(`readings offered by source: ${JSON.stringify(bySource)}`);
-console.log("\ngate   filled   coverage");
-for (const g of GATES) console.log(`${g.toFixed(2)}   ${String(filled[g]).padStart(5)}   ${((filled[g] / total) * 100).toFixed(1)}%`);
+console.log("\ngate   filled   coverage   of which SPLIT (readers disagreed)");
+for (const g of GATES) console.log(`${g.toFixed(2)}   ${String(filled[g]).padStart(5)}   ${((filled[g] / total) * 100).toFixed(1)}%        ${splits[g]}`);
