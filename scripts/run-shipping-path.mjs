@@ -24,6 +24,7 @@ import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
 import { extractCard } from "../src/lib/extract";
+import { reconcile } from "../src/lib/reading.ts";
 import { pairIntoCards, referenceTargets, registerAgainstBestSide } from "../src/lib/register";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -50,6 +51,9 @@ function decodePng(path) {
   const png = PNG.sync.read(readFileSync(path));
   return { width: png.width, height: png.height, data: luma(png.data, png.width * png.height) };
 }
+
+/** Mirrors PREFILL_GATE in src/main.ts. */
+const PREFILL_GATE = 0.8;
 
 function main() {
   const dir = process.argv[2];
@@ -87,17 +91,31 @@ function main() {
   let cells = 0;
   let values = 0;
   let tallies = 0;
+  let counted = 0;
+  let prefilled = 0;
   for (const card of cards) {
     const out = extractCard(card, maps);
     cells += out.cells.length;
     values += out.cells.filter((c) => c.hasValue).length;
     tallies += out.cells.filter((c) => c.tallyOnly).length;
+    counted += out.cells.filter((c) => c.tallyCount !== null).length;
+    for (const c of out.cells) {
+      const reading = reconcile(
+        c.tallyCount === null ? null : { value: c.tallyCount, confidence: c.tallyConfidence },
+        null,
+      );
+      if (reading && reading.confidence >= PREFILL_GATE) prefilled++;
+    }
   }
 
   console.log(
     `${cards.length} cards, ${cells} cells to review ` +
       `(${(cells / Math.max(1, cards.length)).toFixed(1)} per card): ` +
       `${values} with a number in the box, ${tallies} tally-only`,
+  );
+  console.log(
+    `of the ${tallies} tally-only cells, ${counted} were counted and ` +
+      `${prefilled} clear the pre-fill gate of ${PREFILL_GATE} — the rest stay blank`,
   );
 }
 

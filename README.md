@@ -13,8 +13,16 @@ picture of each one, download the chapter's spreadsheet. Verified end to end on 
 scan: 58 cards in about 70 seconds, no page refused.
 
 What is proven, and what is not, is set out in [HANDOFF.md](HANDOFF.md) with the measurements
-behind it. The short version: locating the writing works and generalizes; **reading** the
-handwriting does not work well enough to ship and is deliberately switched off.
+behind it. The short version: locating the writing works and generalizes. Counting **tally marks**
+works well, because it is geometry rather than recognition. **Reading handwritten numbers** is on
+as of 20 August 2026 and is the weak part — 70% of digits right overall, 86% where it is most
+confident — so it is switched on as an aid to be checked, not as an answer.
+
+That was the chapter's call, made against the measurement rather than around it: 387 of the 453
+cells on a 58-card event hold a handwritten number, and nothing but the recognizer can ever reach
+them. Every filled box is tagged, sits beside a picture of the handwriting, and is recorded in the
+spreadsheet as machine-read rather than human-entered. To turn it off, set `digitsAlone` to false
+in `src/lib/reading.ts`.
 
 ## The problem
 
@@ -24,12 +32,15 @@ transcription errors are hard to catch after the fact.
 
 ## The approach
 
-The tool does not try to read the handwriting. Deciding **whether** a box has writing in it is
-easy and reliable; reading **what it says** is neither, and a confidently wrong number is worse
-than no number at all — it invites agreement.
+Deciding **whether** a box has writing in it is easy and reliable; reading **what it says** is
+neither. The tool does both, and treats them very differently. Locating the writing is what it is
+built on. Reading it is offered as a first guess to correct, because a confidently wrong number is
+worse than no number at all — it invites agreement — and the only defence against that is that the
+reviewer is looking at a picture of the handwriting while they decide.
 
-So it answers only the easy question, and shows a person a cropped picture of each cell to type
-from:
+So it answers the easy question, and shows a person a cropped picture of each cell to type from.
+The one exception is a tally strip, which is a run of pencil strokes rather than a shape to be
+recognised, and can be taken apart and counted geometrically:
 
 1. A scanned PDF is rasterized in the browser at 200 DPI.
 2. Each page is aligned against a reference card, and the alignment is verified against the
@@ -38,11 +49,18 @@ from:
    wrong debris items, which nothing downstream could catch.
 3. Every cell is tested for handwriting by shape rather than by how much ink is in it, because
    the card's printed ruling carries more ink than faint pencil does.
-4. The reviewer sees a picture of each cell beside a box, and types what they see.
-5. The chapter's Excel template is filled in and downloaded.
+4. Where a cell holds tally marks and no written total, the strokes are counted. A count is
+   filled in only when every ink pixel in the strip is accounted for, which is what rules out
+   the numbers, words and scribbles volunteers also put there. Each one is tagged *counted:
+   check it* and recorded in the export as a machine reading, so a number nobody checked can
+   always be told from one a person typed.
+5. The reviewer sees a picture of each cell beside a box, and types what they see.
+6. The chapter's Excel template is filled in and downloaded.
 
 On a 58-card event this is 453 cells to check, down from 730 before the shape test, against
-roughly 4,800 on the cards. Nothing is guessed, so nothing can be confidently wrong.
+roughly 4,800 on the cards. Five of the 453 arrive filled in. Every cell it fills was rendered
+and counted by eye before the feature was switched on — 46 across every scan the chapter has,
+and it is right on 40 of the 42 it fills.
 
 ### It runs in the browser, and nothing leaves the laptop
 

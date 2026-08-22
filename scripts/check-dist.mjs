@@ -62,6 +62,18 @@ const ALLOWED_FILES = new Set([
 
   "reference/cells-overrides.json",
   "reference/labels-pacific-beach.json",
+
+  // The handwriting model, and the ONE entry here that is not derived from the
+  // blank card. It is 3,325 cropped 28x28 images of digits real volunteers
+  // wrote on real cleanup cards, so publishing the site publishes them.
+  //
+  // Added deliberately, on the chapter owner's decision, with the question this
+  // file says to ask put to them first: should the public internet have this?
+  // The crops carry no names and a lone digit identifies nobody. It is still
+  // the first volunteer-derived thing this tool has ever shipped, and if the
+  // chapter changes its mind the fix is to delete this line, delete
+  // assets/reference/digit-model.json, and set digitsAlone false in reading.ts.
+  "reference/digit-model.json",
 ]);
 
 function walk(dir) {

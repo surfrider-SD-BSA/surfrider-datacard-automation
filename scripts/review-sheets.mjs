@@ -54,7 +54,7 @@ const FONT = {
   " ": ["000", "000", "000", "000", "000"],
 };
 
-function sheet(path, tiles, cols, scale, labels) {
+export function sheet(path, tiles, cols, scale, labels) {
   const tileW = Math.max(...tiles.map((t) => t.width)) * scale;
   const tileH = Math.max(...tiles.map((t) => t.height)) * scale;
   const pad = 4;
@@ -106,7 +106,7 @@ function sheet(path, tiles, cols, scale, labels) {
 }
 
 /** Tally strip and TOTAL box side by side: the row as the reviewer sees it. */
-function rowTile(cache, r) {
+export function rowTile(cache, r) {
   const t = cache.tally(r);
   const b = cache.total(r);
   const gap = 6;

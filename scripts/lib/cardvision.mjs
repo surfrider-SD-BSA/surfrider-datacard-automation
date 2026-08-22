@@ -16,6 +16,23 @@ import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
 import { boxMarked as boxMarkedImpl, stripMarked as stripMarkedImpl } from "../../src/lib/marks.ts";
+import {
+  components,
+  inkThreshold as inkThresholdImpl,
+  normalizeDigit as normalizeDigitImpl,
+  segmentDigits as segmentDigitsImpl,
+} from "../../src/lib/digits.ts";
+
+/**
+ * These scripts call a grayscale plane `gray`; src calls it `data`. One shim
+ * here beats renaming the field through a dozen diagnostics, and beats keeping
+ * a second copy of the cutting -- which is what this import replaced.
+ */
+const asDigitImage = (img) => ({ width: img.width, height: img.height, data: img.gray });
+
+const inkThreshold = (img) => inkThresholdImpl(asDigitImage(img));
+const segmentDigits = (img) => segmentDigitsImpl(asDigitImage(img));
+const normalizeDigit = (img, box) => normalizeDigitImpl(asDigitImage(img), box);
 
 /**
  * Banner overlap below this is not trusted; see MIN_BANNER_OVERLAP in
@@ -498,274 +515,11 @@ function stripMarked(img, options) {
 }
 
 /**
- * Otsu's threshold: the cut that best separates ink from paper for THIS crop.
- *
- * A fixed threshold cannot serve every cell -- pencil varies from faint to
- * heavy across volunteers, and scanner exposure drifts across a 114-page feed.
+ * Digit cutting moved to src/lib/digits.ts so the browser and these scripts
+ * run the SAME code rather than two copies that drift. The tuning, the
+ * thresholds and the reasoning all moved with it; nothing here changed.
  */
-function otsu(img) {
-  const hist = new Array(256).fill(0);
-  for (const v of img.gray) hist[v]++;
-  const total = img.gray.length;
 
-  let sum = 0;
-  for (let i = 0; i < 256; i++) sum += i * hist[i];
-
-  let sumB = 0;
-  let wB = 0;
-  let best = 0;
-  let bestVar = -1;
-
-  for (let t = 0; t < 256; t++) {
-    wB += hist[t];
-    if (wB === 0) continue;
-    const wF = total - wB;
-    if (wF === 0) break;
-    sumB += t * hist[t];
-    const mB = sumB / wB;
-    const mF = (sum - sumB) / wF;
-    const between = wB * wF * (mB - mF) * (mB - mF);
-    if (between > bestVar) {
-      bestVar = between;
-      best = t;
-    }
-  }
-  return best;
-}
-
-/**
- * Ink threshold for a cell crop, relative to its own paper level.
- *
- * Otsu alone is wrong here. It assumes two populations, but a TOTAL box is
- * ~95% white paper with a thin pencil mark, so it splits inside the paper's own
- * noise and the cell's printed border and shading come back as "ink". That
- * produced large blob components that outranked the real digits.
- *
- * The paper level is the median; anything meaningfully darker is a mark.
- */
-function inkThreshold(img) {
-  const sorted = Uint8Array.from(img.gray).sort();
-  const paper = sorted[sorted.length >> 1];
-  const dark = sorted[Math.floor(sorted.length * 0.02)];
-
-  // If the darkest 2% is not clearly darker than the paper, the cell holds no
-  // real mark and nothing should be segmented out of it.
-  if (paper - dark < 25) return -1;
-
-  const relative = paper - 45;
-  return Math.max(30, Math.min(relative, otsu(img), 200));
-}
-
-/**
- * Binary ink mask, ignoring a margin around the crop.
- *
- * The inset is proportional, not a fixed 2px: the cell map's boxes sit right on
- * the printed rules, and at 200 DPI those are several pixels thick.
- */
-function inkMask(img) {
-  const t = inkThreshold(img);
-  const mask = new Uint8Array(img.width * img.height);
-  if (t < 0) return mask;
-
-  const ix = Math.max(3, Math.round(img.width * 0.06));
-  const iy = Math.max(3, Math.round(img.height * 0.08));
-
-  for (let y = iy; y < img.height - iy; y++) {
-    for (let x = ix; x < img.width - ix; x++) {
-      const i = y * img.width + x;
-      mask[i] = img.gray[i] <= t ? 1 : 0;
-    }
-  }
-  return mask;
-}
-
-/**
- * Connected components of ink, 8-connected.
- *
- * Components rather than a vertical projection: the numbers are free-written
- * and often slanted, so two digits can overlap in x while remaining separate
- * strokes. Projection cuts would merge those.
- */
-function components(mask, width, height, minPixels = 12) {
-  const labels = new Int32Array(width * height).fill(-1);
-  const out = [];
-  const stack = [];
-
-  for (let i = 0; i < mask.length; i++) {
-    if (!mask[i] || labels[i] !== -1) continue;
-    const id = out.length;
-    let minX = width;
-    let maxX = -1;
-    let minY = height;
-    let maxY = -1;
-    let count = 0;
-
-    stack.push(i);
-    labels[i] = id;
-
-    while (stack.length) {
-      const p = stack.pop();
-      const x = p % width;
-      const y = (p / width) | 0;
-      count++;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-          const q = ny * width + nx;
-          if (mask[q] && labels[q] === -1) {
-            labels[q] = id;
-            stack.push(q);
-          }
-        }
-      }
-    }
-
-    if (count >= minPixels) out.push({ minX, maxX, minY, maxY, count });
-  }
-  return out;
-}
-
-/**
- * Split a cell crop into digit boxes, left to right.
- *
- * Components that overlap heavily in x are merged: a "5" written with a
- * detached top bar, or a dotted stroke, arrives as two components but is one
- * digit.
- */
-function segmentDigits(img) {
-  const mask = inkMask(img);
-  if (!mask.some((v) => v)) return [];
-  let boxes = components(mask, img.width, img.height);
-  if (boxes.length === 0) return [];
-
-  // Reject anything shaped like a rule rather than a digit. A leftover slice of
-  // the printed border arrives as a very wide, very short component, or a very
-  // tall hairline; a digit is neither.
-  boxes = boxes.filter((b) => {
-    const w = b.maxX - b.minX + 1;
-    const h = b.maxY - b.minY + 1;
-    if (h < img.height * 0.18) return false; // too short to be a digit
-    if (w > img.width * 0.75) return false; // spans the cell: a rule
-    if (w / h > 3.5) return false; // a horizontal bar
-    // Ink should fill a fair share of a digit's own box; a hollow rectangle
-    // outline (the cell border) does not.
-    return b.count >= w * h * 0.12;
-  });
-  if (boxes.length === 0) return [];
-
-  // Drop specks: anything far smaller than the tallest survivor is a stray
-  // mark, not a digit.
-  const tallest = Math.max(...boxes.map((b) => b.maxY - b.minY + 1));
-  boxes = boxes.filter((b) => b.maxY - b.minY + 1 >= tallest * 0.45);
-
-  boxes.sort((a, b) => a.minX - b.minX);
-
-  const merged = [];
-  for (const b of boxes) {
-    const prev = merged[merged.length - 1];
-    if (prev) {
-      const overlap = Math.min(prev.maxX, b.maxX) - Math.max(prev.minX, b.minX);
-      const narrower = Math.min(prev.maxX - prev.minX, b.maxX - b.minX) + 1;
-      if (overlap > narrower * 0.5) {
-        prev.minX = Math.min(prev.minX, b.minX);
-        prev.maxX = Math.max(prev.maxX, b.maxX);
-        prev.minY = Math.min(prev.minY, b.minY);
-        prev.maxY = Math.max(prev.maxY, b.maxY);
-        prev.count += b.count;
-        continue;
-      }
-    }
-    merged.push({ ...b });
-  }
-  return merged;
-}
-
-/**
- * Normalize a digit box to a 28x28 bitmap: scaled to fit 20x20 and centred by
- * centre of mass. This is the MNIST convention, so the same preprocessing
- * serves whichever classifier ends up being used.
- */
-function normalizeDigit(img, box) {
-  const w = box.maxX - box.minX + 1;
-  const h = box.maxY - box.minY + 1;
-  const scale = 20 / Math.max(w, h);
-  const tw = Math.max(1, Math.round(w * scale));
-  const th = Math.max(1, Math.round(h * scale));
-
-  const t = inkThreshold(img);
-  const small = new Float64Array(tw * th);
-
-  for (let y = 0; y < th; y++) {
-    for (let x = 0; x < tw; x++) {
-      // Box-filter the source region, averaging INK COVERAGE (a 0/1 mask) --
-      // not gray level.
-      //
-      // Averaging gray produced almost-blank bitmaps: pencil on a white cell is
-      // faint, so `255 - v` over a mostly-white patch lands near zero. Distance
-      // between two such bitmaps is then driven by how much ink a digit happens
-      // to carry rather than its shape, and the first classifier read 2, 3, 5
-      // and 7 as 0 because 0 has the most ink of all. Coverage is scale-free
-      // and gives a clean 0-1 signal regardless of how hard someone pressed.
-      // The window is computed in coordinates RELATIVE to the box and only
-      // then offset by its origin. Mixing the two -- taking max() of an
-      // already-offset start against a relative end -- makes the window run
-      // box.minX pixels too far right, so most of what gets averaged is the
-      // paper beside the digit. That washed every bitmap out: 77% of training
-      // digits peaked below half intensity, distances stopped discriminating
-      // shape, and everything collapsed onto the commonest class.
-      const rx0 = Math.floor((x * w) / tw);
-      const ry0 = Math.floor((y * h) / th);
-      const sx0 = box.minX + rx0;
-      const sx1 = box.minX + Math.max(rx0 + 1, Math.floor(((x + 1) * w) / tw));
-      const sy0 = box.minY + ry0;
-      const sy1 = box.minY + Math.max(ry0 + 1, Math.floor(((y + 1) * h) / th));
-
-      let ink = 0;
-      let n = 0;
-      for (let sy = sy0; sy < sy1 && sy < img.height; sy++) {
-        for (let sx = sx0; sx < sx1 && sx < img.width; sx++) {
-          if (img.gray[sy * img.width + sx] <= t) ink++;
-          n++;
-        }
-      }
-      small[y * tw + x] = n ? (ink / n) * 255 : 0;
-    }
-  }
-
-  let mass = 0;
-  let cx = 0;
-  let cy = 0;
-  for (let y = 0; y < th; y++) {
-    for (let x = 0; x < tw; x++) {
-      const v = small[y * tw + x];
-      mass += v;
-      cx += x * v;
-      cy += y * v;
-    }
-  }
-  cx = mass ? cx / mass : tw / 2;
-  cy = mass ? cy / mass : th / 2;
-
-  const out = new Uint8Array(28 * 28);
-  const ox = Math.round(14 - cx);
-  const oy = Math.round(14 - cy);
-  for (let y = 0; y < th; y++) {
-    for (let x = 0; x < tw; x++) {
-      const dx = x + ox;
-      const dy = y + oy;
-      if (dx < 0 || dy < 0 || dx >= 28 || dy >= 28) continue;
-      out[dy * 28 + dx] = Math.min(255, Math.round(small[y * tw + x]));
-    }
-  }
-  return out;
-}
 
 export {
   MIN_BANNER_OVERLAP,

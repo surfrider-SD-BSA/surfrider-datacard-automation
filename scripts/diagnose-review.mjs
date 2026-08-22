@@ -52,7 +52,7 @@ const INK_NEGLIGIBLE = 0.008;
 /** The threshold the old rule called "written in". Kept only for comparison. */
 const INK_PRESENT = 0.025;
 
-function colName(index) {
+export function colName(index) {
   let n = index;
   let name = "";
   while (n > 0) {
@@ -64,7 +64,7 @@ function colName(index) {
 }
 
 /** Read a completed datasheet into { column -> { row -> value } }. */
-function readSpreadsheet(path) {
+export function readSpreadsheet(path) {
   const parts = unzipSync(new Uint8Array(readFileSync(path)));
   const dec = new TextDecoder();
 
@@ -91,7 +91,25 @@ function readSpreadsheet(path) {
   return values;
 }
 
-function scan(dir) {
+/**
+ * The strip's columns over a taller slice of the page.
+ *
+ * Only used to tell the printed rules from pen strokes: a rule carries on
+ * through the rows above and below, a stroke stops at its row. Extending by
+ * about half a row each way is enough to separate them and short enough that
+ * the slice stays inside the grid.
+ */
+function tallyContext(image, tally) {
+  const margin = Math.round(tally.height * 0.6);
+  return cropCell(image, {
+    x: tally.x,
+    y: tally.y - margin,
+    width: tally.width,
+    height: tally.height + margin * 2,
+  });
+}
+
+export function scan(dir) {
   const maps = {
     front: JSON.parse(readFileSync(join(REF, "cells.front.json"), "utf8")),
     back: JSON.parse(readFileSync(join(REF, "cells.back.json"), "utf8")),
@@ -160,14 +178,17 @@ function scan(dir) {
         if (ink < INK_NEGLIGIBLE && tallyInk < INK_NEGLIGIBLE) continue;
 
         const hasValue = boxMarked(total);
-        const tallyOnly = !hasValue && stripMarked(tally);
+        const tallyMarked = stripMarked(tally);
         cells.push({
           card: card.number,
           page: pageNumber,
           row: cell.row,
           ink,
           tallyInk,
-          offeredNow: hasValue || tallyOnly,
+          hasValue,
+          tallyMarked,
+          offeredNow: hasValue || tallyMarked,
+          tallyCtx: tallyContext(image, cell.tally),
           hasValueBefore: ink >= INK_PRESENT,
           total,
           tally,
@@ -181,7 +202,7 @@ function scan(dir) {
 }
 
 /** A grid of row crops -- tally strip then TOTAL box -- captioned card:row. */
-function contactSheet(path, cells) {
+export function contactSheet(path, cells) {
   const gap = 6;
   const pad = 4;
   const labelH = 12;
@@ -293,7 +314,7 @@ function report(name, dir, sheetPath, show = false) {
 }
 
 /** Pair each out/pages/<name> with the spreadsheet in scans/ for the same event. */
-function matchedPairs() {
+export function matchedPairs() {
   const pagesRoot = join(ROOT, "out", "pages");
   const sheets = readdirSync(join(ROOT, "scans")).filter((f) => /\.xlsx$/i.test(f));
   const key = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -343,4 +364,4 @@ function main() {
   report(dir.replace(/\/$/, "").split("/").pop(), dir, args[1], args.includes("--show"));
 }
 
-main();
+if (import.meta.url === `file://${process.argv[1]}`) main();

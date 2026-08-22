@@ -41,6 +41,8 @@ import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { distance, prepare, shiftVariants, unitNorm } from "../src/lib/digits.ts";
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TRAINING = join(ROOT, "out", "training");
 const REF = join(ROOT, "assets", "reference");
@@ -55,23 +57,24 @@ const K = 5;
  * carries, so a heavily-written 1 can sit closer to a 0 than to a light 1.
  * Normalizing leaves only the shape.
  */
-function unitNorm(bitmap) {
-  const out = Float32Array.from(bitmap);
-  let norm = 0;
-  for (const v of out) norm += v * v;
-  norm = Math.sqrt(norm) || 1;
-  for (let i = 0; i < out.length; i++) out[i] /= norm;
-  return out;
-}
+/**
+ * The preparation and the distance both live in src/lib/digits.ts now, so the
+ * browser and this measurement run the same code. A query prepared any
+ * differently from the exemplars is comparing nothing, which is exactly the
+ * kind of drift a second copy invites.
+ */
 
-function loadTrainingSet() {
+export function loadTrainingSet() {
   const samples = [];
   for (const file of readdirSync(TRAINING).filter((f) => f.endsWith(".json"))) {
     const data = JSON.parse(readFileSync(join(TRAINING, file), "utf8"));
     for (const s of data.samples ?? []) {
       samples.push({
         label: s.label,
-        bitmap: unitNorm(s.bitmap),
+        bitmap: prepare(s.bitmap),
+        // Kept unprepared for --emit: the shipped model stores raw 0-255
+        // bytes and the app prepares them, which is a third of the size.
+        raw: Uint8Array.from(s.bitmap),
         source: s.source ?? data.source ?? file.replace(/\.json$/, ""),
         // A cell is identified by scan + card + row; its digits stand or fall
         // together when a value is judged.
@@ -83,36 +86,44 @@ function loadTrainingSet() {
   return samples;
 }
 
-/** Squared L2 distance, with early exit once it cannot make the poll. */
-function distance(a, b, cutoff) {
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) {
-    const d = a[i] - b[i];
-    sum += d * d;
-    if (sum > cutoff) return Infinity;
-  }
-  return sum;
-}
-
 /**
  * Classify by polling the K nearest training digits.
  *
  * Confidence is the share of the poll won by the top class, weighted by
  * closeness. It is what the pre-fill is gated on, so it is checked below that
  * it actually tracks correctness rather than merely correlating with it.
+ *
+ * The pool size, the shift re-score and the distance all come from
+ * src/lib/digits.ts, which is what the browser runs.
  */
+const POOL = 25;
+
 function classify(bitmap, train, k = K) {
-  const best = [];
+  const pool = [];
   for (const s of train) {
-    const cutoff = best.length < k ? Infinity : best[best.length - 1].d;
+    const cutoff = pool.length < POOL ? Infinity : pool[pool.length - 1].d;
     const d = distance(bitmap, s.bitmap, cutoff);
     if (d === Infinity) continue;
 
-    best.push({ d, label: s.label });
-    best.sort((x, y) => x.d - y.d);
-    if (best.length > k) best.pop();
+    pool.push({ d, label: s.label, bitmap: s.bitmap });
+    pool.sort((x, y) => x.d - y.d);
+    if (pool.length > POOL) pool.pop();
   }
-  if (best.length === 0) return { label: null, confidence: 0 };
+  if (pool.length === 0) return { label: null, confidence: 0 };
+
+  // Re-score the pool allowing the query to move, then keep the k best.
+  const variants = shiftVariants(bitmap);
+  const best = pool
+    .map((c) => {
+      let m = Infinity;
+      for (const v of variants) {
+        const d = distance(v, c.bitmap, m);
+        if (d < m) m = d;
+      }
+      return { d: m, label: c.label };
+    })
+    .sort((x, y) => x.d - y.d)
+    .slice(0, k);
 
   const weights = new Map();
   let total = 0;
@@ -240,10 +251,19 @@ function main() {
       note:
         "Nearest-neighbour digit model. Bitmaps are 28x28, ink 0-255, scaled " +
         "to fit 20x20 and centred by centre of mass (MNIST convention). " +
-        "Exemplars are unit-normalized already.",
+        "Exemplars are RAW bytes, base64: run prepare() from src/lib/digits.ts " +
+        "over each one before comparing, and over the query too, or the " +
+        "distances mean nothing. At read time the query is also tried at nine " +
+        "one-pixel offsets and the closest is kept.",
       digitAccuracy: Number(acc.toFixed(4)),
       trainedOn: scans,
-      samples: samples.map((s) => ({ label: s.label, b: Array.from(s.bitmap) })),
+      // Raw bytes, base64. Storing the PREPARED float vectors instead costs
+      // 8.1MB against 3.5MB, and the preparation is a few milliseconds over the
+      // whole set at load time.
+      samples: samples.map((s) => ({
+        label: s.label,
+        b: Buffer.from(s.raw).toString("base64"),
+      })),
     };
     const path = join(REF, "digit-model.json");
     writeFileSync(path, JSON.stringify(model));
@@ -251,4 +271,6 @@ function main() {
   }
 }
 
-main();
+// Guarded so the preparation helpers above can be imported by the rule sweep
+// without this file measuring anything on the way in.
+if (import.meta.url === `file://${process.argv[1]}`) main();

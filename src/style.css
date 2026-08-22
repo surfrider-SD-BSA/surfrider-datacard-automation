@@ -47,6 +47,22 @@ header { padding-top: 32px; padding-bottom: 8px; }
 h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
 .sub { margin: 0 0 20px; color: var(--muted); max-width: 62ch; }
 
+/*
+ * What the tool does NOT do, said before anyone drops a file in.
+ *
+ * A volunteer who arrives expecting the numbers to be read for them meets 450
+ * empty boxes and concludes the thing is broken. It is not: filling those boxes
+ * is the job, and what the tool saves is the hunting. Setting that expectation
+ * is cheaper than any amount of accuracy work, and it is the one thing standing
+ * between "this saved me an afternoon" and "this did not work".
+ */
+.sub.caveat {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  margin-top: -8px;
+}
+.sub.caveat strong { color: var(--ink); }
+
 h2 { font-size: 19px; margin: 0 0 4px; }
 h3 { font-size: 15px; margin: 0; }
 
@@ -139,6 +155,18 @@ input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-col
 .cell input { text-align: center; font-size: 17px; font-variant-numeric: tabular-nums; }
 .cell .label { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
 .cell .tag { color: var(--warn); font-weight: 600; }
+
+/*
+ * A box the tool filled in, rather than a person.
+ *
+ * Marked so it is obvious at a glance which numbers in the list nobody has
+ * looked at yet. The reviewer is scrolling past a few hundred of these, and a
+ * pre-filled box that looks exactly like one they typed is how a machine
+ * reading gets exported as though it were read off the card.
+ */
+.cell.prefilled { border-color: var(--accent, #4a90d9); }
+.cell.prefilled input { color: var(--accent, #4a90d9); }
+.cell .tag.counted { color: var(--accent, #4a90d9); }
 
 .empty { color: var(--muted); font-style: italic; padding: 8px 0; }
 

@@ -312,8 +312,17 @@ function components(
   return out;
 }
 
-/** Everything in the crop that is not the card's own printed ruling. */
-export function findMarks(img: MarkImage, options: Partial<MarkOptions> = {}): Mark[] {
+/**
+ * The crop's ink, with the card's own printed ruling struck out.
+ *
+ * Split out of `findMarks` because counting a tally needs the pixels and not
+ * just their bounding boxes: a "5" is four upright strokes and a diagonal drawn
+ * THROUGH them, which is one connected component and tells you nothing.
+ */
+export function inkMask(
+  img: MarkImage,
+  options: Partial<MarkOptions> = {},
+): { mask: Uint8Array; width: number; height: number } {
   const o = { ...MARK_DEFAULTS, ...options };
   const { width, height, data } = img;
   const paper = localPaper(img, o.window);
@@ -346,7 +355,14 @@ export function findMarks(img: MarkImage, options: Partial<MarkOptions> = {}): M
     if (strikeCol[x]) for (let y = 0; y < height; y++) clean[y * width + x] = 0;
   }
 
-  return components(dilate(clean, width, height, o.close), clean, width, height, o.minPixels);
+  return { mask: clean, width, height };
+}
+
+/** Everything in the crop that is not the card's own printed ruling. */
+export function findMarks(img: MarkImage, options: Partial<MarkOptions> = {}): Mark[] {
+  const o = { ...MARK_DEFAULTS, ...options };
+  const { mask, width, height } = inkMask(img, o);
+  return components(dilate(mask, width, height, o.close), mask, width, height, o.minPixels);
 }
 
 /** How tall a mark has to stand in this crop to be handwriting. */
@@ -364,7 +380,7 @@ export function boxMarked(img: MarkImage, options: Partial<MarkOptions> = {}): b
 }
 
 /** Trim the top and bottom of a strip, where a neighbouring row's ink lands. */
-function insetRows(img: MarkImage, frac: number): MarkImage {
+export function insetRows(img: MarkImage, frac = STRIP.insetFrac): MarkImage {
   const dy = Math.round(img.height * frac);
   const height = img.height - dy * 2;
   if (height < 8) return img;

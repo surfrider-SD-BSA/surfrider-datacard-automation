@@ -2,14 +2,25 @@
  * Beach cleanup data cards -> the chapter's Excel spreadsheet.
  *
  * The tool locates every cell a volunteer wrote in and shows a cropped picture
- * of each one beside a box to type it into. It deliberately does not try to
- * read the handwriting: deciding *whether* a box has writing is easy and
- * reliable, while reading *what* it says is neither, and a confidently wrong
- * number is worse than no number. The human reads ~10 crops per card instead of
- * hunting 83 rows on paper.
+ * of each one beside a box to type it into. The human reads ~10 crops per card
+ * instead of hunting 83 rows on paper.
+ *
+ * Two readers offer a first guess at what the box says. `tally.ts` counts
+ * marks geometrically and is good; `digits.ts` recognises handwriting and is
+ * not -- 70% of digits right, 86% where it is most confident. Both are on, and
+ * the asymmetry is the design: deciding *whether* a box has writing is easy and
+ * reliable, reading *what* it says is neither, and a confidently wrong number
+ * is worse than no number because it invites agreement.
+ *
+ * What makes that survivable is that nothing here is presented as an answer.
+ * Every filled box is tagged with which reader filled it, sits beside a picture
+ * of the handwriting, and is exported as machine-read rather than human-entered
+ * so the chapter's own audit column can tell them apart. See `PREFILL_GATE`.
  */
 
 import { loadCellMap, type CellMap } from "./lib/cells";
+import { reconcile, type Reading } from "./lib/reading";
+import { decodeModel, type DigitModel } from "./lib/digits";
 import {
   assembleCard,
   cellsForSide,
@@ -58,6 +69,17 @@ const state = {
   problems: [] as PairingProblem[],
   /** cardNumber -> taxonomy row -> typed value */
   values: new Map<number, Map<number, number>>(),
+  /**
+   * The values that were put there by the tool rather than by a person, and
+   * that nobody has touched since.
+   *
+   * Kept apart from `values` for one reason: the spreadsheet records, per
+   * value, whether a human entered it. A machine reading a reviewer scrolled
+   * past is not the same evidence as a number somebody read off the picture,
+   * and the export says which is which. Editing a box takes its cell out of
+   * this set, because at that point a person has looked.
+   */
+  prefilled: new Map<number, Map<number, Reading>>(),
   event: {
     date: "",
     shoreline: "",
@@ -96,17 +118,38 @@ async function loadReferenceImage(url: string): Promise<GrayImage> {
 let referencesPromise: Promise<{
   images: { front: GrayImage; back: GrayImage };
   maps: { front: CellMap; back: CellMap };
+  digits: DigitModel | null;
 }> | null = null;
+
+/**
+ * The handwriting model, or null if it will not load.
+ *
+ * Null is a supported state and not an error path: the tally counter is the
+ * older and better-measured reader, it needs nothing fetched, and a scan is
+ * still worth reviewing without the digits. A 3.4MB fetch failing on a phone
+ * at a beach is a thing that will happen, and when it does the tool should
+ * quietly do less rather than refuse to open.
+ */
+async function loadDigitModel(): Promise<DigitModel | null> {
+  try {
+    const res = await fetch("reference/digit-model.json");
+    if (!res.ok) return null;
+    return decodeModel(await res.json());
+  } catch {
+    return null;
+  }
+}
 
 function loadReferences() {
   referencesPromise ??= (async () => {
-    const [front, back, frontMap, backMap] = await Promise.all([
+    const [front, back, frontMap, backMap, digits] = await Promise.all([
       loadReferenceImage("reference/blank-front.png"),
       loadReferenceImage("reference/blank-back.png"),
       loadCellMap("front", async (u) => (await fetch(u)).json()),
       loadCellMap("back", async (u) => (await fetch(u)).json()),
+      loadDigitModel(),
     ]);
-    return { images: { front, back }, maps: { front: frontMap, back: backMap } };
+    return { images: { front, back }, maps: { front: frontMap, back: backMap }, digits };
   })();
   return referencesPromise;
 }
@@ -141,7 +184,13 @@ async function processFile(file: File) {
         trusted: registered.trusted,
         bannerOverlap: registered.bannerOverlap,
         cells: registered.trusted
-          ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side)
+          ? cellsForSide(
+              registered.image,
+              pageNumber,
+              refs.maps[registered.side],
+              registered.side,
+              refs.digits,
+            )
           : [],
       });
       renderProgress(`Reading page ${pageNumber} of ${total}…`, (pageNumber / total) * 0.98);
@@ -154,6 +203,7 @@ async function processFile(file: File) {
     state.cards = cards.map(assembleCard);
     state.problems = problems;
     state.values = new Map();
+    state.prefilled = new Map();
 
     // Seed the date and beach from the filename when it follows the chapter's
     // convention, e.g. "9.27.25_Pacific-Beach_CH54.pdf". It saves typing and is
@@ -226,6 +276,11 @@ function fingerprint(): DraftFingerprint {
   };
 }
 
+/** Machine readings the reviewer has not touched. */
+function prefilledCount(): number {
+  return [...state.prefilled.values()].reduce((n, m) => n + m.size, 0);
+}
+
 function typedCount(): number {
   return [...state.values.values()].reduce((n, m) => n + m.size, 0);
 }
@@ -289,6 +344,10 @@ function offerDraft() {
 
 function restoreDraft(draft: Draft) {
   state.values = new Map(draft.values.map(([card, rows]) => [card, new Map(rows)]));
+  // A restored draft is a person's work. Nothing in it is claimed as a machine
+  // reading, even where the number happens to match what the tool would have
+  // counted -- the reviewer saw these boxes and kept them.
+  state.prefilled = new Map();
   for (const key of Object.keys(state.event) as (keyof EventForm)[]) {
     const saved = draft.event[key];
     if (typeof saved === "string") state.event[key] = saved;
@@ -440,6 +499,7 @@ function renderReview() {
     drafts.clear();
     state.cards = [];
     state.values = new Map();
+    state.prefilled = new Map();
     renderUpload();
   });
 
@@ -497,6 +557,77 @@ function renderCard(card: ExtractedCard): HTMLElement {
   return el;
 }
 
+/**
+ * Confidence a reading needs before it is put in a box.
+ *
+ * ONE NUMBER DECIDES HOW MUCH THIS TOOL RISKS, and it is this one. Raising it
+ * pre-fills fewer boxes and gets more of them right; lowering it pre-fills more
+ * and gets more of them wrong. The measured cost of each setting is in
+ * HANDOFF.md, per bucket, so the chapter can move it on evidence.
+ *
+ * At 0.80 the tool pre-fills counts of one to four whose ink is fully accounted
+ * for -- five boxes of the 453 on the 58-card test scan. The counter only ever
+ * sees the 66 cells with tally marks and no number; the other 387 hold
+ * handwriting, and reading those is the recognizer's problem, which is off.
+ *
+ * **What the setting is worth, measured the only way that means anything.**
+ * `scripts/audit-prefills.mjs` lists every cell this gate would fill across all
+ * twenty-nine page directories and renders it beside its context; all 46 were
+ * counted by eye and are kept in `eye-labels/prefill-audit.json`. At 0.80
+ * the tool fills 42 of them and **40 are right**. Nothing here is scored on the
+ * chapter's spreadsheets, which agree 79.8% and are a lower bound rather than a
+ * precision -- a value in a sheet is not proof of what is on the card.
+ *
+ * That is 95.2%, and it is short of the ~99% this project set as the bar for a
+ * pre-fill. It ships at 0.80 because the chapter's owner asked for it after
+ * being shown these figures, and because the shortfall is no longer the kind
+ * the bar was written for:
+ *
+ *   - Neither remaining error invents a number out of nothing. Both readings
+ *     that returned a count for a row holding no tally at all -- a diagonal
+ *     crossing three rows, and the descenders of a word written in the row
+ *     above -- are refused now; see `rowEscape` in tally.ts.
+ *   - What is left is a count out by one, and a digit written inside a drawn
+ *     circle read as three. The 99% bar exists because a recognizer reading
+ *     "2" where the card says "21" is wrong by nineteen; the chapter's owner
+ *     has said a count out by one or two is tolerable for aggregate debris.
+ *   - Every pre-filled box is tagged "counted: check it" in the list and
+ *     exported as `recognized` rather than `human`, so a reviewer who trusts it
+ *     and a reviewer who corrects it are told apart in the chapter's own audit
+ *     column.
+ *
+ * Set it to 0.95 to pre-fill only single strokes. Set it to 1.1 to turn
+ * pre-filling off entirely. Re-run the audit after ANY change to the counter:
+ * it is the only instrument here that has ever caught the failure it exists
+ * for, and every other one -- the spreadsheet score, both offline diagnostics,
+ * the whole test suite -- passed clean through it twice.
+ *
+ * ---------------------------------------------------------------------------
+ * THE HANDWRITING READER IS ON, AND THIS NUMBER IS NOW ALSO ITS GATE.
+ *
+ * Everything above was written when the tally counter was the only reader, and
+ * it still describes the tally side exactly. The digit reader is weaker and the
+ * gate is shared, so what this number buys is no longer one thing:
+ *
+ *   gate   digits answered   right, of those        the tally side
+ *   0.90        36%               86%           unchanged from 0.8
+ *   0.80        53%               84%           as measured in the audit
+ *   0.70        64%               83%
+ *   0.60        74%               81%
+ *   0.50        82%               78%
+ *
+ * Set at 0.50 on the chapter owner's instruction, which was to fill as many
+ * boxes as possible. That is a deliberate purchase of coverage with accuracy:
+ * around one pre-filled number in five is wrong at this setting, against about
+ * one in seven at 0.8. Every one of them is tagged "check it" and sits beside a
+ * picture of the handwriting, which is the only reason it is defensible.
+ *
+ * Raise it to 0.8 to go back to roughly one in seven, or set `digitsAlone`
+ * false in reading.ts to return to tally-only pre-filling.
+ * ---------------------------------------------------------------------------
+ */
+const PREFILL_GATE = 0.5;
+
 function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   const row = document.createElement("div");
   row.className = "cell" + (cell.tallyOnly ? " tally-only" : "");
@@ -545,6 +676,32 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
 
   row.appendChild(left);
 
+  // Pre-fill, where the tool can read the cell well enough to be worth it.
+  //
+  // A pre-filled box is a claim, and the reviewer is looking at the picture
+  // beside it. Below the gate the box stays EMPTY rather than showing a guess:
+  // an empty box next to a legible picture costs one keystroke, and a wrong
+  // number costs the chapter's data, because a confident wrong number invites
+  // agreement rather than correction.
+  const reading = reconcile(
+    cell.tallyCount === null ? null : { value: cell.tallyCount, confidence: cell.tallyConfidence },
+    cell.digitValue === null ? null : { value: cell.digitValue, confidence: cell.digitConfidence },
+  );
+  const prefill = reading && reading.confidence >= PREFILL_GATE ? reading : null;
+  if (prefill) {
+    // Say WHICH reader spoke, because they are not worth the same and the
+    // reviewer is entitled to know which claim they are being asked to check.
+    // "read" is the weakest of the three and is named differently on purpose.
+    const how =
+      prefill.source === "digits"
+        ? "read: check it"
+        : prefill.source === "agreed"
+          ? "counted twice: check it"
+          : "counted: check it";
+    label.innerHTML += ` &middot; <span class="tag counted">${how}</span>`;
+    row.classList.add("prefilled");
+  }
+
   const input = document.createElement("input");
   input.type = "number";
   input.min = "0";
@@ -561,7 +718,19 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   input.dataset.card = String(cardNumber);
   input.dataset.row = String(cell.row);
   input.setAttribute("aria-label", `${cell.itemName} count`);
+  if (prefill) {
+    input.value = String(prefill.value);
+    const values = state.values.get(cardNumber) ?? new Map<number, number>();
+    values.set(cell.row, prefill.value);
+    state.values.set(cardNumber, values);
+    const marks = state.prefilled.get(cardNumber) ?? new Map<number, Reading>();
+    marks.set(cell.row, prefill);
+    state.prefilled.set(cardNumber, marks);
+  }
   input.addEventListener("input", () => {
+    // A box a person has touched is theirs, however it started out, so the
+    // export stops calling it a machine reading.
+    state.prefilled.get(cardNumber)?.delete(cell.row);
     const map = state.values.get(cardNumber) ?? new Map<number, number>();
     const n = input.valueAsNumber;
     if (Number.isFinite(n) && n > 0) map.set(cell.row, Math.round(n));
@@ -589,14 +758,19 @@ function collectCards(): ExportCard[] {
       cardNumber: card.cardNumber,
       pageNumbers: [...new Set(card.cells.map((c) => c.pageNumber))].sort((a, b) => a - b),
       cardType: card.cells.some((c) => c.tallyOnly) ? "tally" : "total",
-      values: [...typed.entries()].map(([row, value]) => ({
-        row,
-        value,
-        // Typed by a person looking at the crop, so there is nothing to be
-        // uncertain about and nothing was auto-filled to override.
-        confidence: 1,
-        corrected: true,
-      })),
+      values: [...typed.entries()].map(([row, value]) => {
+        // Values a person typed or corrected are certain and are recorded as
+        // human. A machine reading nobody touched carries the confidence it was
+        // pre-filled at and is recorded as recognized, so the chapter's audit
+        // column shows exactly which numbers a person read off the picture.
+        const machine = state.prefilled.get(card.cardNumber)?.get(row);
+        return {
+          row,
+          value,
+          confidence: machine ? machine.confidence : 1,
+          corrected: !machine,
+        };
+      }),
     });
   }
   return out;
@@ -622,7 +796,17 @@ function updateGate() {
       ? `Still needed: ${missing.join(", ")}.`
       : entered === 0
         ? "Type at least one number to export."
-        : `${entered} value${entered === 1 ? "" : "s"} ready.`;
+        : // Machine readings are counted out separately and on purpose. The
+          // reviewer should know how much of what is about to be exported they
+          // have actually looked at.
+          `${entered} value${entered === 1 ? "" : "s"} ready` +
+          (prefilledCount() > 0
+            ? // "filled in by the tool", not "counted from tally marks": most of
+              // them are now read off the handwriting, and the two are not
+              // equally trustworthy. Saying the wrong one here would tell a
+              // reviewer the weaker readings are the stronger kind.
+              ` — ${prefilledCount()} filled in by the tool, not yet checked.`
+            : ".");
 }
 
 async function doExport() {

@@ -64,3 +64,21 @@ out/
 # them there put 7.5MB of dev artifacts into every bundle.
 assets/reference/debug-grid-*.png
 assets/reference/lines-*.png
+
+# Local preview config for verifying the BUILT bundle in a browser.
+.claude/
+
+# The iOS app ships a copy of the built web bundle, and a copy is what it is:
+# ios/sync-web.sh rebuilds it from dist/ in under a second. Committing it would
+# put a second 3.4MB digit model in the history and let the app drift from src/
+# without the diff ever showing it.
+ios/SurfriderDataCards/web/
+
+# Xcode archives and exported .ipa files. Large, rebuildable, and an .ipa is a
+# signed artefact that has no business in a public repository.
+ios/build/
+
+# Xcode per-user state: window positions, breakpoints, scheme ordering.
+# Not the project, and it changes every time anybody opens it.
+ios/**/xcuserdata/
+ios/**/project.xcworkspace/xcuserdata/

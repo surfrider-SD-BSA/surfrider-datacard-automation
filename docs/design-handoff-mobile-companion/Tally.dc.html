@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-2fbdba83-b307-4dbe-bed7-d313486e1dcc/styles.css">
+<script src="_ds/nocturne-2fbdba83-b307-4dbe-bed7-d313486e1dcc/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<style>
+body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}
+a{color:var(--color-accent);text-decoration:none}
+a:hover{color:var(--color-accent-300)}
+</style>
+</helmet>
+
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#161826"></rect><rect x="72" y="46" width="56" height="108" rx="10" fill="none" stroke="#9184d9" stroke-width="3"></rect><rect x="82" y="64" width="36" height="20" rx="3" fill="#e9e9ed"></rect><rect x="82" y="94" width="36" height="6" rx="3" fill="#423a6a"></rect><rect x="82" y="106" width="24" height="6" rx="3" fill="#423a6a"></rect><rect x="82" y="122" width="36" height="14" rx="4" fill="none" stroke="#9184d9" stroke-width="2"></rect></svg></template>
+<div style="display:flex;gap:48px;align-items:flex-start;padding:48px;background:var(--color-bg);min-height:100vh;box-sizing:border-box">
+
+<div style="width:340px;flex:none;display:flex;flex-direction:column;gap:20px;padding-top:8px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent)">Concept · iOS companion</div>
+<h1 style="font-family:var(--font-heading);font-weight:500;font-size:32px;line-height:1.1;margin:0;letter-spacing:-.01em">Tally</h1>
+<p style="margin:0;font-size:14px;line-height:1.55;color:color-mix(in srgb,var(--color-text) 65%,transparent);text-wrap:pretty">The data-card tool, on the phone that is already at the cleanup. Scan the cards, check the numbers against a picture of each one, send the chapter&rsquo;s spreadsheet before you leave the car park.</p>
+</div>
+
+<div style="height:1px;background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent)"></div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)">What carried over from the repo</div>
+<p style="margin:0;font-size:13px;line-height:1.6;color:color-mix(in srgb,var(--color-text) 62%,transparent);text-wrap:pretty">Nothing is guessed. The app decides <em>whether</em> a box was written in and shows you a picture of it &mdash; it never reads the handwriting, so it can never be confidently wrong. Pages that will not line up are refused out loud rather than cropped from. Typed work survives a closed app and is never restored unasked. The scan stays on the device.</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)">What the phone adds</div>
+<p style="margin:0;font-size:13px;line-height:1.6;color:color-mix(in srgb,var(--color-text) 62%,transparent);text-wrap:pretty">One cell at a time on a thumb-sized keypad, instead of hunting a 453-row list with a trackpad. Capture replaces the scanner and the Print-to-PDF trip that was throwing the resolution away.</p>
+</div>
+
+<div style="height:1px;background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent)"></div>
+
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent);margin-bottom:4px">Jump to a screen</div>
+<sc-for list="{{ screenIndex }}" as="s" hint-placeholder-count="8">
+<button onClick="{{ s.go }}" style="display:flex;align-items:baseline;gap:10px;background:none;border:none;border-radius:6px;padding:7px 8px;margin:0;cursor:pointer;text-align:left;font:inherit;font-size:13px;color:var(--color-text)" style-hover="background:color-mix(in srgb,var(--color-text) 7%,transparent)">
+<span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--color-accent);min-width:14px">{{ s.n }}</span>
+<span>{{ s.label }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="flex:none">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+<div style="min-height:100%;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);display:flex;flex-direction:column">
+
+<!-- 1 — HOME -->
+<sc-if value="{{ atHome }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="01 Cleanups" style="display:flex;flex-direction:column;flex:1;padding:62px 0 0">
+<div style="padding:0 22px 14px">
+<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent);margin-bottom:6px">{{ chapter }}</div>
+<h2 style="font-family:var(--font-heading);font-weight:500;font-size:30px;line-height:1.1;margin:0;letter-spacing:-.01em">Cleanups</h2>
+</div>
+
+<div style="padding:8px 22px 0">
+<div style="border:1px solid var(--color-accent-700);background:var(--color-accent-900);border-radius:10px;padding:14px 15px;display:flex;flex-direction:column;gap:9px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+<div style="font-size:15px;font-weight:500">Pacific Beach, 22 Mar</div>
+<div style="font-size:11px;color:var(--color-accent-300)">saved 2 hours ago</div>
+</div>
+<div style="font-size:13px;line-height:1.5;color:color-mix(in srgb,var(--color-text) 68%,transparent)">12 of 41 cells checked. Your typing is on this phone &mdash; nothing has been put back until you say so.</div>
+<div style="display:flex;gap:9px;margin-top:2px">
+<button onClick="{{ resume }}" class="btn btn-primary" style="flex:1;min-height:44px;font-size:14px">Pick up where I left off</button>
+<button onClick="{{ discard }}" class="btn btn-secondary" style="min-height:44px;font-size:14px">Start fresh</button>
+</div>
+</div>
+</div>
+
+<div style="padding:26px 22px 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--color-text) 45%,transparent)">Finished</div>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ pastEvents }}" as="e" hint-placeholder-count="3">
+<button onClick="{{ e.go }}" style="display:flex;align-items:center;gap:14px;padding:14px 22px;background:none;border:none;border-bottom:1px solid var(--color-divider);cursor:pointer;text-align:left;font:inherit;color:var(--color-text)" style-hover="background:color-mix(in srgb,var(--color-text) 5%,transparent)">
+<div style="flex:1;display:flex;flex-direction:column;gap:3px">
+<div style="font-size:15px;font-weight:500">{{ e.beach }}</div>
+<div style="font-size:12px;color:color-mix(in srgb,var(--color-text) 52%,transparent)">{{ e.meta }}</div>
+</div>
+<i class="ph ph-caret-right" style="font-size:16px;color:color-mix(in srgb,var(--color-text) 40%,transparent)"></i>
+</button>
+</sc-for>
+</div>
+
+<div style="flex:1"></div>
+<div style="padding:16px 22px 46px;background:linear-gradient(to top,var(--color-bg) 72%,transparent)">
+<button onClick="{{ startEvent }}" class="btn btn-primary" style="width:100%;min-height:52px;font-size:16px;gap:9px"><i class="ph ph-plus"></i>Start a cleanup</button>
+</div>
+</div>
+</sc-if>
+
+<!-- 2 — EVENT DETAILS -->
+<sc-if value="{{ atEvent }}">
+<div data-screen-label="02 Event details" style="display:flex;flex-direction:column;flex:1;padding:56px 0 0">
+<div style="display:flex;align-items:center;height:44px;padding:0 14px">
+<button onClick="{{ back }}" style="display:flex;align-items:center;gap:2px;background:none;border:none;padding:8px;margin:0;cursor:pointer;font:inherit;font-size:16px;color:var(--color-accent)"><i class="ph ph-caret-left"></i>Cleanups</button>
+</div>
+<div style="padding:6px 22px 16px">
+<h2 style="font-family:var(--font-heading);font-weight:500;font-size:28px;line-height:1.15;margin:0 0 8px;letter-spacing:-.01em">The event</h2>
+<p style="margin:0;font-size:13px;line-height:1.55;color:color-mix(in srgb,var(--color-text) 60%,transparent);text-wrap:pretty">Only the date and the beach are needed to finish. The rest is written on the leader&rsquo;s card and often on no other, so it is never held against you.</p>
+</div>
+
+<div style="padding:0 22px;display:flex;flex-direction:column;gap:16px">
+<div class="field">
+<label style="font-size:12px">Date</label>
+<input class="input" type="date" value="{{ fDate }}" onChange="{{ setDate }}" style="min-height:46px;font-size:16px">
+</div>
+<div class="field">
+<label style="font-size:12px">Beach</label>
+<input class="input" type="text" placeholder="Pacific Beach" value="{{ fBeach }}" onChange="{{ setBeach }}" style="min-height:46px;font-size:16px">
+</div>
+<div style="display:flex;gap:12px">
+<div class="field" style="flex:1">
+<label style="font-size:12px">Volunteers <span style="opacity:.55">optional</span></label>
+<input class="input" type="number" inputmode="numeric" placeholder="&mdash;" value="{{ fVol }}" onChange="{{ setVol }}" style="min-height:46px;font-size:16px">
+</div>
+<div class="field" style="flex:1">
+<label style="font-size:12px">Pounds <span style="opacity:.55">optional</span></label>
+<input class="input" type="number" inputmode="numeric" placeholder="&mdash;" value="{{ fLbs }}" onChange="{{ setLbs }}" style="min-height:46px;font-size:16px">
+</div>
+</div>
+<div class="field">
+<label style="font-size:12px">Your name <span style="opacity:.55">optional</span></label>
+<input class="input" type="text" placeholder="Who is doing the entry" value="{{ fName }}" onChange="{{ setName }}" style="min-height:46px;font-size:16px">
+</div>
+</div>
+
+<div style="flex:1"></div>
+<div style="padding:16px 22px 46px">
+<button onClick="{{ toCapture }}" disabled="{{ eventIncomplete }}" class="btn btn-primary" style="width:100%;min-height:52px;font-size:16px;gap:9px"><i class="ph ph-camera"></i>Scan the cards</button>
+<div style="text-align:center;font-size:12px;color:color-mix(in srgb,var(--color-text) 45%,transparent);margin-top:10px">{{ eventGate }}</div>
+</div>
+</div>
+</sc-if>
+
+<!-- 3 — CAPTURE -->
+<sc-if value="{{ atCapture }}">
+<div data-screen-label="03 Capture" style="display:flex;flex-direction:column;flex:1;background:#0e0f18">
+<div style="display:flex;align-items:center;justify-content:space-between;height:44px;padding:56px 14px 0">
+<button onClick="{{ back }}" style="background:none;border:none;padding:8px;cursor:pointer;font:inherit;font-size:16px;color:var(--color-accent)">Cancel</button>
+<div style="font-size:13px;color:color-mix(in srgb,var(--color-text) 60%,transparent)">{{ captureCount }}</div>
+</div>
+
+<div style="padding:26px 22px 10px;text-align:center">
+<div style="font-family:var(--font-heading);font-weight:500;font-size:22px;letter-spacing:-.01em">{{ captureTitle }}</div>
+<div style="font-size:13px;color:var(--color-accent-300);margin-top:4px">{{ captureHint }}</div>
+</div>
+
+<div style="margin:6px 22px 0;position:relative;aspect-ratio:3/4;border-radius:12px;overflow:hidden;background:radial-gradient(120% 80% at 50% 20%,#1d2030,#0b0c14)">
+<div style="position:absolute;inset:22px;border-radius:4px;background:repeating-linear-gradient(180deg,rgba(233,233,237,.05) 0 1px,transparent 1px 26px)"></div>
+<div style="position:absolute;inset:22px;border:1px dashed color-mix(in srgb,var(--color-accent) 55%,transparent);border-radius:4px"></div>
+<div style="position:absolute;top:12px;left:12px;width:34px;height:34px;border-top:2px solid var(--color-accent);border-left:2px solid var(--color-accent);border-radius:4px 0 0 0"></div>
+<div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-top:2px solid var(--color-accent);border-right:2px solid var(--color-accent);border-radius:0 4px 0 0"></div>
+<div style="position:absolute;bottom:12px;left:12px;width:34px;height:34px;border-bottom:2px solid var(--color-accent);border-left:2px solid var(--color-accent);border-radius:0 0 0 4px"></div>
+<div style="position:absolute;bottom:12px;right:12px;width:34px;height:34px;border-bottom:2px solid var(--color-accent);border-right:2px solid var(--color-accent);border-radius:0 0 4px 0"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;padding:14px 16px;background:linear-gradient(to top,rgba(11,12,20,.92),transparent);font-size:12px;line-height:1.5;color:color-mix(in srgb,var(--color-text) 72%,transparent);text-align:center">All four corners inside the frame. Flat paper, no shadow across the totals column.</div>
+</div>
+
+<div style="display:flex;gap:8px;padding:14px 22px 0;overflow:hidden">
+<sc-for list="{{ thumbs }}" as="t" hint-placeholder-count="4">
+<div style="width:38px;height:50px;border-radius:4px;background:#e9e9ed;flex:none;position:relative;overflow:hidden">
+<div style="position:absolute;inset:4px;background:repeating-linear-gradient(180deg,#c3c7d2 0 1px,transparent 1px 6px)"></div>
+<div style="position:absolute;bottom:2px;right:3px;font-size:9px;color:#4a5162;font-weight:600">{{ t.n }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 26px 46px">
+<button onClick="{{ flipSide }}" style="background:none;border:none;padding:10px;cursor:pointer;font:inherit;font-size:14px;color:var(--color-accent)">{{ flipLabel }}</button>
+<button onClick="{{ shoot }}" style="width:70px;height:70px;border-radius:999px;border:3px solid var(--color-accent);background:color-mix(in srgb,var(--color-accent) 18%,transparent);cursor:pointer" style-active="background:color-mix(in srgb,var(--color-accent) 40%,transparent)"></button>
+<button onClick="{{ toReading }}" disabled="{{ noPages }}" class="btn btn-secondary" style="min-height:44px;font-size:14px">Done</button>
+</div>
+</div>
+</sc-if>
+
+<!-- 4 — READING -->
+<sc-if value="{{ atReading }}">
+<div data-screen-label="04 Reading pages" style="display:flex;flex-direction:column;flex:1;padding:110px 22px 46px">
+<h2 style="font-family:var(--font-heading);font-weight:500;font-size:26px;margin:0 0 8px;letter-spacing:-.01em">Reading the cards</h2>
+<p style="margin:0 0 26px;font-size:13px;line-height:1.55;color:color-mix(in srgb,var(--color-text) 60%,transparent)">Nothing is uploaded. This all happens on the phone, and stops if you close the app.</p>
+
+<div style="height:6px;border-radius:999px;background:var(--color-neutral-800);overflow:hidden">
+<div style="height:100%;background:var(--color-accent);transition:width .35s ease;width:{{ readPct }}%"></div>
+</div>
+<div style="font-size:13px;color:color-mix(in srgb,var(--color-text) 62%,transparent);margin-top:10px">{{ readMsg }}</div>
+
+<div style="display:flex;flex-direction:column;gap:14px;margin-top:34px">
+<sc-for list="{{ readSteps }}" as="s" hint-placeholder-count="4">
+<div style="display:flex;align-items:baseline;gap:11px;font-size:14px">
+<span style="width:16px;color:var(--color-accent)">{{ s.mark }}</span>
+<span style="flex:1;color:{{ s.tone }}">{{ s.label }}</span>
+<span style="font-size:12px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">{{ s.note }}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="flex:1"></div>
+<sc-if value="{{ readDone }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="font-size:13px;line-height:1.55;color:color-mix(in srgb,var(--color-text) 68%,transparent)">6 cards, 41 cells with something written in them. One page would not line up.</div>
+<button onClick="{{ toProblems }}" class="btn btn-primary" style="width:100%;min-height:52px;font-size:16px">Look at that page first</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<!-- 5 — REFUSED PAGE -->
+<sc-if value="{{ atProblems }}">
+<div data-screen-label="05 Page problem" style="display:flex;flex-direction:column;flex:1;padding:56px 0 0">
+<div style="display:flex;align-items:center;height:44px;padding:0 14px">
+<button onClick="{{ back }}" style="display:flex;align-items:center;gap:2px;background:none;border:none;padding:8px;cursor:pointer;font:inherit;font-size:16px;color:var(--color-accent)"><i class="ph ph-caret-left"></i>Back</button>
+</div>
+<div style="padding:6px 22px 0">
+<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent);margin-bottom:8px"><i class="ph ph-warning-circle"></i>1 page refused</div>
+<h2 style="font-family:var(--font-heading);font-weight:500;font-size:26px;line-height:1.15;margin:0 0 10px;letter-spacing:-.01em">Page 7 would not line up</h2>
+<p style="margin:0;font-size:13px;line-height:1.6;color:color-mix(in srgb,var(--color-text) 65%,transparent);text-wrap:pretty">The printed section banners did not land where they should, so we do not know which row is which. A page that is a little off gives ordinary-looking numbers attached to the wrong items, and nothing later would catch it. So it is refused rather than cropped from.</p>
+</div>
+
+<div style="margin:20px 22px 0;display:flex;gap:14px;align-items:flex-start">
+<div style="width:96px;height:126px;border-radius:6px;background:#e9e9ed;flex:none;position:relative;overflow:hidden;transform:rotate(-3deg)">
+<div style="position:absolute;inset:8px;background:repeating-linear-gradient(180deg,#c3c7d2 0 1px,transparent 1px 9px)"></div>
+<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 45%,rgba(0,0,0,.22) 85%)"></div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.5;color:color-mix(in srgb,var(--color-text) 62%,transparent)">
+<div>Card 4, back. Banner overlap 0.41 &mdash; below the 0.72 we trust.</div>
+<div>Likely a shadow across the left third. Retaking it in flatter light usually fixes it.</div>
+</div>
+</div>
+
+<div style="padding:24px 22px 0;display:flex;flex-direction:column;gap:10px">
+<button onClick="{{ toCapture }}" class="btn btn-primary" style="width:100%;min-height:50px;font-size:15px;gap:8px"><i class="ph ph-camera"></i>Retake page 7</button>
+<button onClick="{{ toReview }}" class="btn btn-secondary" style="width:100%;min-height:50px;font-size:15px">Leave it out and carry on</button>
+</div>
+
+<div style="flex:1"></div>
+<div style="padding:0 22px 46px;font-size:12px;line-height:1.5;color:color-mix(in srgb,var(--color-text) 42%,transparent)">Leaving it out means card 4&rsquo;s back is blank in the spreadsheet. You can add it later from the card list.</div>
+</div>
+</sc-if>
+
+<!-- 6 — REVIEW -->
+<sc-if value="{{ atReview }}">
+<div data-screen-label="06 Check the numbers" style="display:flex;flex-direction:column;flex:1;padding:56px 0 0">
+<div style="display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 14px">
+<button onClick="{{ back }}" style="display:flex;align-items:center;gap:2px;background:none;border:none;padding:8px;cursor:pointer;font:inherit;font-size:16px;color:var(--color-accent)"><i class="ph ph-caret-left"></i>Back</button>
+<button onClick="{{ toCards }}" style="background:none;border:none;padding:8px;cursor:pointer;font:inherit;font-size:15px;color:var(--color-accent)">All cards</button>
+</div>
+
+<div style="padding:2px 22px 0">
+<div style="display:flex;align-items:baseline;justify-content:space-between;font-size:12px;color:color-mix(in srgb,var(--color-text) 52%,transparent);margin-bottom:7px">
+<span>{{ cellCounter }}</span>
+<span>{{ cardLabel }}</span>
+</div>
+<div style="height:4px;border-radius:999px;background:var(--color-neutral-800);overflow:hidden">
+<div style="height:100%;background:var(--color-accent);transition:width .3s ease;width:{{ reviewPct }}%"></div>
+</div>
+</div>
+
+<div style="padding:22px 22px 0">
+<div style="font-family:var(--font-heading);font-weight:500;font-size:21px;line-height:1.25;letter-spacing:-.01em;text-wrap:pretty">{{ itemName }}</div>
+<div style="font-size:12px;color:var(--color-accent-300);margin-top:5px">{{ itemSection }}</div>
+</div>
+
+<div style="padding:16px 22px 0">
+<div style="background:#fff;border:1px solid #c8ccd6;border-radius:8px;height:118px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+<div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 62px,#e4e7ee 62px 63px)"></div>
+<div style="position:absolute;left:0;right:0;top:0;height:1px;background:#d5d9e2"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:1px;background:#d5d9e2"></div>
+<span style="position:relative;font-family:'Bradley Hand','Segoe Script','Snell Roundhand',cursive;font-size:58px;line-height:1;color:#26303c;transform:rotate(-2.5deg)">{{ cropDigits }}</span>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:7px;font-size:11px;color:color-mix(in srgb,var(--color-text) 40%,transparent)">
+<span>The TOTAL box, enlarged 2.4&times;</span>
+<button onClick="{{ zoom }}" style="background:none;border:none;padding:2px 0;cursor:pointer;font:inherit;font-size:11px;color:var(--color-accent)">Show the whole row</button>
+</div>
+</div>
+
+<sc-if value="{{ isTally }}">
+<div style="margin:12px 22px 0;border:1px solid var(--color-accent-700);background:var(--color-accent-900);border-radius:8px;padding:11px 13px">
+<div style="font-size:12px;color:var(--color-accent-200);margin-bottom:9px">Tally marks, no total written. Count them.</div>
+<div style="background:#fff;border-radius:5px;padding:9px 10px;display:flex;gap:13px;flex-wrap:wrap">
+<sc-for list="{{ tallyGroups }}" as="g" hint-placeholder-count="5">
+<div style="position:relative;display:flex;gap:4px;height:22px;align-items:flex-end">
+<div style="width:2px;height:20px;background:#26303c"></div>
+<div style="width:2px;height:20px;background:#26303c"></div>
+<div style="width:2px;height:20px;background:#26303c"></div>
+<div style="width:2px;height:20px;background:#26303c"></div>
+<div style="position:absolute;left:-3px;top:9px;width:28px;height:2px;background:#26303c;transform:rotate(-22deg)"></div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<div style="flex:1"></div>
+
+<div style="padding:0 22px 6px;display:flex;align-items:center;justify-content:center;gap:14px">
+<div style="min-width:120px;text-align:center;font-family:var(--font-heading);font-size:40px;font-variant-numeric:tabular-nums;line-height:1.1;color:{{ entryTone }}">{{ entryShown }}</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:6px 16px 0">
+<sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+<button onClick="{{ k.press }}" style="min-height:54px;border-radius:9px;border:1px solid var(--color-divider);background:var(--color-surface);color:var(--color-text);font:inherit;font-size:23px;font-family:var(--font-heading);cursor:pointer" style-active="background:color-mix(in srgb,var(--color-accent) 22%,transparent);border-color:var(--color-accent)">{{ k.label }}</button>
+</sc-for>
+</div>
+
+<div style="display:flex;gap:10px;padding:12px 16px 40px">
+<button onClick="{{ markBlank }}" class="btn btn-secondary" style="flex:1;min-height:50px;font-size:15px">Nothing there</button>
+<button onClick="{{ commit }}" disabled="{{ entryEmpty }}" class="btn btn-primary" style="flex:2;min-height:50px;font-size:16px;gap:8px">{{ nextLabel }}<i class="ph ph-arrow-right"></i></button>
+</div>
+</div>
+</sc-if>
+
+<!-- 7 — CARD LIST -->
+<sc-if value="{{ atCards }}">
+<div data-screen-label="07 Cards" style="display:flex;flex-direction:column;flex:1;padding:56px 0 0">
+<div style="display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 14px">
+<button onClick="{{ back }}" style="display:flex;align-items:center;gap:2px;background:none;border:none;padding:8px;cursor:pointer;font:inherit;font-size:16px;color:var(--color-accent)"><i class="ph ph-caret-left"></i>Checking</button>
+<button onClick="{{ toFinish }}" style="background:none;border:none;padding:8px;cursor:pointer;font:inherit;font-size:15px;color:var(--color-accent)">Finish</button>
+</div>
+<div style="padding:6px 22px 14px">
+<h2 style="font-family:var(--font-heading);font-weight:500;font-size:26px;margin:0 0 6px;letter-spacing:-.01em">{{ fBeach }}</h2>
+<div style="font-size:13px;color:color-mix(in srgb,var(--color-text) 55%,transparent)">{{ cardsSummary }}</div>
+</div>
+
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ cellList }}" as="c" hint-placeholder-count="6">
+<button onClick="{{ c.go }}" style="display:flex;align-items:center;gap:12px;padding:12px 22px;background:none;border:none;border-bottom:1px solid var(--color-divider);cursor:pointer;text-align:left;font:inherit;color:var(--color-text)" style-hover="background:color-mix(in srgb,var(--color-text) 5%,transparent)">
+<div style="width:26px;font-size:11px;font-family:ui-monospace,Menlo,monospace;color:color-mix(in srgb,var(--color-text) 38%,transparent)">{{ c.cardTag }}</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+<div style="font-size:14px;line-height:1.3">{{ c.item }}</div>
+<div style="font-size:11px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">{{ c.section }}</div>
+</div>
+<div style="font-family:var(--font-heading);font-size:19px;font-variant-numeric:tabular-nums;color:{{ c.tone }}">{{ c.value }}</div>
+</button>
+</sc-for>
+</div>
+
+<div style="flex:1"></div>
+<div style="padding:16px 22px 46px">
+<button onClick="{{ toFinish }}" class="btn btn-primary" style="width:100%;min-height:52px;font-size:16px">Make the spreadsheet</button>
+</div>
+</div>
+</sc-if>
+
+<!-- 8 — FINISH -->
+<sc-if value="{{ atFinish }}">
+<div data-screen-label="08 Finish" style="display:flex;flex-direction:column;flex:1;padding:56px 0 0">
+<div style="display:flex;align-items:center;height:44px;padding:0 14px">
+<button onClick="{{ back }}" style="display:flex;align-items:center;gap:2px;background:none;border:none;padding:8px;cursor:pointer;font:inherit;font-size:16px;color:var(--color-accent)"><i class="ph ph-caret-left"></i>Cards</button>
+</div>
+
+<sc-if value="{{ notExported }}">
+<div style="display:flex;flex-direction:column;flex:1">
+<div style="padding:6px 22px 18px">
+<h2 style="font-family:var(--font-heading);font-weight:500;font-size:28px;line-height:1.15;margin:0 0 8px;letter-spacing:-.01em">Before it goes</h2>
+<p style="margin:0;font-size:13px;line-height:1.55;color:color-mix(in srgb,var(--color-text) 60%,transparent)">Warnings, not walls. You can send it anyway &mdash; you are the one who saw the paper.</p>
+</div>
+<div style="padding:0 22px;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ gateItems }}" as="g" hint-placeholder-count="3">
+<div style="display:flex;gap:11px;align-items:flex-start;border:1px solid var(--color-divider);border-radius:8px;padding:12px 13px">
+<i class="{{ g.icon }}" style="font-size:17px;color:{{ g.tone }};margin-top:1px"></i>
+<div style="flex:1;font-size:13px;line-height:1.5;color:color-mix(in srgb,var(--color-text) 78%,transparent)">{{ g.text }}</div>
+</div>
+</sc-for>
+</div>
+<div style="flex:1"></div>
+<div style="padding:16px 22px 46px">
+<button onClick="{{ doExport }}" class="btn btn-primary" style="width:100%;min-height:52px;font-size:16px;gap:9px"><i class="ph ph-file-xls"></i>Make the spreadsheet</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ exported }}">
+<div style="display:flex;flex-direction:column;flex:1;align-items:center;justify-content:center;padding:0 26px 60px;text-align:center">
+<div style="width:64px;height:64px;border-radius:999px;border:1px solid var(--color-accent);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 10px color-mix(in srgb,var(--color-accent) 9%,transparent)"><i class="ph ph-check" style="font-size:28px;color:var(--color-accent)"></i></div>
+<h2 style="font-family:var(--font-heading);font-weight:500;font-size:26px;margin:22px 0 8px;letter-spacing:-.01em">Ready to send</h2>
+<p style="margin:0 0 4px;font-size:14px;line-height:1.55;color:color-mix(in srgb,var(--color-text) 65%,transparent)">{{ exportName }}</p>
+<p style="margin:0;font-size:12px;color:color-mix(in srgb,var(--color-text) 42%,transparent)">41 values, 6 cards, in the chapter&rsquo;s template</p>
+<div style="width:100%;display:flex;flex-direction:column;gap:10px;margin-top:30px">
+<button onClick="{{ share }}" class="btn btn-primary" style="width:100%;min-height:52px;font-size:16px;gap:9px"><i class="ph ph-share-network"></i>Share</button>
+<button onClick="{{ home }}" class="btn btn-secondary" style="width:100%;min-height:50px;font-size:15px">Back to cleanups</button>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+</div>
+</x-import>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;chapterName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Surfrider San Diego · CH54&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Chapter&quot;},&quot;strictExport&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;guidance&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;minimal&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;'full' | 'minimal'&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+const CELLS = [
+  { card: 4, item: "Cigarette Butts", section: "Common & Priority Items", digits: "14" },
+  { card: 4, item: "Plastic Straws", section: "Common & Priority Items", digits: "3" },
+  { card: 4, item: "Plastic Food Wrappers (candy, chip bags)", section: "Common & Priority Items", digits: "", tally: true },
+  { card: 4, item: "Plastic Bottle Caps + Rings", section: "Food & Beverage Packaging", digits: "9" },
+  { card: 4, item: "Lighters", section: "Smoking", digits: "1" },
+  { card: 5, item: "Cigarette Butts", section: "Common & Priority Items", digits: "31" },
+  { card: 5, item: "Small Foam Fragments (smaller than a dime)", section: "Common & Priority Items", digits: "40" },
+  { card: 5, item: "Fishing Line (1 yard = 1 piece)", section: "Fishing", digits: "2" },
+  { card: 5, item: "Aluminum Cans (beverage)", section: "Metal", digits: "5" },
+];
+
+const SCREENS = [
+  ["home", "Cleanups"],
+  ["event", "Event details"],
+  ["capture", "Scanning cards"],
+  ["reading", "Reading the pages"],
+  ["problems", "A page refused"],
+  ["review", "Checking a number"],
+  ["cards", "Everything typed"],
+  ["finish", "Finish and send"],
+];
+
+const MUTED = "color-mix(in srgb, #e9e9ed 45%, transparent)";
+
+class Component extends DCLogic {
+  state = {
+    stack: ["home"],
+    date: "2026-03-22",
+    beach: "Pacific Beach",
+    vol: "",
+    lbs: "",
+    name: "",
+    pages: 0,
+    side: "front",
+    readPct: 0,
+    readStep: 0,
+    idx: 0,
+    entry: "",
+    values: {},
+    exported: false,
+  };
+
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  get screen() { return this.state.stack[this.state.stack.length - 1]; }
+
+  push = (s) => {
+    this.setState((st) => ({ stack: [...st.stack, s], exported: s === "finish" ? false : st.exported }));
+    if (s === "reading") this.runReading();
+  };
+
+  goto = (s) => {
+    clearInterval(this.timer);
+    const seed = { review: { idx: 3 }, cards: { idx: CELLS.length }, finish: { exported: false } }[s] || {};
+    this.setState({ stack: s === "home" ? ["home"] : ["home", s], entry: "", ...seed });
+    if (s === "reading") this.runReading();
+    if (s === "capture") this.setState({ pages: 7 });
+    if (s === "review" || s === "cards" || s === "finish") {
+      const values = {};
+      CELLS.forEach((c, i) => { if (i < 3) values[i] = c.tally ? 26 : Number(c.digits); });
+      if (s !== "review") CELLS.forEach((c, i) => { values[i] = c.tally ? 26 : Number(c.digits); });
+      this.setState({ values });
+    }
+  };
+
+  back = () => this.setState((st) => ({ stack: st.stack.length > 1 ? st.stack.slice(0, -1) : st.stack, entry: "" }));
+
+  runReading() {
+    clearInterval(this.timer);
+    this.setState({ readPct: 0, readStep: 0 });
+    this.timer = setInterval(() => {
+      this.setState((st) => {
+        const pct = Math.min(100, st.readPct + 4);
+        return { readPct: pct, readStep: pct >= 100 ? 4 : Math.floor(pct / 26) };
+      });
+      if (this.state.readPct >= 100) clearInterval(this.timer);
+    }, 90);
+  }
+
+  renderVals() {
+    const st = this.state;
+    const s = this.screen;
+    const cell = CELLS[Math.min(st.idx, CELLS.length - 1)];
+    const typedCount = Object.keys(st.values).length;
+    const cellNo = 13 + st.idx;
+
+    const keys = ["1","2","3","4","5","6","7","8","9","clear","0","del"].map((k) => ({
+      label: k === "clear" ? "C" : k === "del" ? "\u232B" : k,
+      press: () => this.setState((p) => ({
+        entry: k === "clear" ? "" : k === "del" ? p.entry.slice(0, -1) : (p.entry + k).slice(0, 4),
+      })),
+    }));
+
+    const advance = (value) => this.setState((p) => {
+      const values = { ...p.values };
+      if (value !== null) values[p.idx] = value;
+      const next = p.idx + 1;
+      if (next >= CELLS.length) return { values, entry: "", idx: next, stack: [...p.stack, "cards"] };
+      return { values, entry: "", idx: next };
+    });
+
+    const readSteps = [
+      { label: "Photographs read", note: "12 pages", done: 1 },
+      { label: "Pages squared up and aligned", note: "11 of 12", done: 2 },
+      { label: "Fronts and backs paired into cards", note: "6 cards", done: 3 },
+      { label: "Looking for handwriting", note: "41 cells", done: 4 },
+    ].map((x) => ({
+      label: x.label,
+      note: st.readStep >= x.done ? x.note : "",
+      mark: st.readStep >= x.done ? "\u2713" : "\u00B7",
+      tone: st.readStep >= x.done ? "#e9e9ed" : MUTED,
+    }));
+
+    const gateItems = [
+      st.vol && Number(st.vol) !== 6
+        ? { icon: "ph ph-warning", tone: "#b5abfc", text: "The leader's card says " + st.vol + " volunteers, but 6 cards were scanned. Worth a look — it is usually a card that never made it into the pile." }
+        : { icon: "ph ph-check-circle", tone: "#9184d9", text: "6 cards, 41 cells, all checked by eye." },
+      st.lbs
+        ? { icon: "ph ph-check-circle", tone: "#9184d9", text: st.lbs + " lb of trash recorded." }
+        : { icon: "ph ph-warning", tone: "#b5abfc", text: "Pounds of trash is blank. The sheet still works without it." },
+      { icon: "ph ph-warning", tone: "#b5abfc", text: "Card 4's back was left out — page 7 never lined up. Those rows will be empty." },
+      { icon: "ph ph-lock-simple", tone: "#9184d9", text: "The photographs stay on this phone. Only the spreadsheet leaves." },
+    ];
+
+    return {
+      chapter: this.props.chapterName ?? "Surfrider San Diego · CH54",
+      atHome: s === "home", atEvent: s === "event", atCapture: s === "capture",
+      atReading: s === "reading", atProblems: s === "problems", atReview: s === "review",
+      atCards: s === "cards", atFinish: s === "finish",
+      back: this.back,
+      home: () => this.goto("home"),
+      screenIndex: SCREENS.map(([id, label], i) => ({ n: String(i + 1).padStart(2, "0"), label, go: () => this.goto(id) })),
+
+      pastEvents: [
+        { beach: "Moonlight Beach", meta: "21 Feb · 58 cards · sent", go: () => this.goto("cards") },
+        { beach: "Ocean Beach", meta: "17 Jan · 22 cards · sent", go: () => this.goto("cards") },
+        { beach: "Mission Beach", meta: "26 Sep · 31 cards · sent", go: () => this.goto("cards") },
+      ],
+      resume: () => this.goto("review"),
+      discard: () => this.goto("event"),
+      startEvent: () => this.push("event"),
+
+      fDate: st.date, fBeach: st.beach, fVol: st.vol, fLbs: st.lbs, fName: st.name,
+      setDate: (e) => this.setState({ date: e.target.value }),
+      setBeach: (e) => this.setState({ beach: e.target.value }),
+      setVol: (e) => this.setState({ vol: e.target.value }),
+      setLbs: (e) => this.setState({ lbs: e.target.value }),
+      setName: (e) => this.setState({ name: e.target.value }),
+      eventIncomplete: !(st.date && st.beach.trim()),
+      eventGate: st.date && st.beach.trim() ? "Everything needed is here." : "A date and a beach, and you can start.",
+
+      toCapture: () => this.push("capture"),
+      captureTitle: "Card " + (Math.floor(st.pages / 2) + 1) + " · " + st.side,
+      captureHint: st.pages === 0 ? "Start with the front of the first card" : "Looks sharp — keep going",
+      captureCount: st.pages + " pages · " + Math.ceil(st.pages / 2) + " cards",
+      thumbs: Array.from({ length: Math.min(st.pages, 8) }, (_, i) => ({ n: st.pages - Math.min(st.pages, 8) + i + 1 })),
+      flipLabel: st.side === "front" ? "Now the back" : "Next card",
+      flipSide: () => this.setState((p) => ({ side: p.side === "front" ? "back" : "front" })),
+      shoot: () => this.setState((p) => ({ pages: p.pages + 1, side: p.side === "front" ? "back" : "front" })),
+      noPages: st.pages === 0,
+
+      toReading: () => this.push("reading"),
+      readPct: st.readPct, readSteps,
+      readMsg: st.readPct >= 100 ? "Done." : "Page " + Math.max(1, Math.ceil((st.readPct / 100) * 12)) + " of 12 — nothing leaves the phone.",
+      readDone: st.readPct >= 100,
+      toProblems: () => this.push("problems"),
+      toReview: () => this.push("review"),
+
+      cellCounter: "Cell " + cellNo + " of 41",
+      cardLabel: "Card " + cell.card + " → column " + String.fromCharCode(64 + cell.card + 2),
+      reviewPct: Math.round((cellNo / 41) * 100),
+      itemName: cell.item, itemSection: cell.section,
+      cropDigits: cell.tally ? "" : cell.digits,
+      isTally: !!cell.tally,
+      tallyGroups: [1, 2, 3, 4, 5],
+      zoom: () => {},
+      entryShown: st.entry || "—",
+      entryTone: st.entry ? "#e9e9ed" : MUTED,
+      entryEmpty: st.entry.length === 0,
+      keys,
+      nextLabel: st.idx + 1 >= CELLS.length ? "Done" : "Next",
+      commit: () => advance(Number(st.entry)),
+      markBlank: () => advance(0),
+      toCards: () => this.push("cards"),
+
+      cardsSummary: typedCount + " of 41 checked · " + (this.props.guidance === "minimal" ? "6 cards" : "tap a row to look at the picture again"),
+      cellList: CELLS.map((c, i) => ({
+        cardTag: "C" + c.card,
+        item: c.item,
+        section: c.section,
+        value: st.values[i] === undefined ? "—" : st.values[i] === 0 ? "0" : String(st.values[i]),
+        tone: st.values[i] === undefined ? MUTED : "#e9e9ed",
+        go: () => this.setState((p) => ({ idx: i, entry: "", stack: [...p.stack, "review"] })),
+      })),
+
+      toFinish: () => this.push("finish"),
+      gateItems: this.props.strictExport && typedCount < CELLS.length
+        ? [{ icon: "ph ph-x-circle", tone: "#d2cefd", text: (CELLS.length - typedCount) + " cells are still unchecked, and this chapter asks for all of them before sending." }, ...gateItems]
+        : gateItems,
+      notExported: !st.exported,
+      exported: st.exported,
+      doExport: () => this.setState({ exported: true }),
+      exportName: "3.22.26_" + st.beach.replace(/\s+/g, "-") + "_CH54.xlsx",
+      share: () => {},
+    };
+  }
+}
+</script>
+</body>
+</html>
