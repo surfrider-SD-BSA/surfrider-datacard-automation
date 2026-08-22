@@ -77,6 +77,11 @@ ios/SurfriderDataCards/web/
 # Xcode archives and exported .ipa files. Large, rebuildable, and an .ipa is a
 # signed artefact that has no business in a public repository.
 ios/build/
+# ...and any other derived-data directory beside it. `build/` above matches a
+# directory named exactly "build", which ios/build-sim is not -- and 2,382
+# files of compiler module cache went into the repository through that gap
+# before anyone noticed. The glob is deliberately wider than the one case.
+ios/build*/
 
 # Xcode per-user state: window positions, breakpoints, scheme ordering.
 # Not the project, and it changes every time anybody opens it.
