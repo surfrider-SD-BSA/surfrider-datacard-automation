@@ -80,7 +80,10 @@ struct EventScreen: View {
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(!model.event.isComplete)
 
-                Text(model.event.isComplete ? "Everything needed is here." : "A date and a beach, and you can start.")
+                // Name what is actually missing. "A date and a beach" is no
+                // help when one of the two is already filled in and the
+                // disabled button will not say which.
+                Text(gateCaption)
                     .font(Nocturne.Face.label(12))
                     .foregroundStyle(Nocturne.text(45))
             }
@@ -89,6 +92,17 @@ struct EventScreen: View {
             .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
+    }
+
+    private var gateCaption: String {
+        let noDate = model.event.date.isEmpty
+        let noBeach = model.event.shoreline.trimmingCharacters(in: .whitespaces).isEmpty
+        switch (noDate, noBeach) {
+        case (false, false): return "Everything needed is here."
+        case (true, true): return "A date and a beach, and you can start."
+        case (true, false): return "Just a date, and you can start."
+        case (false, true): return "Just a beach, and you can start."
+        }
     }
 
     /// The form holds strings, because that is what the exporter takes and what

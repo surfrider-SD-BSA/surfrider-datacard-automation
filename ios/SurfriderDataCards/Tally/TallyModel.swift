@@ -38,7 +38,18 @@ struct FlatCell: Identifiable, Hashable {
 }
 
 struct EventForm: Codable, Equatable {
-    var date = ""
+    /// Today, not the empty string.
+    ///
+    /// This was `""`, and it cost an afternoon. The date picker's getter falls
+    /// back to `Date()` when the string will not parse, so the screen showed
+    /// today's date while the model held nothing -- and the setter only fires
+    /// when somebody CHANGES the date. Accept the date already on screen, type
+    /// a beach, and "Scan the cards" stayed disabled with no way to see why,
+    /// because the field it was complaining about looked filled in.
+    ///
+    /// A control must not display a value the model does not have. Defaulting
+    /// here is what makes the two agree from the first frame.
+    var date = DateFormatter.iso.string(from: Date())
     var shoreline = ""
     var volunteers = ""
     var pounds = ""
