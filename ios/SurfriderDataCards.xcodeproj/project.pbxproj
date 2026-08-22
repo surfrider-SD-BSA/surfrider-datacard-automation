@@ -9,19 +9,47 @@
 /* Begin PBXBuildFile section */
 		AA0000000000000000000010 /* CleanupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000A /* CleanupApp.swift */; };
 		AA0000000000000000000011 /* WebAssetSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000B /* WebAssetSchemeHandler.swift */; };
-		AA0000000000000000000012 /* WebScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000C /* WebScreen.swift */; };
 		AA0000000000000000000013 /* web in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000E /* web */; };
 		AA000000000000000000001A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000F /* Assets.xcassets */; };
+		AA0000000000000000000200 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000100 /* Theme.swift */; };
+		AA0000000000000000000201 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000101 /* Components.swift */; };
+		AA0000000000000000000202 /* Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* Engine.swift */; };
+		AA0000000000000000000203 /* TallyModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000103 /* TallyModel.swift */; };
+		AA0000000000000000000204 /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000104 /* Stores.swift */; };
+		AA0000000000000000000205 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000105 /* RootView.swift */; };
+		AA0000000000000000000206 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000106 /* ShareSheet.swift */; };
+		AA0000000000000000000207 /* CleanupsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000107 /* CleanupsScreen.swift */; };
+		AA0000000000000000000208 /* EventScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000108 /* EventScreen.swift */; };
+		AA0000000000000000000209 /* CaptureScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000109 /* CaptureScreen.swift */; };
+		AA000000000000000000020A /* ReadingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010A /* ReadingScreen.swift */; };
+		AA000000000000000000020B /* RefusedScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010B /* RefusedScreen.swift */; };
+		AA000000000000000000020C /* ReviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010C /* ReviewScreen.swift */; };
+		AA000000000000000000020D /* CardsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* CardsScreen.swift */; };
+		AA000000000000000000020E /* FinishScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010E /* FinishScreen.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		AA0000000000000000000005 /* Data Cards.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Data Cards.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000000000000000000000A /* CleanupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupApp.swift; sourceTree = "<group>"; };
 		AA000000000000000000000B /* WebAssetSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAssetSchemeHandler.swift; sourceTree = "<group>"; };
-		AA000000000000000000000C /* WebScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebScreen.swift; sourceTree = "<group>"; };
 		AA000000000000000000000D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000000E /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; path = web; sourceTree = "<group>"; };
 		AA000000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AA0000000000000000000100 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Tally/Theme.swift; sourceTree = "<group>"; };
+		AA0000000000000000000101 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Components.swift; path = Tally/Components.swift; sourceTree = "<group>"; };
+		AA0000000000000000000102 /* Engine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Engine.swift; path = Tally/Engine.swift; sourceTree = "<group>"; };
+		AA0000000000000000000103 /* TallyModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TallyModel.swift; path = Tally/TallyModel.swift; sourceTree = "<group>"; };
+		AA0000000000000000000104 /* Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Stores.swift; path = Tally/Stores.swift; sourceTree = "<group>"; };
+		AA0000000000000000000105 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RootView.swift; path = Tally/RootView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000106 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ShareSheet.swift; path = Tally/ShareSheet.swift; sourceTree = "<group>"; };
+		AA0000000000000000000107 /* CleanupsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CleanupsScreen.swift; path = Tally/Screens/CleanupsScreen.swift; sourceTree = "<group>"; };
+		AA0000000000000000000108 /* EventScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EventScreen.swift; path = Tally/Screens/EventScreen.swift; sourceTree = "<group>"; };
+		AA0000000000000000000109 /* CaptureScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CaptureScreen.swift; path = Tally/Screens/CaptureScreen.swift; sourceTree = "<group>"; };
+		AA000000000000000000010A /* ReadingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ReadingScreen.swift; path = Tally/Screens/ReadingScreen.swift; sourceTree = "<group>"; };
+		AA000000000000000000010B /* RefusedScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RefusedScreen.swift; path = Tally/Screens/RefusedScreen.swift; sourceTree = "<group>"; };
+		AA000000000000000000010C /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ReviewScreen.swift; path = Tally/Screens/ReviewScreen.swift; sourceTree = "<group>"; };
+		AA000000000000000000010D /* CardsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CardsScreen.swift; path = Tally/Screens/CardsScreen.swift; sourceTree = "<group>"; };
+		AA000000000000000000010E /* FinishScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FinishScreen.swift; path = Tally/Screens/FinishScreen.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,7 +83,21 @@
 			isa = PBXGroup;
 			children = (
 				AA000000000000000000000A /* CleanupApp.swift */,
-				AA000000000000000000000C /* WebScreen.swift */,
+				AA0000000000000000000100 /* Theme.swift */,
+				AA0000000000000000000101 /* Components.swift */,
+				AA0000000000000000000102 /* Engine.swift */,
+				AA0000000000000000000103 /* TallyModel.swift */,
+				AA0000000000000000000104 /* Stores.swift */,
+				AA0000000000000000000105 /* RootView.swift */,
+				AA0000000000000000000106 /* ShareSheet.swift */,
+				AA0000000000000000000107 /* CleanupsScreen.swift */,
+				AA0000000000000000000108 /* EventScreen.swift */,
+				AA0000000000000000000109 /* CaptureScreen.swift */,
+				AA000000000000000000010A /* ReadingScreen.swift */,
+				AA000000000000000000010B /* RefusedScreen.swift */,
+				AA000000000000000000010C /* ReviewScreen.swift */,
+				AA000000000000000000010D /* CardsScreen.swift */,
+				AA000000000000000000010E /* FinishScreen.swift */,
 				AA000000000000000000000B /* WebAssetSchemeHandler.swift */,
 				AA000000000000000000000D /* Info.plist */,
 				AA000000000000000000000F /* Assets.xcassets */,
@@ -135,7 +177,21 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0000000000000000000010 /* CleanupApp.swift in Sources */,
-				AA0000000000000000000012 /* WebScreen.swift in Sources */,
+				AA0000000000000000000200 /* Theme.swift in Sources */,
+				AA0000000000000000000201 /* Components.swift in Sources */,
+				AA0000000000000000000202 /* Engine.swift in Sources */,
+				AA0000000000000000000203 /* TallyModel.swift in Sources */,
+				AA0000000000000000000204 /* Stores.swift in Sources */,
+				AA0000000000000000000205 /* RootView.swift in Sources */,
+				AA0000000000000000000206 /* ShareSheet.swift in Sources */,
+				AA0000000000000000000207 /* CleanupsScreen.swift in Sources */,
+				AA0000000000000000000208 /* EventScreen.swift in Sources */,
+				AA0000000000000000000209 /* CaptureScreen.swift in Sources */,
+				AA000000000000000000020A /* ReadingScreen.swift in Sources */,
+				AA000000000000000000020B /* RefusedScreen.swift in Sources */,
+				AA000000000000000000020C /* ReviewScreen.swift in Sources */,
+				AA000000000000000000020D /* CardsScreen.swift in Sources */,
+				AA000000000000000000020E /* FinishScreen.swift in Sources */,
 				AA0000000000000000000011 /* WebAssetSchemeHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

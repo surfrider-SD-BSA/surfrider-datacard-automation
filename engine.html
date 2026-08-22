@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Data card engine</title>
+  </head>
+  <body>
+    <!--
+      The reading pipeline with no user interface, for the iOS app to drive.
+
+      Nobody ever looks at this page. It is loaded into an off-screen WKWebView
+      by Engine.swift, which sends it work and gets JSON back; the interface the
+      volunteer sees is SwiftUI. The body is empty on purpose - anything drawn
+      here would be drawn where no one can see it.
+    -->
+    <script type="module" src="./src/engine.ts"></script>
+  </body>
+</html>

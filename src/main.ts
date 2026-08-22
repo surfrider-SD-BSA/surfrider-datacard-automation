@@ -15,11 +15,13 @@
  * What makes that survivable is that nothing here is presented as an answer.
  * Every filled box is tagged with which reader filled it, sits beside a picture
  * of the handwriting, and is exported as machine-read rather than human-entered
- * so the chapter's own audit column can tell them apart. See `PREFILL_GATE`.
+ * so the chapter's own audit column can tell them apart. See `PREFILL_GATE`
+ * in `lib/prefill.ts`, which is the one place that number lives.
  */
 
 import { loadCellMap, type CellMap } from "./lib/cells";
-import { reconcile, type Reading } from "./lib/reading";
+import type { Reading } from "./lib/reading";
+import { prefillFor, prefillTag } from "./lib/prefill";
 import { decodeModel, type DigitModel } from "./lib/digits";
 import {
   assembleCard,
@@ -557,77 +559,6 @@ function renderCard(card: ExtractedCard): HTMLElement {
   return el;
 }
 
-/**
- * Confidence a reading needs before it is put in a box.
- *
- * ONE NUMBER DECIDES HOW MUCH THIS TOOL RISKS, and it is this one. Raising it
- * pre-fills fewer boxes and gets more of them right; lowering it pre-fills more
- * and gets more of them wrong. The measured cost of each setting is in
- * HANDOFF.md, per bucket, so the chapter can move it on evidence.
- *
- * At 0.80 the tool pre-fills counts of one to four whose ink is fully accounted
- * for -- five boxes of the 453 on the 58-card test scan. The counter only ever
- * sees the 66 cells with tally marks and no number; the other 387 hold
- * handwriting, and reading those is the recognizer's problem, which is off.
- *
- * **What the setting is worth, measured the only way that means anything.**
- * `scripts/audit-prefills.mjs` lists every cell this gate would fill across all
- * twenty-nine page directories and renders it beside its context; all 46 were
- * counted by eye and are kept in `eye-labels/prefill-audit.json`. At 0.80
- * the tool fills 42 of them and **40 are right**. Nothing here is scored on the
- * chapter's spreadsheets, which agree 79.8% and are a lower bound rather than a
- * precision -- a value in a sheet is not proof of what is on the card.
- *
- * That is 95.2%, and it is short of the ~99% this project set as the bar for a
- * pre-fill. It ships at 0.80 because the chapter's owner asked for it after
- * being shown these figures, and because the shortfall is no longer the kind
- * the bar was written for:
- *
- *   - Neither remaining error invents a number out of nothing. Both readings
- *     that returned a count for a row holding no tally at all -- a diagonal
- *     crossing three rows, and the descenders of a word written in the row
- *     above -- are refused now; see `rowEscape` in tally.ts.
- *   - What is left is a count out by one, and a digit written inside a drawn
- *     circle read as three. The 99% bar exists because a recognizer reading
- *     "2" where the card says "21" is wrong by nineteen; the chapter's owner
- *     has said a count out by one or two is tolerable for aggregate debris.
- *   - Every pre-filled box is tagged "counted: check it" in the list and
- *     exported as `recognized` rather than `human`, so a reviewer who trusts it
- *     and a reviewer who corrects it are told apart in the chapter's own audit
- *     column.
- *
- * Set it to 0.95 to pre-fill only single strokes. Set it to 1.1 to turn
- * pre-filling off entirely. Re-run the audit after ANY change to the counter:
- * it is the only instrument here that has ever caught the failure it exists
- * for, and every other one -- the spreadsheet score, both offline diagnostics,
- * the whole test suite -- passed clean through it twice.
- *
- * ---------------------------------------------------------------------------
- * THE HANDWRITING READER IS ON, AND THIS NUMBER IS NOW ALSO ITS GATE.
- *
- * Everything above was written when the tally counter was the only reader, and
- * it still describes the tally side exactly. The digit reader is weaker and the
- * gate is shared, so what this number buys is no longer one thing:
- *
- *   gate   digits answered   right, of those        the tally side
- *   0.90        36%               86%           unchanged from 0.8
- *   0.80        53%               84%           as measured in the audit
- *   0.70        64%               83%
- *   0.60        74%               81%
- *   0.50        82%               78%
- *
- * Set at 0.50 on the chapter owner's instruction, which was to fill as many
- * boxes as possible. That is a deliberate purchase of coverage with accuracy:
- * around one pre-filled number in five is wrong at this setting, against about
- * one in seven at 0.8. Every one of them is tagged "check it" and sits beside a
- * picture of the handwriting, which is the only reason it is defensible.
- *
- * Raise it to 0.8 to go back to roughly one in seven, or set `digitsAlone`
- * false in reading.ts to return to tally-only pre-filling.
- * ---------------------------------------------------------------------------
- */
-const PREFILL_GATE = 0.5;
-
 function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   const row = document.createElement("div");
   row.className = "cell" + (cell.tallyOnly ? " tally-only" : "");
@@ -683,22 +614,9 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   // an empty box next to a legible picture costs one keystroke, and a wrong
   // number costs the chapter's data, because a confident wrong number invites
   // agreement rather than correction.
-  const reading = reconcile(
-    cell.tallyCount === null ? null : { value: cell.tallyCount, confidence: cell.tallyConfidence },
-    cell.digitValue === null ? null : { value: cell.digitValue, confidence: cell.digitConfidence },
-  );
-  const prefill = reading && reading.confidence >= PREFILL_GATE ? reading : null;
+  const prefill = prefillFor(cell);
   if (prefill) {
-    // Say WHICH reader spoke, because they are not worth the same and the
-    // reviewer is entitled to know which claim they are being asked to check.
-    // "read" is the weakest of the three and is named differently on purpose.
-    const how =
-      prefill.source === "digits"
-        ? "read: check it"
-        : prefill.source === "agreed"
-          ? "counted twice: check it"
-          : "counted: check it";
-    label.innerHTML += ` &middot; <span class="tag counted">${how}</span>`;
+    label.innerHTML += ` &middot; <span class="tag counted">${prefillTag(prefill.source)}</span>`;
     row.classList.add("prefilled");
   }
 

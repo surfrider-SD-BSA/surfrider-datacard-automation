@@ -23,6 +23,41 @@ final class WebAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "cleanup"
     static let host = "app"
 
+    /// Where a scan is put so the page can `fetch()` it.
+    ///
+    /// The engine needs the PDF and the PDF is tens of megabytes. Handing it
+    /// over as base64 through `evaluateJavaScript` means the whole scan as a
+    /// JavaScript string literal, parsed by JavaScriptCore, on a phone. This
+    /// serves it as a resource instead: Swift stages the file under a
+    /// one-shot token, the page fetches `/__inbox/<token>`, and the entry is
+    /// removed as soon as the read is done.
+    ///
+    /// A token rather than a path so that nothing outside this map is
+    /// reachable, whatever the page asks for.
+    private static let inboxPrefix = "/__inbox/"
+    private static let inboxLock = NSLock()
+    nonisolated(unsafe) private static var inbox: [String: URL] = [:]
+
+    static func stage(_ url: URL) -> String {
+        let token = UUID().uuidString
+        inboxLock.lock()
+        inbox[token] = url
+        inboxLock.unlock()
+        return token
+    }
+
+    static func unstage(_ token: String) {
+        inboxLock.lock()
+        inbox.removeValue(forKey: token)
+        inboxLock.unlock()
+    }
+
+    private static func staged(_ token: String) -> URL? {
+        inboxLock.lock()
+        defer { inboxLock.unlock() }
+        return inbox[token]
+    }
+
     /// The `web` folder inside the app bundle: a copy of `dist/`.
     private let root: URL
 
@@ -44,6 +79,18 @@ final class WebAssetSchemeHandler: NSObject, WKURLSchemeHandler {
         var path = url.path
         if path.isEmpty || path == "/" { path = "/index.html" }
 
+        // A staged scan, if that is what was asked for. Not a bundle path, so
+        // it is answered before the bundle is consulted at all.
+        if path.hasPrefix(Self.inboxPrefix) {
+            let token = String(path.dropFirst(Self.inboxPrefix.count))
+            guard let file = Self.staged(token), let data = try? Data(contentsOf: file) else {
+                Self.respondNotFound(url: url, task: task)
+                return
+            }
+            Self.respond(url: url, data: data, mimeType: "application/pdf", cache: "no-store", task: task)
+            return
+        }
+
         // Refuse anything that climbs out of the bundle. Nothing in the app
         // constructs such a path, which is exactly why it should be impossible
         // rather than merely unused.
@@ -55,27 +102,35 @@ final class WebAssetSchemeHandler: NSObject, WKURLSchemeHandler {
 
         guard let data = try? Data(contentsOf: resolved) else {
             // A real 404 rather than a failure, so the page's own fallbacks run.
-            // `loadDigitModel` in main.ts checks res.ok and drops to tally-only
-            // reading; a transport error would throw instead.
-            let response = HTTPURLResponse(
-                url: url, statusCode: 404, httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Type": "text/plain"]
-            )!
-            task.didReceive(response)
-            task.didReceive(Data("not found".utf8))
-            task.didFinish()
+            // `loadDigitModel` checks res.ok and drops to tally-only reading; a
+            // transport error would throw instead.
+            Self.respondNotFound(url: url, task: task)
             return
         }
 
+        // The bundle is immutable for the life of an install.
+        Self.respond(
+            url: url,
+            data: data,
+            mimeType: Self.mimeType(for: resolved.pathExtension),
+            cache: "public, max-age=31536000, immutable",
+            task: task
+        )
+    }
+
+    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
+
+    private static func respond(
+        url: URL, data: Data, mimeType: String, cache: String, task: WKURLSchemeTask
+    ) {
         let response = HTTPURLResponse(
             url: url,
             statusCode: 200,
             httpVersion: "HTTP/1.1",
             headerFields: [
-                "Content-Type": Self.mimeType(for: resolved.pathExtension),
+                "Content-Type": mimeType,
                 "Content-Length": String(data.count),
-                // The bundle is immutable for the life of an install.
-                "Cache-Control": "public, max-age=31536000, immutable",
+                "Cache-Control": cache,
             ]
         )!
         task.didReceive(response)
@@ -83,7 +138,15 @@ final class WebAssetSchemeHandler: NSObject, WKURLSchemeHandler {
         task.didFinish()
     }
 
-    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
+    private static func respondNotFound(url: URL, task: WKURLSchemeTask) {
+        let response = HTTPURLResponse(
+            url: url, statusCode: 404, httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "text/plain"]
+        )!
+        task.didReceive(response)
+        task.didReceive(Data("not found".utf8))
+        task.didFinish()
+    }
 
     static func mimeType(for ext: String) -> String {
         switch ext.lowercased() {

@@ -34,10 +34,15 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = process.argv[2] ?? join(ROOT, "dist");
 
 /**
- * Vite's own output: `index.html` plus hashed bundles under `assets/`. These
- * are compiled from source, so they carry no data of their own.
+ * Vite's own output: the two entry pages plus hashed bundles under `assets/`.
+ * These are compiled from source, so they carry no data of their own.
+ *
+ * `engine.html` is the headless pipeline the iOS app drives (src/engine.ts).
+ * It is listed by name, like everything else here, rather than by loosening
+ * the pattern to any .html -- the whole argument below is that a file type
+ * tells you nothing about whether the contents are somebody's data.
  */
-const BUILD_OUTPUT = /^(index\.html|assets\/[^/]+\.(js|mjs|css|map))$/;
+const BUILD_OUTPUT = /^(index\.html|engine\.html|assets\/[^/]+\.(js|mjs|css|map))$/;
 
 /**
  * Everything else the published site may contain, by exact path.

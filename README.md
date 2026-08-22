@@ -78,6 +78,14 @@ npm run dev      # then open the printed URL and drop in a scanned PDF
 `npm test` runs the suite; `npm run build` produces a static bundle in `dist/` that can be opened
 from a file share or hosted anywhere, since there is no back end.
 
+### On a phone
+
+`ios/` is **Tally**, a SwiftUI app that does the same job one cell at a time on a thumb-sized
+keypad rather than as a 453-row list. It is native only in its interface: the reading runs in the
+same `src/lib/` modules, headless, so there is one implementation and one set of measurements.
+See [ios/README.md](ios/README.md). Photographing the cards is not switched on — the pipeline
+wants 200 DPI on the card's short edge and nobody has measured a phone camera against that yet.
+
 ### Requirements
 
 - Node 20 or later, to build and to run the dev server
