@@ -289,11 +289,22 @@ final class TallyModel: ObservableObject {
 
     func press(_ key: String) {
         guard let current else { return }
+
+        // A box the tool filled is REPLACED by the first digit, not appended to.
+        //
+        // The desktop tool puts its readings in a text field, where typing over
+        // one is what a text field does. Here the number is on a keypad, and
+        // appending to a pre-filled 14 gives 143 -- so correcting the tool's
+        // guess would mean spotting that you have to clear it first, on the one
+        // screen where the whole job is correcting the tool's guesses.
+        let replacingMachineReading = untouched[current.key] != nil
+
         switch key {
         case "C": entry = ""
-        case "<": entry = String(entry.dropLast())
-        default: entry = String((entry + key).prefix(4))
+        case "<": entry = replacingMachineReading ? "" : String(entry.dropLast())
+        default: entry = String(((replacingMachineReading ? "" : entry) + key).prefix(4))
         }
+
         // The moment a person touches the keypad this box is theirs, however it
         // started out, and the export stops calling it a machine reading.
         untouched.removeValue(forKey: current.key)
