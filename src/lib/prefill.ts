@@ -181,16 +181,22 @@ export const PREFILL_GATE = 0;
  *   thresh   test-long      pacific-3.22    imperial-1.18   what it is
  *            (453 cells)    (632 cells)     (450 cells)
  *   0.90       0   0.0%       0   0.0%        0   0.0%      nothing reaches it
- *   0.86      70  15.5%     339  53.6%      256  56.9%      digits at their cap
- *   0.80     125  27.6%     361  57.1%      280  62.2%
- *   0.75     158  34.9%     379  60.0%      296  65.8%   <- here
+ *   0.86      71  15.7%     335  53.0%      257  57.1%      digits at their cap
+ *   0.80     127  28.0%     358  56.6%      274  60.9%
+ *   0.75     162  35.8%     378  59.8%      297  66.0%   <- here
  *
- * The reviewer is left 295, 253 and 154 cells to check on those three scans,
+ * The reviewer is left 291, 254 and 153 cells to check on those three scans,
  * down from 453, 632 and 450.
  *
+ * Re-measured 22 Aug 2026 after the rotation and size variants went into
+ * `matchVariants`. The numbers moved by a few cells each way and the shape of
+ * the decision did not: the recognizer answers slightly more cells at the same
+ * precision, so the gate hides four more on test-long and one more on 1.18
+ * Imperial, and six fewer on 3.22 Pacific.
+ *
  * WHAT IT COSTS, and this is the part to read before moving it further. Almost
- * everything hidden at 0.75 is the DIGIT reader on its own -- 149 of the 158,
- * 373 of the 379, 293 of the 296. Not one "agreed" reading clears the threshold
+ * everything hidden at 0.75 is the DIGIT reader on its own -- 153 of the 162,
+ * 372 of the 378, 294 of the 297. Not one "agreed" reading clears the threshold
  * on any of the three scans, because agreement needs both readers to answer the
  * same cell and the tally counter answers 11, 7 and 3 of them. So this is not a
  * threshold that hides the readings two independent readers confirmed. It hides
@@ -199,8 +205,10 @@ export const PREFILL_GATE = 0;
  * That reader's measured precision, leave-one-event-out over 3,325 labelled
  * digits, is 86% where it is MOST confident and 84% in the band just below --
  * the table is in HANDOFF.md. Roughly one hidden number in six or seven is
- * wrong, which is about 25, 60 and 47 wrong values per scan, and each one now
- * reaches the spreadsheet unseen. They are still exported as `recognized` with
+ * wrong, which is about 26, 60 and 47 wrong values per scan, and each one now
+ * reaches the spreadsheet unseen. The 22 Aug 2026 variants raised the number of
+ * cells the reader answers without changing that rate, so they bought coverage
+ * and not safety: the count of wrong hidden values is essentially where it was. They are still exported as `recognized` with
  * their confidence rather than as `human`, so the chapter's audit column can
  * find them afterwards; that is the only remaining defence, and it is an
  * after-the-fact one.

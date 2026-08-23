@@ -11,10 +11,11 @@
  * after any change to the preparation in train-digits.mjs, or the sweep will
  * be measuring the old comparison.
  *
- * NOTE the figures here sit about 1.6 points below the ones train-digits.mjs
+ * NOTE the figures here sit a few points below the ones train-digits.mjs
  * prints, and that is deliberate rather than drift: the trainer also tries the
- * query at nine one-pixel offsets, which is worth roughly that much and cannot
- * be replayed from a cache of fixed distances. Use this script for the SHAPE of
+ * query in the 45 forms `matchVariants` allows -- nine offsets of five warps --
+ * which is worth roughly that much and cannot be replayed from a cache of
+ * fixed distances. Use this script for the SHAPE of
  * the precision/coverage trade and the trainer for the headline number.
  *
  * Measured leave-one-SCAN-out, like everything else here: an event the model
@@ -30,7 +31,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadTrainingSet, distance } from "./train-digits.mjs";
+// `distance` comes from the library and not from train-digits.mjs, which
+// imports it without re-exporting it -- an ESM import is not a re-export, so
+// this script could not start at all.
+import { distance } from "../src/lib/digits.ts";
+import { loadTrainingSet } from "./train-digits.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = join(ROOT, "out", "digit-neighbours.json");

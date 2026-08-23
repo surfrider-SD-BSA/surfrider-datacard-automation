@@ -824,7 +824,50 @@ and punishes a writer's slant harder than either.
   + deskew and recentre                 67.3%           84.7% @ 35%
   + 3x3 blur                            68.4%           85.4% @ 35%
   + nine one-pixel query offsets        70.0%           86.0% @ 37%
+  + rotation and size (22 Aug 2026)     71.4%           86.0% @ 38%
 ```
+
+**The last row continues the same idea and is the 22 Aug 2026 change.** The nine
+offsets let a query move; `matchVariants` now also lets it turn +/-8 degrees and
+change size by +/-10%, which is 45 forms of every query. Precision holds at the
+top gate and coverage rises at every threshold -- 1,203 digits answered there to
+1,261, and whole cells right 804/938 to 842/975.
+
+```
+  measured, leave-one-event-out, 3,325 digits, K=5
+                              accuracy   at conf >= 0.90    whole cells
+    nine offsets                70.0%    1203 at 86.0%     804/938  85.7%
+    + rotation +/-8 only        70.6%    1231 at 86.2%     821/957  85.8%
+    + size +/-10% only          71.3%    1224 at 85.9%     815/943  86.4%
+    + both, which is shipped    71.4%    1261 at 86.0%     842/975  86.4%
+```
+
+Three things measured on the way that are worth not repeating:
+
+- **Wider is worse.** +/-16 degrees and 0.85-1.20 in size gives 70.9%. A
+  tolerance wide enough to carry a 1 onto a 7 buys the confusion it avoids.
+- **Size matters more than tilt, because of `prepare` rather than the
+  handwriting.** It recentres by centre of mass and shears by second moment, so
+  translation and slant are largely gone before a variant is tried; nothing in
+  it normalizes SIZE. On a synthetic straight stroke the offsets and the tilt
+  buy exactly zero and only the size warp closes the gap -- pinned in
+  `tests/digits.test.ts`, which is the first test coverage `digits.ts` has had.
+- **On the query, not the exemplars.** Warping all 3,325 exemplars instead
+  scores 71.6%, two tenths better, and multiplies the search -- the 3,325-
+  comparison part, not the 25 -- by five. On a phone that is the whole cost.
+
+Two things that were tried in the same session and are NOT in the code:
+
+- **Label-noise editing (Wilson).** Drop every exemplar whose own nearest
+  neighbours from other events disagree with its label -- it removes 34-36% of
+  the set and costs 1.0 to 1.5 points of accuracy at every k tried. The labels
+  come from spreadsheets and are known to be imperfect, so this looked obvious;
+  what it actually removes is the hard-but-correct digits.
+- **A distance-ratio confidence.** Score the winner by how much closer it is
+  than the nearest exemplar of any OTHER class, rather than by its share of the
+  poll. Far worse: 258 digits answerable at 90% precision becomes 36. Note this
+  is not the same as the "margin" rule already ruled out above, which is a
+  margin over vote weights; both fail.
 
 Coverage rose at every threshold as well, so this is not a precision-for-
 coverage trade: at the 0.80 gate it is 49% -> 54% of digits answered. All three
@@ -844,6 +887,27 @@ confidence rules.** This is the table to quote when someone asks for a number:
    100%                  --                             NO, at any setting
 ```
 
+**Re-measured 22 Aug 2026 with the rotation and size variants**, over the same
+protocol -- most digits answerable at the target, best over K and pool size --
+and this table moved for the first time:
+
+```
+  target precision    nine offsets          45 forms (shipped)
+    80%               2627  (79.0%)         2707  (81.4%)
+    90%                615  (18.5%)          860  (25.9%)
+    95%               not reachable         not reachable
+```
+
+Forty per cent more digits can be answered at 90% precision than before. **95%
+is still not reachable at any setting**, so the paragraph below stands
+unchanged: no confidence gate isolates a clean subset, and the honest routes
+past it remain better cutting and then a convolutional net.
+
+NOTE these two tables are not directly comparable to each other: the second
+sweeps pool size as well and re-scores with the query variants, which the
+cached-distance sweep in `sweep-digit-rules.mjs` cannot replay. Compare the
+columns within the second table, which are like for like.
+
 Precision above 90% is not a threshold that has not been found; it does not
 exist on this data with this model. Even the digits where all twenty-five
 nearest neighbours agree contain errors, so no confidence gate can isolate a
@@ -852,14 +916,21 @@ points away and is not reachable by tuning.** The honest routes are better
 cutting first (item 2 of the brief) and then a convolutional net, in that
 order, because a classifier cannot read a digit that was never cut out.
 
-**None of this is in the shipping app.** `src/main.ts` calls
-`reconcile(tally, null)`: the digit reader is passed as `null` and
-`assets/reference/digit-model.json` is written by the trainer and read by
-nothing. The recognizer is offline research, the README is right that the tool
-does not read handwriting, and the five pre-filled cells on the test scan all
-come from the tally counter. Improving these numbers changes what a volunteer
-sees only after the model is emitted, shipped and wired in, which is a separate
-piece of work with its own asset-size and `check-dist` consequences.
+**This is no longer offline research, and that changes what these numbers
+mean.** The paragraph here used to say the recognizer was not wired in --
+`src/main.ts` passing `null` and the model read by nothing. It is wired in now:
+`loadDigitModel` fetches `assets/reference/digit-model.json`, and with
+`AUTO_ACCEPT` at 0.75 a digit-only reading above that confidence is never shown
+to anybody. On the three measured scans that is 162, 297 and most of what the
+gate hides -- see the table beside `AUTO_ACCEPT` in `src/lib/prefill.ts`.
+
+So precision here is not a research figure any more. It is the rate at which
+wrong numbers reach the chapter's spreadsheet unseen, and the 86% at the top
+gate means roughly one hidden value in seven. The variants above improve
+coverage at a flat precision, which makes the tool fill more and be wrong at
+the same rate -- an improvement, and NOT progress towards the ~99% the design
+argued for. Set `AUTO_ACCEPT` above 1 to put every reading back in front of a
+person.
 
 
 ### The hollow test was throwing away legible digits, and it was guarding nothing

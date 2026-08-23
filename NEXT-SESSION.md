@@ -17,6 +17,42 @@ This file is only what is still open.
 
 ---
 
+## What changed 22 Aug 2026
+
+- **The recognizer compares digits in 45 forms instead of 9, and it is worth
+  1.4 points.** `matchVariants` in `digits.ts` now tries every query at nine
+  one-pixel offsets of five warps -- upright, +/-8 degrees, +/-10% in size.
+
+  ```
+                          accuracy    at conf >= 0.90        whole cells
+    before                  70.0%     1203 at 86.0%        804/938  85.7%
+    after                   71.4%     1261 at 86.0%        842/975  86.4%
+  ```
+
+  Coverage rises at every threshold with precision flat, which is the shape
+  every accepted change here has had. **The reachable-precision table moved for
+  the first time**: 90% precision now costs all but 25.9% of the digits rather
+  than 18.5% on the same protocol. 95% is still not reachable at any setting.
+
+- **Size turned out to matter more than tilt, and the reason is in `prepare`.**
+  It recentres and deskews, so translation and slant are mostly gone before a
+  variant is tried; nothing normalizes size. `tests/digits.test.ts` pins that --
+  and is the first test coverage `digits.ts` has ever had.
+
+- **Two things measured and thrown away**, both recorded in `HANDOFF.md` so they
+  are not tried a third time: Wilson label-noise editing (removes a third of the
+  set, costs 1.0-1.5 points) and a distance-ratio confidence (much worse than
+  share-of-vote -- 258 digits answerable at 90% becomes 36).
+
+- **`sweep-digit-rules.mjs` could not start** and had not been able to for some
+  time: it imported `distance` from `train-digits.mjs`, which imports it without
+  re-exporting it. Fixed to import from the library. Worth knowing that the
+  script HANDOFF tells you to run for the reachable table was dead.
+
+- Still true, and the thing to weigh next: this is coverage, not safety. With
+  `AUTO_ACCEPT` at 0.75 the extra cells the reader now answers go into the
+  spreadsheet unseen at the same ~86% precision.
+
 ## What changed 19 Aug 2026
 
 - **The regeneration item was disproved and closed.** See item 1. It had been
