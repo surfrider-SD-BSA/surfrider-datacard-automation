@@ -80,6 +80,18 @@ the shape test, against roughly 4,800 on the cards. Every one of the 453 arrives
 and counted by eye before the feature was switched on — 46 across every scan the chapter has,
 and it is right on 40 of the 42 it fills.
 
+### What the spreadsheet looks like
+
+[`docs/sample-export.xlsx`](docs/sample-export.xlsx) is a filled sheet from a cleanup
+that never happened — invented counts on the chapter's real template, and the only
+workbook in this repository that carries nobody's data. Open it to see what the tool
+produces, including the provenance sheet that records which values a person typed and
+which the tool read. Regenerate it with:
+
+```sh
+npx vite-node scripts/export-workbook.mjs -- --sample
+```
+
 ### Checking a change against a real scan
 
 `scripts/export-workbook.mjs` takes a rasterized scan all the way to a filled

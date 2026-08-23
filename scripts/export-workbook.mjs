@@ -19,6 +19,12 @@
  *
  * Takes directory names under out/pages, or paths. Writes out/<name>.xlsx.
  *
+ * With `--sample` it reads no scan at all and writes docs/sample-export.xlsx
+ * from invented counts. That file IS committed, because it is the one workbook
+ * here that carries nobody's data: it exists so that anyone -- a chapter
+ * deciding whether to use this, someone reviewing a change to the export -- can
+ * open a filled sheet and see the totals without having a scan to hand.
+ *
  * WHAT IT WRITES IS VOLUNTEER DATA. `out/` is gitignored for that reason and
  * the file this produces must stay there; see the note at the foot of
  * .gitignore about `assets/` being copied into every build verbatim.
@@ -55,9 +61,65 @@ const targets = referenceTargets({ front: decodePng(join(REF, "blank-front.png")
 const model = decodeModel(JSON.parse(readFileSync(join(REF, "digit-model.json"), "utf8")));
 const template = new Uint8Array(readFileSync(join(ROOT, "assets", "template", "data-entry-template.xlsx")));
 
+/**
+ * A cleanup that never happened, in the shape of one that did.
+ *
+ * Invented counts on real taxonomy rows: five volunteers, the items a San Diego
+ * beach actually turns up, and the sort of distribution a real card has -- one
+ * volunteer who found most of the cigarette butts, several who found none of
+ * anything unusual. The point is that the sheet it produces LOOKS like the
+ * chapter's, so that a totals column reading 0 is obvious in it.
+ *
+ * Confidences vary the way the tool's do, and one value per card is marked
+ * corrected, so the provenance sheet shows both kinds side by side.
+ */
+function sampleCards() {
+  const perCard = [
+    [[18, 46, 0.99, false], [19, 3, 0.86, false], [27, 12, 0.42, true], [32, 8, 0.86, false], [80, 2, 0.1, false]],
+    [[18, 100, 0.97, false], [20, 1, 0.3, false], [27, 9, 0.86, false], [36, 11, 0.61, true]],
+    [[18, 12, 0.86, false], [26, 4, 0.8, false], [31, 22, 0.86, false], [59, 1, 0, false]],
+    [[18, 7, 0.86, false], [21, 2, 0.86, false], [44, 1, 0, false], [96, 3, 0.75, true]],
+    [[18, 31, 0.99, false], [30, 15, 0.86, false], [53, 6, 0.86, false], [107, 4, 0.8, false]],
+  ];
+  return perCard.map((values, i) => ({
+    cardNumber: i + 1,
+    pageNumbers: [i * 2 + 1, i * 2 + 2],
+    cardType: i === 2 ? "tally" : "total",
+    values: values.map(([row, value, confidence, corrected]) => ({ row, value, confidence, corrected })),
+  }));
+}
+
+function writeSample() {
+  const cards = sampleCards();
+  const bytes = fillTemplate(template, {
+    sourcePdfName: "sample-not-a-real-cleanup.pdf",
+    generatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    event: {
+      date: "2026-01-01",
+      shoreline: "Sample Beach (no such cleanup)",
+      volunteers: cards.length,
+      pounds: 85,
+      durationHours: 2,
+      dataEntryVolunteer: "Sample",
+      club: "Surfrider San Diego (CH54)",
+    },
+    cards,
+  });
+  mkdirSync(join(ROOT, "docs"), { recursive: true });
+  const outPath = join(ROOT, "docs", "sample-export.xlsx");
+  writeFileSync(outPath, bytes);
+  const values = cards.reduce((n, c) => n + c.values.length, 0);
+  console.log(`sample: ${cards.length} cards, ${values} invented values -> docs/sample-export.xlsx`);
+}
+
 const args = process.argv.slice(2);
+if (args.includes("--sample")) {
+  writeSample();
+  process.exit(0);
+}
 if (args.length === 0) {
   console.error("usage: npx vite-node scripts/export-workbook.mjs -- <page-dir> [more...]");
+  console.error("       npx vite-node scripts/export-workbook.mjs -- --sample");
   process.exit(1);
 }
 

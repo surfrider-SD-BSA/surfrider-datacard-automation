@@ -462,3 +462,66 @@ describe("column B totals", () => {
     expect(rowTotals(buildCellEdits(baseInput)).has("B107")).toBe(false);
   });
 });
+
+/**
+ * The sample workbook that ships in the repository.
+ *
+ * `docs/sample-export.xlsx` exists so that anybody can open a filled sheet
+ * without having a scan -- the only workbook here that carries nobody's data.
+ * A committed file goes stale silently, and the way it would go stale is
+ * exactly the bug it was added to make visible: totals cached at 0 while the
+ * columns beside them hold counts.
+ *
+ * So rather than pin its bytes, which would fail on every unrelated change to
+ * the export, this checks the file against itself: every total it displays must
+ * equal the row it claims to sum. Regenerate with
+ * `npx vite-node scripts/export-workbook.mjs -- --sample`.
+ */
+describe("the committed sample workbook", () => {
+  const SAMPLE_PATH = fileURLToPath(new URL("../docs/sample-export.xlsx", import.meta.url));
+  const sheet = new TextDecoder().decode(
+    unzipSync(new Uint8Array(readFileSync(SAMPLE_PATH)))["xl/worksheets/sheet1.xml"]!,
+  );
+
+  /** Every cell in the sheet, as ref -> body. Linear scan; the file is one string. */
+  const cells = new Map<string, string>();
+  for (const chunk of sheet.split("<c ").slice(1)) {
+    const end = chunk.indexOf("</c>");
+    const ref = /^r="([A-Z]+\d+)"/.exec(chunk);
+    if (ref) cells.set(ref[1]!, end === -1 ? chunk : chunk.slice(0, end));
+  }
+
+  const colIndex = (name: string) => [...name].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+  const cached = (body: string) => {
+    const m = /<v>([^<]*)<\/v>/.exec(body);
+    return m ? Number(m[1]) : null;
+  };
+
+  it("shows a total for every formula row that equals that row", () => {
+    let checked = 0;
+    for (const [ref, body] of cells) {
+      const m = /^B(\d+)$/.exec(ref);
+      if (!m || !body.includes("<f")) continue;
+      const row = m[1]!;
+      let sum = 0;
+      for (const [other, otherBody] of cells) {
+        const om = /^([A-Z]+)(\d+)$/.exec(other);
+        if (!om || om[2] !== row || otherBody.includes("<f")) continue;
+        const col = colIndex(om[1]!);
+        if (col < 3 || col > colIndex("BZ")) continue;
+        sum += cached(otherBody) ?? 0;
+      }
+      expect(cached(body), `B${row} is stale -- regenerate the sample`).toBe(sum);
+      checked++;
+    }
+    expect(checked).toBe(83);
+  });
+
+  it("still holds its shared formulas", () => {
+    expect(sheet.split('t="shared"').length - 1).toBe(83);
+  });
+
+  it("has counts in it, so a zeroed totals column would be visible", () => {
+    expect(cached(cells.get("B18")!)).toBeGreaterThan(0);
+  });
+});

@@ -9,6 +9,19 @@ count as breaking.
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/export-workbook.mjs`** — a scan all the way to a filled spreadsheet
+  without a browser. The other instruments stop at the readings; this one writes
+  the file, which is the step the totals bug below hid in. It reports what the
+  sheet is made of: for the 58-card test scan, 453 values of which 146 are
+  placeholders and 158 were never shown to anyone.
+- **`docs/sample-export.xlsx`** — a filled sheet from a cleanup that never
+  happened, generated with `--sample`. The one workbook here that carries
+  nobody's data, so it can be committed and opened by anyone deciding whether
+  this tool is worth using. A test checks every total in it against the row it
+  sums, so it cannot go quietly stale.
+
 ### Fixed
 
 - **The totals column read 0 on a phone.** Column B holds `SUM(Cn:BZn)` and, in
