@@ -11,6 +11,25 @@ count as breaking.
 
 ### Changed
 
+- **Two readings the readers used to throw away are now offered as guesses**, on
+  the chapter owner's instruction that every box arrive filled in. Readings
+  offered per scan go from 278 to 307, 452 to 468, and 380 to 393; both are
+  worth far too little to clear auto-accept, so every one is put in front of a
+  person.
+  - A tally strip the counter refused **after** finding strokes -- not parallel,
+    unexplained ink, ragged groups -- is counted as strokes plus crossbars at
+    0.1. `salvageCount` in tally.ts. Two declines are not salvaged: anything
+    with no strokes at all, where there is nothing to count, and "ink continues
+    past the row", where the count belongs to a different debris item and a
+    reviewer looking at the picture could not tell.
+  - A TOTAL box that segments into more than three pieces used to be refused;
+    it is now read as the three tallest, left to right, capped at 0.3. Rare --
+    2 cells of 450 on 1.18 Imperial, none on the 58-card scan.
+  - **What is still blank cannot be guessed at**: 146, 164 and 57 cells per scan
+    where the box holds ink but nothing digit-shaped segments out of it, or the
+    strip has no strokes. Filling those means inventing a number, which is a
+    different thing from reading one wrongly.
+
 - **Most cells are no longer shown to anyone.** On the chapter owner's
   instruction, a reading of 0.75 confidence or better is taken as the answer
   and its cell is dropped from the review list — there is no control anywhere

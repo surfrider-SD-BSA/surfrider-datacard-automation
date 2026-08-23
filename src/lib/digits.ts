@@ -638,11 +638,29 @@ export function readDigits(
   model: DigitModel,
 ): { value: number; confidence: number } | null {
   const boxes = segmentDigits(img);
-  if (boxes.length === 0 || boxes.length > 3) return null;
+  if (boxes.length === 0) return null;
+
+  // More than three pieces used to be refused outright. It is now read as the
+  // three tallest, left to right, on the chapter owner's instruction to fill
+  // every box it can.
+  //
+  // A total on this card is one to three digits, so a fourth piece is a speck,
+  // a stray mark, or one digit that came apart -- and height is what separates
+  // those from the digits, since a hand writes them all the same size. It is a
+  // guess either way: dropping the wrong piece turns 105 into 10. So it is
+  // capped hard below, and it is rare -- 2 cells of 450 on 1.18 Imperial, none
+  // on the 58-card test scan.
+  const tooMany = boxes.length > 3;
+  const use = tooMany
+    ? [...boxes]
+        .sort((a, b) => b.maxY - b.minY - (a.maxY - a.minY))
+        .slice(0, 3)
+        .sort((a, b) => a.minX - b.minX)
+    : boxes;
 
   let text = "";
   let worst = 1;
-  for (const box of boxes) {
+  for (const box of use) {
     const { label, confidence } = classifyDigit(normalizeDigit(img, box), model);
     if (label === null) return null;
     text += String(label);
@@ -651,8 +669,14 @@ export function readDigits(
 
   const value = Number(text);
   if (!Number.isFinite(value)) return null;
-  return { value, confidence: worst };
+  // A number assembled from a guess about which pieces are digits is worth less
+  // than the worst digit in it, whatever the classifier says. Unmeasured, and
+  // deliberately far below `AUTO_ACCEPT` so it is always shown.
+  return { value, confidence: tooMany ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst };
 }
+
+/** Ceiling on a reading assembled from more pieces than a number can have. */
+export const OVERSEGMENTED_CONFIDENCE = 0.3;
 
 /** The shipped model's on-disk shape: raw 0-255 bytes, base64 per exemplar. */
 interface EncodedModel {

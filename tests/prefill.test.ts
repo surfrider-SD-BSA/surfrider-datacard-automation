@@ -10,6 +10,8 @@
 import { describe, expect, it } from "vitest";
 
 import { AUTO_ACCEPT, PREFILL_GATE, autoAcceptFor, isAutoAccepted, prefillFor } from "../src/lib/prefill";
+import { OVERSEGMENTED_CONFIDENCE } from "../src/lib/digits";
+import { SALVAGE_CONFIDENCE } from "../src/lib/tally";
 import { RECONCILE_DEFAULTS, type Reading } from "../src/lib/reading";
 import type { ExtractedCell } from "../src/lib/extract";
 
@@ -69,6 +71,21 @@ describe("isAutoAccepted", () => {
     // list, that is a large change in what the tool claims and this should
     // fail rather than pass quietly.
     expect(isAutoAccepted(reading(RECONCILE_DEFAULTS.digitsConfidence))).toBe(true);
+  });
+});
+
+describe("the guessed readings", () => {
+  // Both were added to fill boxes the readers used to leave empty, and neither
+  // has been scored against eye labels. Whatever else moves, they must stay
+  // under the threshold that decides who sees a cell.
+  it("never clear the auto-accept threshold", () => {
+    expect(SALVAGE_CONFIDENCE).toBeLessThan(AUTO_ACCEPT);
+    expect(OVERSEGMENTED_CONFIDENCE).toBeLessThan(AUTO_ACCEPT);
+  });
+
+  it("still clear the gate, which is what puts them in a box", () => {
+    expect(SALVAGE_CONFIDENCE).toBeGreaterThan(PREFILL_GATE);
+    expect(OVERSEGMENTED_CONFIDENCE).toBeGreaterThan(PREFILL_GATE);
   });
 });
 

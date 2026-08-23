@@ -89,6 +89,13 @@ export interface TallyReading {
   confidence: number;
 }
 
+/**
+ * Named because two places depend on it: the decline itself, and `salvageCount`,
+ * which refuses to guess from it. A typo in either would silently start putting
+ * one row's tally against another row's item.
+ */
+const ROW_ESCAPE_REASON = "ink continues past the row";
+
 const DECLINE = (reason: string, extra: Partial<TallyReading> = {}): TallyReading => ({
   count: null,
   reason,
@@ -1178,7 +1185,7 @@ export function countTally(
   // a smaller tally, it is the remains of something else. See `rowEscape`.
   const escape = Math.round((frame.stripBottom - frame.stripTop) * o.rowEscape);
   if (escape > 0 && strokes.some((s) => rowOverrun(s, whole, frame, o) >= escape)) {
-    return DECLINE("ink continues past the row", state());
+    return DECLINE(ROW_ESCAPE_REASON, state());
   }
 
   // Near-parallel, or it is not a tally. Tilt is measured from vertical so that
@@ -1256,6 +1263,52 @@ export function countTally(
       explained,
     ),
   };
+}
+
+/**
+ * What a declined strip is worth as a guess, which is very little.
+ *
+ * Low on purpose and low in absolute terms: `PREFILL_GATE` is 0 so this reaches
+ * a box, and it is nowhere near `AUTO_ACCEPT`, so a salvaged count is always
+ * put in front of a person. Nothing here has been scored against eye labels --
+ * these are by definition the strips the counter's own structural tests threw
+ * out, and their precision is unmeasured.
+ */
+export const SALVAGE_CONFIDENCE = 0.1;
+
+/**
+ * A count from a strip the counter refused, or null where there is nothing to
+ * count.
+ *
+ * The chapter owner asked for every box to arrive filled in, wrong or not, and
+ * this is the honest half of that: some declines throw away a real stroke
+ * count. `countTally` finds strokes, then rejects the strip because the
+ * structure does not hold up -- the strokes are not parallel, the ink is not
+ * all accounted for, the groups are ragged. In every one of those the strokes
+ * were found and counted; what failed was the check on whether they are a
+ * tally. Adding them up is a guess, and it is a guess made of something.
+ *
+ * Two declines are NOT salvaged, and the difference matters:
+ *
+ *   - Anything with no strokes at all -- "no ink", "no strokes", "too dense",
+ *     "runs off the strip". There is no count to hand over, only a number
+ *     somebody would have to invent.
+ *   - "ink continues past the row", which is not a weak reading of THIS row. A
+ *     stroke that runs past the row boundary says the crop is showing
+ *     something else -- a diagonal across the card, the descenders of a word
+ *     written above -- and counting it attaches a plausible number to the wrong
+ *     debris item. A wrong guess a reviewer can see is one thing; a right-
+ *     looking number on the wrong line is the failure `rowEscape` exists for,
+ *     and the prefill audit is the only instrument that has ever caught it.
+ */
+export function salvageCount(reading: TallyReading): { value: number; confidence: number } | null {
+  if (reading.count !== null) return null;
+  if (reading.strokes < 1) return null;
+  if (reading.reason === ROW_ESCAPE_REASON) return null;
+  // Strokes plus crossbars: a bar IS the fifth stroke of its group, so it is
+  // one more mark and not a decoration. Same arithmetic the accepted path does
+  // through `groups`.
+  return { value: reading.strokes + reading.bars, confidence: SALVAGE_CONFIDENCE };
 }
 
 /** Internal, so a diagnostic can sweep the overrun bar against real cells. */

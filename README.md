@@ -65,7 +65,10 @@ recognised, and can be taken apart and counted geometrically:
    check it* and recorded in the export as a machine reading, so a number nobody checked can
    always be told from one a person typed.
 5. Every reading either reader offers goes into a box; `PREFILL_GATE` is 0 and no longer holds
-   anything back.
+   anything back. Where a reader declined but had something to count anyway — a tally strip whose
+   strokes were found and whose structure was rejected, a box that segmented into more pieces than
+   a number can have — that is offered as a guess at a tenth of a real reading's worth, which fills
+   the box and never hides it. What stays blank is where nothing was derivable at all.
 6. Readings at or above `AUTO_ACCEPT` (0.75) are taken as the answer and their cells are left off
    the review list entirely — there is no control that shows them.
 7. The reviewer sees a picture of each remaining cell beside a box, and types what they see.
