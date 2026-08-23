@@ -148,7 +148,8 @@ def patch_formula_cache(xml, cached):
         m = re.search(r"<f\b[^>]*(?:/>|>.*?</f>)", body, re.S)
         if not m:
             raise SystemExit(f"cell {ref} holds no formula -- the template layout changed")
-        edits.append((start, end, f'<c r="{ref}"{style_attr(start_tag)}>{m.group(0)}<v>{value}</v></c>'))
+        cell = f'<c r="{ref}"{style_attr(start_tag)}>{m.group(0)}<v>{value}</v></c>'
+        edits.append((start, end, cell))
     edits.sort(key=lambda e: -e[0])
     out = xml
     for start, end, text in edits:
