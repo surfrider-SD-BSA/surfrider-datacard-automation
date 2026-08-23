@@ -15,6 +15,7 @@ import { fillTemplate } from "../src/lib/xlsx/index";
 import {
   ExportError,
   buildCellEdits,
+  rowTotals,
   type ExportInput,
 } from "../src/lib/xlsx/export";
 import { columnName, patchSheetXml } from "../src/lib/xlsx/sheet-patch";
@@ -404,5 +405,60 @@ describe("fillTemplate against the real template", () => {
     const prov = text(after["xl/worksheets/sheet2.xml"]);
     expect(prov).toContain("human");
     expect(prov).toContain("Plastic Bags (other: zip-lock, trash, etc.)");
+  });
+});
+
+/**
+ * The totals column, which is the number the chapter actually reads.
+ *
+ * Column B holds `SUM(Cn:BZn)` and a cached result from when the blank template
+ * was saved. Excel recalculates on open and was fine; every reader that does
+ * not -- Quick Look, the iOS Files preview, the preview inside a share sheet --
+ * showed 0 down the whole column beside columns full of numbers. Reported from
+ * a phone, which is where the tool is now used.
+ */
+describe("column B totals", () => {
+  const filled = fillTemplate(template, baseInput);
+  const sheet = new TextDecoder().decode(
+    unzipSync(filled)["xl/worksheets/sheet1.xml"]!,
+  );
+
+  const cellOf = (ref: string) => {
+    const at = sheet.indexOf(`<c r="${ref}"`);
+    expect(at, `${ref} is missing from the sheet`).toBeGreaterThan(-1);
+    return sheet.slice(at, sheet.indexOf("</c>", at) + 4);
+  };
+
+  it("caches the right total beside the formula", () => {
+    // 46 + 100 from the fixture's two volunteers, the same figures the
+    // per-cell checks above assert on C18 and D18.
+    expect(cellOf("B18")).toContain("<v>146</v>");
+  });
+
+  it("keeps the shared formula itself untouched", () => {
+    expect(cellOf("B18")).toContain('<f t="shared" ref="B18:B33" si="1">SUM(C18:BZ18)</f>');
+  });
+
+  it("keeps a shared-formula continuation cell self-closing and cached", () => {
+    // These carry only an `si` index -- rebuilding one instead of preserving it
+    // is exactly the corruption the column B guard exists to prevent.
+    const b19 = cellOf("B19");
+    expect(b19).toContain('<f t="shared" si="1"/>');
+    expect(b19).toMatch(/<v>\d+<\/v>/);
+  });
+
+  it("preserves the cell style on a total", () => {
+    expect(cellOf("B18")).toContain('s="9"');
+  });
+
+  it("sums only the volunteer columns of an item row", () => {
+    const totals = rowTotals(buildCellEdits(baseInput));
+    // Header text in column A, and anything off an item row, is not a count.
+    for (const ref of totals.keys()) expect(ref.startsWith("B")).toBe(true);
+    expect(totals.get("B18")).toBe(146);
+  });
+
+  it("leaves a row nobody wrote to at zero", () => {
+    expect(rowTotals(buildCellEdits(baseInput)).has("B107")).toBe(false);
   });
 });

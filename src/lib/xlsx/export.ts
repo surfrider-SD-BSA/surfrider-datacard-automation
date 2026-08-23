@@ -22,6 +22,7 @@ import {
 import {
   columnName,
   forceFullCalcOnLoad,
+  patchFormulaCache,
   patchSheetXml,
   type CellValue,
 } from "./sheet-patch";
@@ -190,6 +191,34 @@ export function buildCellEdits(input: ExportInput): Map<string, CellValue> {
 }
 
 /**
+ * What each item's column B total comes to, from the values being written.
+ *
+ * The same arithmetic the sheet's own `SUM(Cn:BZn)` does, computed here so the
+ * answer can be put in the formula's cache -- see `patchFormulaCache`. Without
+ * it every reader that does not recalculate, which includes every preview on a
+ * phone, shows the template's saved 0 down the whole totals column.
+ *
+ * Derived from `edits` rather than from the input, deliberately: this is then
+ * a sum of exactly the numbers the sheet will contain, and cannot drift from
+ * them by counting a value that was dropped or scaled on the way in.
+ */
+export function rowTotals(edits: Map<string, CellValue>): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const [ref, value] of edits) {
+    if (value.kind !== "number") continue;
+    const m = /^([A-Z]+)(\d+)$/.exec(ref);
+    if (!m) throw new ExportError(`malformed cell reference ${ref}`);
+    const [, col, rowStr] = m;
+    const row = Number(rowStr);
+    // Only the volunteer columns feed a total, and only on an item row. The
+    // header fields in column A are not counts of anything.
+    if (col === "A" || col === "B" || !ITEM_ROWS.has(row)) continue;
+    totals.set(`B${row}`, (totals.get(`B${row}`) ?? 0) + value.value);
+  }
+  return totals;
+}
+
+/**
  * Guard the one mistake that silently corrupts the chapter's spreadsheet:
  * overwriting a column B SUM formula with a literal. The totals would still
  * *look* right on the day and would stop updating forever after.
@@ -333,7 +362,11 @@ export function fillWorkbookParts(
   const out = new Map(parts);
   const edits = buildCellEdits(input);
 
-  out.set(SHEET_PATH, patchSheetXml(sheetXml, edits));
+  // Values first, then the totals those values come to. Two passes over the
+  // same string rather than one: the second must see a cell element it did not
+  // write, so that a template whose column B stopped holding formulas raises
+  // instead of quietly turning the totals into literals.
+  out.set(SHEET_PATH, patchFormulaCache(patchSheetXml(sheetXml, edits), rowTotals(edits)));
 
   const workbookXml = out.get(WORKBOOK_PATH);
   if (workbookXml) {

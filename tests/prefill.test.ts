@@ -9,7 +9,15 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { AUTO_ACCEPT, PREFILL_GATE, autoAcceptFor, isAutoAccepted, prefillFor } from "../src/lib/prefill";
+import {
+  AUTO_ACCEPT,
+  PLACEHOLDER_VALUE,
+  PREFILL_GATE,
+  autoAcceptFor,
+  isAutoAccepted,
+  prefillFor,
+  prefillTag,
+} from "../src/lib/prefill";
 import { OVERSEGMENTED_CONFIDENCE } from "../src/lib/digits";
 import { SALVAGE_CONFIDENCE } from "../src/lib/tally";
 import { RECONCILE_DEFAULTS, type Reading } from "../src/lib/reading";
@@ -96,8 +104,24 @@ describe("prefillFor", () => {
     expect(weak?.value).toBe(3);
   });
 
-  it("leaves a box empty only when both readers declined", () => {
-    expect(prefillFor(cell({}))).toBeNull();
+  it("puts a placeholder in the box when neither reader answered", () => {
+    // The empty box is gone: every cell a reviewer opens has a number in it.
+    // What separates this from a reading is the source and the confidence, and
+    // the export carries both.
+    const none = prefillFor(cell({}));
+    expect(none.value).toBe(PLACEHOLDER_VALUE);
+    expect(none.source).toBe("placeholder");
+    expect(none.confidence).toBe(0);
+    expect(none.tally).toBeNull();
+    expect(none.digits).toBeNull();
+  });
+
+  it("never hides a placeholder from the reviewer", () => {
+    expect(isAutoAccepted(prefillFor(cell({})))).toBe(false);
+  });
+
+  it("says what a placeholder is, in the reviewer's words", () => {
+    expect(prefillTag("placeholder")).toBe("nothing read: type it");
   });
 });
 

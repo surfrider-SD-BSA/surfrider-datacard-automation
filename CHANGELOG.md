@@ -9,7 +9,42 @@ count as breaking.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The totals column read 0 on a phone.** Column B holds `SUM(Cn:BZn)` and, in
+  the blank template, a cached `<v>0</v>` from when it was saved. Desktop Excel
+  recalculates on open — `fullCalcOnLoad` was already set for exactly this — but
+  every reader that does not calculate shows the cached number instead: Quick
+  Look, the iOS Files preview, and the preview inside a share sheet. So a
+  spreadsheet exported and opened on the phone showed 0 down the whole totals
+  column beside columns full of counts. Reported from a phone, which is where
+  the tool is now used.
+
+  The export now computes each item's total from the values it is writing and
+  puts it in the formula's cache, so a reader that does not calculate shows the
+  right figure and Excel still recomputes to the same one. `patchFormulaCache`
+  in sheet-patch.ts preserves the formula element byte for byte — shared
+  formulas carry an `si` index and only the first cell of a group holds the
+  text, so rebuilding one is the corruption `assertNeverWritesFormulaColumn`
+  exists to prevent. Mirrored in `scripts/validate_xlsx.py`, which now runs 29
+  checks against the chapter's real template, and covered by six tests.
+
 ### Changed
+
+- **Every box now arrives with a number in it, including the ones nothing was
+  read in.** On the chapter owner's instruction, third time asked: where both
+  readers decline, `prefillFor` puts in a placeholder of 1 at confidence 0,
+  source `placeholder`, tagged "nothing read: type it" in front of the reviewer.
+  That is 146, 164 and 57 cells per scan on the three measured scans. 1 rather
+  than 0 because a cell only reaches a reviewer when the shape test says
+  somebody wrote in it, so 0 would contradict the one thing known about it.
+
+  **A placeholder is a number the image did not produce.** It is exported as a
+  machine value with confidence 0, which is the chapter's only way to find one
+  afterwards, and it is never auto-accepted — 0 is as far below the threshold as
+  a value gets, so every placeholder is in front of a person. Any left untouched
+  reach the spreadsheet as invented counts, and now feed the column B totals
+  above.
 
 - **Two readings the readers used to throw away are now offered as guesses**, on
   the chapter owner's instruction that every box arrive filled in. Readings

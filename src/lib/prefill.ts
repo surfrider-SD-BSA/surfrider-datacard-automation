@@ -221,16 +221,55 @@ export function readingFor(cell: ExtractedCell): Reading | null {
 }
 
 /**
- * The reading to put in the box, or null to leave it empty.
+ * What goes in the box when nothing was read.
  *
- * Below the gate the box stays EMPTY rather than showing a guess: an empty box
- * next to a legible picture costs one keystroke, and a wrong number costs the
- * chapter's data, because a confident wrong number invites agreement rather
- * than correction.
+ * 1 rather than 0, and the choice is not arbitrary. A cell only reaches a
+ * reviewer when the shape test says somebody wrote in it, so 0 would contradict
+ * the one thing about the cell that IS known; 1 is the smallest count
+ * consistent with the evidence and the least distorting if it survives into an
+ * aggregate.
  */
-export function prefillFor(cell: ExtractedCell): Reading | null {
+export const PLACEHOLDER_VALUE = 1;
+
+/**
+ * The reading to put in the box. Never null: every box arrives with a number.
+ *
+ * The empty box is gone. It used to be the argument this file was built on --
+ * an empty box beside a legible picture costs one keystroke, and a wrong number
+ * costs the chapter's data, because a confident wrong number invites agreement
+ * rather than correction. The chapter owner has asked three times for every box
+ * to arrive filled in regardless, and this is that.
+ *
+ * What comes back is one of three quite different things, and the `source` on
+ * it is the only way to tell them apart afterwards:
+ *
+ *   - A reading, where a reader answered. Most boxes.
+ *   - A salvaged guess, where a reader declined but had something to count --
+ *     see `salvageCount` in tally.ts. Confidence 0.1 or 0.3.
+ *   - A PLACEHOLDER, where nothing was read at all: 146, 164 and 57 cells per
+ *     scan on the three measured scans. Confidence 0, source "placeholder",
+ *     tagged "nothing read: type it" in front of the reviewer, and exported as
+ *     a machine value with confidence 0 so the chapter's audit column can find
+ *     every one of them. It is a number the image did not produce.
+ *
+ * A placeholder is never auto-accepted -- 0 is as far below `AUTO_ACCEPT` as a
+ * value can be -- so it is always in front of a person.
+ *
+ * NOTE for anyone raising `PREFILL_GATE` again: a reading that falls below the
+ * gate is now REPLACED by a placeholder rather than leaving the box empty. A
+ * real reading of 12 becomes a 1. Raising the gate without changing this is
+ * almost certainly not what you want.
+ */
+export function prefillFor(cell: ExtractedCell): Reading {
   const reading = readingFor(cell);
-  return reading && reading.confidence >= PREFILL_GATE ? reading : null;
+  if (reading && reading.confidence >= PREFILL_GATE) return reading;
+  return {
+    value: PLACEHOLDER_VALUE,
+    confidence: 0,
+    source: "placeholder",
+    tally: null,
+    digits: null,
+  };
 }
 
 /**
@@ -264,6 +303,10 @@ export function prefillTag(source: Reading["source"]): string {
       return "read: check it";
     case "agreed":
       return "counted twice: check it";
+    case "placeholder":
+      // Named for what happened rather than dressed up as a reading. Nothing
+      // was read here; the 1 in the box is a starting point, not a claim.
+      return "nothing read: type it";
     default:
       return "counted: check it";
   }

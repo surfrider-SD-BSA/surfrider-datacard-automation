@@ -105,6 +105,57 @@ def patch_sheet_xml(xml, cells):
     return out
 
 
+def formula_rows(sheet_xml):
+    """The rows whose column B holds a SUM, read off the template itself.
+
+    export.ts takes these from the taxonomy; here they come from the file, which
+    is the stronger check of the two -- if the template's layout ever moves, this
+    mirror notices and the TypeScript side would not.
+    """
+    return {
+        int(m.group(1))
+        for m in re.finditer(r'<c r="B(\d+)"[^>]*>(?=(?:(?!</c>).)*<f\b)', sheet_xml, re.S)
+    }
+
+
+def row_totals(cells, item_rows):
+    """Mirror of rowTotals in export.ts: what each item row's column B comes to."""
+    totals = {}
+    for ref, value in cells.items():
+        kind, v = value
+        if kind != "number":
+            continue
+        m = re.match(r"^([A-Z]+)(\d+)$", ref)
+        col, row = m.group(1), int(m.group(2))
+        if col in ("A", "B") or row not in item_rows:
+            continue
+        totals[f"B{row}"] = totals.get(f"B{row}", 0) + v
+    return totals
+
+
+def patch_formula_cache(xml, cached):
+    """Mirror of patchFormulaCache in sheet-patch.ts.
+
+    Refreshes the cached result of a formula cell and leaves the formula alone.
+    The template's column B totals cache a 0 from when it was saved blank, and
+    every reader that does not recalculate -- Quick Look, the iOS Files preview,
+    a share-sheet preview -- shows that 0 rather than the total.
+    """
+    edits = []
+    for ref, value in cached.items():
+        start, end, start_tag = find_cell(xml, ref)
+        body = xml[start:end]
+        m = re.search(r"<f\b[^>]*(?:/>|>.*?</f>)", body, re.S)
+        if not m:
+            raise SystemExit(f"cell {ref} holds no formula -- the template layout changed")
+        edits.append((start, end, f'<c r="{ref}"{style_attr(start_tag)}>{m.group(0)}<v>{value}</v></c>'))
+    edits.sort(key=lambda e: -e[0])
+    out = xml
+    for start, end, text in edits:
+        out = out[:start] + text + out[end:]
+    return out
+
+
 def force_full_calc(xml):
     if re.search(r'<calcPr[^>]*fullCalcOnLoad="1"', xml):
         return xml
@@ -261,7 +312,10 @@ def main():
     parts = dict(original)
     edits = build_edits()
 
-    parts[SHEET] = patch_sheet_xml(original[SHEET].decode(), edits).encode()
+    item_rows = formula_rows(original[SHEET].decode())
+    parts[SHEET] = patch_formula_cache(
+        patch_sheet_xml(original[SHEET].decode(), edits), row_totals(edits, item_rows)
+    ).encode()
     parts[WORKBOOK] = force_full_calc(original[WORKBOOK].decode()).encode()
 
     rels = original[RELS].decode()
@@ -326,6 +380,17 @@ def main():
     check(
         '<f t="shared" ref="B107:B110" si="11">SUM(C107:BZ107)</f>' in sheet,
         "master SUM formula B107 intact",
+    )
+
+    # The totals a reader that does not recalculate will show.
+    want18 = row_totals(edits, item_rows)["B18"]
+    check(
+        f'<f t="shared" ref="B18:B33" si="1">SUM(C18:BZ18)</f><v>{want18}</v>' in sheet,
+        f"column B total cached beside the formula (B18 = {want18})",
+    )
+    check(
+        '<f t="shared" si="1"/><v>' in sheet,
+        "shared-formula continuation cells cached too, still self-closing",
     )
 
     ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
