@@ -33,7 +33,7 @@ import {
   type PageCells,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
-import { prefillFor } from "./lib/prefill";
+import { isAutoAccepted, prefillFor } from "./lib/prefill";
 import { rasterizePdf } from "./lib/pdf";
 import {
   pairIntoCards,
@@ -264,12 +264,18 @@ async function process(params: ProcessParams) {
           hasValue: cell.hasValue,
           tallyOnly: cell.tallyOnly,
           pageNumber: cell.pageNumber,
-          // Null where the readers declined or fell below the gate. The box
-          // stays empty then, and that is the point: see lib/prefill.ts.
+          // Null only where both readers declined outright; the gate is 0 and
+          // fills everything either of them offers. See lib/prefill.ts.
           prefill: prefill && {
             value: prefill.value,
             confidence: prefill.confidence,
             source: prefill.source,
+            // Whether this cell is taken as read and kept off the review list.
+            // Decided here rather than by comparing confidences on the far
+            // side, because which cells a person is shown must not depend on
+            // which front end they opened -- the desktop tool and the phone
+            // read the threshold from the same constant.
+            autoAccepted: isAutoAccepted(prefill),
           },
         };
       }),

@@ -95,7 +95,23 @@ final class TallyModel: ObservableObject {
     // MARK: The scan
 
     @Published private(set) var scan: ScanResult?
+
+    /// Every cell the tool found something in, review list or not. What gets
+    /// exported is seeded from here, because most of it is never shown.
+    @Published private(set) var allCells: [FlatCell] = []
+
+    /// The review list: the cells the tool did NOT take as read.
+    ///
+    /// A cell above `AUTO_ACCEPT` (src/lib/prefill.ts) is not in here and there
+    /// is no screen in this app that will show it -- it is filled in, exported
+    /// as a machine reading with its confidence, and never put in front of
+    /// anyone. Around 60% of a real scan. The threshold, and what it costs, is
+    /// documented where it is set.
     @Published private(set) var cells: [FlatCell] = []
+
+    /// How many cells were taken as read and kept off the list.
+    var takenAsReadCount: Int { allCells.count - cells.count }
+
     @Published private(set) var readingError: String?
 
     /// A PDF another app handed us — AirDrop, Mail, Files, the share sheet.
@@ -211,9 +227,10 @@ final class TallyModel: ObservableObject {
         do {
             let result = try await engine.process(pdf: url) { _ in }
             scan = result
-            cells = result.cards.flatMap { card in
+            allCells = result.cards.flatMap { card in
                 card.cells.map { FlatCell(key: CellKey(card: card.cardNumber, row: $0.row), column: card.column, cell: $0) }
             }
+            cells = allCells.filter { $0.cell.prefill?.takenAsRead != true }
 
             // Seed the date and beach from the filename where it follows the
             // chapter's convention. Shown for confirmation, never used
@@ -230,15 +247,20 @@ final class TallyModel: ObservableObject {
         }
     }
 
-    /// Put the tool's own readings in, where they clear the gate.
+    /// Put the tool's own readings in, wherever it has one.
     ///
-    /// The gate is `PREFILL_GATE` in src/lib/prefill.ts and the engine has
-    /// already applied it: a cell arrives with a prefill or without one. Around
-    /// one filled box in five is wrong at the current setting. Every one of
-    /// them is tagged and sits beside a picture of the handwriting, which is
-    /// the only reason it is defensible.
+    /// The gate is `PREFILL_GATE` in src/lib/prefill.ts, now 0: a cell arrives
+    /// with a prefill if either reader offered anything at all. Around one
+    /// filled box in five is wrong.
+    ///
+    /// Over `allCells` rather than `cells`, and that is the whole difference
+    /// auto-accept makes here: the readings the tool is surest of are exactly
+    /// the ones with no screen behind them, so seeding from the review list
+    /// would drop the majority of the values out of the export. Those cells are
+    /// tagged and beside a picture of the handwriting for anyone who reaches
+    /// them; the auto-accepted ones are neither, and go out on the tool's word.
     private func seedPrefills() {
-        for flat in cells {
+        for flat in allCells {
             guard let prefill = flat.cell.prefill else { continue }
             values[flat.key] = prefill.value
             untouched[flat.key] = prefill
@@ -261,10 +283,22 @@ final class TallyModel: ObservableObject {
         // machine reading, even where the number happens to match what the tool
         // would have counted -- the reviewer saw these boxes and kept them.
         untouched = [:]
+
+        // Except the ones they were never shown, which no draft can turn into
+        // a person's work: they were not on the list being worked through. Only
+        // where the saved value still matches what the tool read, since a draft
+        // taken before this setting existed may hold a number somebody really
+        // did type into a box that is no longer on the list.
+        for flat in allCells {
+            guard let prefill = flat.cell.prefill, prefill.takenAsRead else { continue }
+            guard values[flat.key] == prefill.value else { continue }
+            untouched[flat.key] = prefill
+        }
     }
 
     private func clearScan() {
         scan = nil
+        allCells = []
         cells = []
         values = [:]
         untouched = [:]
@@ -397,7 +431,8 @@ final class TallyModel: ObservableObject {
         } else {
             items.append(.init(
                 tone: .pass,
-                text: "\(cardCount) card\(cardCount == 1 ? "" : "s"), \(cells.count) cell\(cells.count == 1 ? "" : "s"), \(checkedCount) filled in."
+                text: "\(cardCount) card\(cardCount == 1 ? "" : "s"), \(allCells.count) cell\(allCells.count == 1 ? "" : "s"), \(checkedCount) filled in"
+                    + (takenAsReadCount > 0 ? " — \(takenAsReadCount) read confidently and never shown." : ".")
             ))
         }
 

@@ -9,6 +9,33 @@ count as breaking.
 
 ## [Unreleased]
 
+### Changed
+
+- **Most cells are no longer shown to anyone.** On the chapter owner's
+  instruction, a reading of 0.75 confidence or better is taken as the answer
+  and its cell is dropped from the review list — there is no control anywhere
+  in either front end that will show it. Measured with the new
+  `scripts/autoaccept-coverage.mjs` over the three scans the pre-fill gate was
+  set on, this is 158 of 453, 379 of 632 and 296 of 450 cells. The threshold is
+  `AUTO_ACCEPT` in `src/lib/prefill.ts`; above 1 turns it off.
+
+  What it hides is almost entirely the digit reader working alone — 149 of
+  those 158, 373 of the 379, 293 of the 296 — because agreement between the two
+  readers needs the tally counter to have answered the same cell and it answers
+  11, 7 and 3 of them. That reader is right 86% of the time where it is most
+  confident, so on the order of 25, 60 and 47 values per scan now reach the
+  spreadsheet wrong and unseen. They are still exported as `recognized` with
+  their confidence rather than as `human`, which is the only remaining way to
+  find them, and it is an after-the-fact one.
+- **`PREFILL_GATE` is 0.** Every reading either reader offers goes into a box,
+  including the midpoint taken when the two disagree, which was previously kept
+  out by the gate's floor and is right under a quarter of the time. Those are
+  still always shown: 0.17 is well below the auto-accept threshold, which is
+  where the floor now lives.
+- The desktop tool and the iOS app take the same cells off the same list, from
+  the same constant — the engine now reports `autoAccepted` per cell rather
+  than leaving each front end to compare confidences for itself.
+
 ### Added
 
 - **Tally — an iOS app, and the interface the phone now shows.** Eight screens

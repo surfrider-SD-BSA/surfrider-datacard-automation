@@ -32,6 +32,17 @@ struct ScanCell: Decodable, Identifiable, Hashable {
         /// "tally" | "digits" | "agreed" | "split" -- which reader spoke.
         let source: String
 
+        /// Whether the engine took this reading as the answer, which means this
+        /// cell is not on the review list and nobody will be shown it.
+        ///
+        /// Optional, and absent means false: the app ships a copy of the web
+        /// bundle and a build against a stale one should put every cell in
+        /// front of a person rather than none. `AUTO_ACCEPT` in
+        /// src/lib/prefill.ts is where the threshold lives and what it costs.
+        let autoAccepted: Bool?
+
+        var takenAsRead: Bool { autoAccepted == true }
+
         /// What to call this box, in the reviewer's words.
         ///
         /// The reader is named because they are not worth the same and the

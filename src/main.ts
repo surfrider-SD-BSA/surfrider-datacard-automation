@@ -12,16 +12,24 @@
  * reliable, reading *what* it says is neither, and a confidently wrong number
  * is worse than no number because it invites agreement.
  *
- * What makes that survivable is that nothing here is presented as an answer.
- * Every filled box is tagged with which reader filled it, sits beside a picture
- * of the handwriting, and is exported as machine-read rather than human-entered
- * so the chapter's own audit column can tell them apart. See `PREFILL_GATE`
- * in `lib/prefill.ts`, which is the one place that number lives.
+ * What made that survivable was that nothing here was presented as an answer:
+ * every filled box was tagged with which reader filled it, sat beside a picture
+ * of the handwriting, and was exported as machine-read rather than
+ * human-entered so the chapter's own audit column could tell them apart.
+ *
+ * THAT IS NO LONGER TRUE OF EVERY CELL. On the chapter owner's instruction, a
+ * reading of `AUTO_ACCEPT` confidence or better is taken as the answer and its
+ * cell is never shown to anyone -- around 60% of the cells on a real scan, and
+ * almost all of them the digit reader working alone. Those values still carry
+ * their confidence into the spreadsheet as machine-read, so the audit column
+ * remains able to find them afterwards, but nobody sees the handwriting first.
+ * Both numbers, and what the second one costs, are in `lib/prefill.ts`, which
+ * is the one place either of them lives.
  */
 
 import { loadCellMap, type CellMap } from "./lib/cells";
 import type { Reading } from "./lib/reading";
-import { prefillFor, prefillTag } from "./lib/prefill";
+import { isAutoAccepted, prefillFor, prefillTag } from "./lib/prefill";
 import { decodeModel, type DigitModel } from "./lib/digits";
 import {
   assembleCard,
@@ -212,12 +220,65 @@ async function processFile(file: File) {
     // always shown for confirmation rather than used silently.
     seedEventFromFilename(file.name);
 
+    // Every reading goes into `state` here rather than as a side effect of
+    // drawing a row, because most of the rows are no longer drawn. An
+    // auto-accepted cell has no box on screen and still has to reach the
+    // spreadsheet, which it cannot do if putting it there is something the
+    // renderer does.
+    seedPrefills();
+
     renderProgress("Done", 1);
     renderReview();
     offerDraft();
   } catch (err) {
     renderError(err instanceof Error ? err.message : String(err));
   }
+}
+
+// ---------------------------------------------------------------------------
+// What the tool filled in, and what it kept to itself
+// ---------------------------------------------------------------------------
+
+/**
+ * Put every reading the tool has into the values it will export.
+ *
+ * This used to happen inside `renderCell`, one row at a time, which was fine
+ * while every cell had a row. It does not survive auto-accept: the cells with
+ * the strongest readings are exactly the ones with nothing on screen, so a
+ * value that only exists because something was drawn would be the value most
+ * likely to be missing.
+ */
+function seedPrefills() {
+  for (const card of state.cards) {
+    for (const cell of card.cells) {
+      const prefill = prefillFor(cell);
+      if (!prefill) continue;
+      const values = state.values.get(card.cardNumber) ?? new Map<number, number>();
+      values.set(cell.row, prefill.value);
+      state.values.set(card.cardNumber, values);
+      const marks = state.prefilled.get(card.cardNumber) ?? new Map<number, Reading>();
+      marks.set(cell.row, prefill);
+      state.prefilled.set(card.cardNumber, marks);
+    }
+  }
+}
+
+/**
+ * The cells a person is asked to look at.
+ *
+ * Everything the tool did not accept on its own. A cell above `AUTO_ACCEPT` is
+ * not collapsed or greyed or moved to the bottom of the list; it is not on the
+ * list, and there is nothing in the interface that will show it. That is the
+ * instruction this was built to, and it is worth being plain about which cells
+ * it applies to -- see `AUTO_ACCEPT` in lib/prefill.ts for the measurement.
+ */
+function cellsToCheck(card: ExtractedCard): ExtractedCell[] {
+  return card.cells.filter((cell) => !isAutoAccepted(prefillFor(cell)));
+}
+
+/** How many cells were taken as read across the whole scan. */
+function autoAcceptedCount(): number {
+  return state.cards.reduce((n, c) => n + (c.cells.length - cellsToCheck(c).length), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -350,12 +411,40 @@ function restoreDraft(draft: Draft) {
   // reading, even where the number happens to match what the tool would have
   // counted -- the reviewer saw these boxes and kept them.
   state.prefilled = new Map();
+  // With one exception, which is the whole point of auto-accept: the reviewer
+  // did NOT see the cells the tool took as read, so a draft cannot turn one of
+  // them into human-entered evidence by having been saved. Only where the
+  // stored value still matches what the tool read -- a draft from before this
+  // setting existed may hold a number a person really did type into a box that
+  // is no longer shown.
+  remarkAutoAccepted();
   for (const key of Object.keys(state.event) as (keyof EventForm)[]) {
     const saved = draft.event[key];
     if (typeof saved === "string") state.event[key] = saved;
   }
   renderReview();
   setStatus(`${state.fileName} — ${countValues(draft)} values restored.`);
+}
+
+/**
+ * Put the machine-reading mark back on the cells nobody was shown.
+ *
+ * `state.prefilled` is what the export uses to tell a number a person read off
+ * a picture from one the tool read off a scan. Restoring a draft clears it, on
+ * the grounds that a saved value is a person's work -- true of every cell that
+ * was on the review list, and false by construction of every cell that was not.
+ */
+function remarkAutoAccepted() {
+  for (const card of state.cards) {
+    for (const cell of card.cells) {
+      const prefill = prefillFor(cell);
+      if (!isAutoAccepted(prefill) || !prefill) continue;
+      if (state.values.get(card.cardNumber)?.get(cell.row) !== prefill.value) continue;
+      const marks = state.prefilled.get(card.cardNumber) ?? new Map<number, Reading>();
+      marks.set(cell.row, prefill);
+      state.prefilled.set(card.cardNumber, marks);
+    }
+  }
 }
 
 /**
@@ -439,8 +528,10 @@ function renderError(message: string) {
 }
 
 function renderReview() {
-  const cardsWithCells = state.cards.filter((c) => c.cells.length > 0);
+  const cardsWithCells = state.cards.filter((c) => cellsToCheck(c).length > 0);
   const totalCells = state.cards.reduce((n, c) => n + c.cells.length, 0);
+  const accepted = autoAcceptedCount();
+  const toCheck = totalCells - accepted;
 
   app.innerHTML = `
     ${renderProblems()}
@@ -465,13 +556,20 @@ function renderReview() {
       <h2>Check the numbers</h2>
       <p class="hint">
         ${state.cards.length} cards, ${totalCells} cells with something written.
-        Type what you see in each picture — Tab moves to the next box.
+        ${accepted > 0
+          ? `${accepted} of them were read confidently and have been filled in
+             and taken as read; they are not listed here. ${toCheck} left to
+             check — type what you see in each picture, Tab moves to the next
+             box.`
+          : `Type what you see in each picture — Tab moves to the next box.`}
       </p>
     </div>
 
     <div id="cards">
       ${cardsWithCells.length === 0
-        ? `<div class="panel empty">No written-in cells were found. That usually means the pages did not align — check the warnings above.</div>`
+        ? accepted > 0
+          ? `<div class="panel empty">Nothing left to check — all ${accepted} cells the tool found were read confidently enough to be taken as read. Download the spreadsheet below.</div>`
+          : `<div class="panel empty">No written-in cells were found. That usually means the pages did not align — check the warnings above.</div>`
         : ""}
     </div>
 
@@ -538,22 +636,27 @@ function renderCard(card: ExtractedCard): HTMLElement {
   const el = document.createElement("div");
   el.className = "panel";
 
-  const written = card.cells.filter((c) => c.hasValue).length;
-  const tallies = card.cells.filter((c) => c.tallyOnly).length;
+  // The header counts what is on the list, not what is on the card. A card
+  // saying "12 numbers" above three rows reads as a bug, and the missing nine
+  // are the ones the reviewer is least able to account for.
+  const shown = cellsToCheck(card);
+  const accepted = card.cells.length - shown.length;
+  const tallies = shown.filter((c) => c.tallyOnly).length;
 
   const head = document.createElement("div");
   head.className = "card-head";
   head.innerHTML = `
     <h3>Card ${card.cardNumber} &rarr; column ${columnLetter(card.cardNumber)}</h3>
     <span class="meta">
-      ${written} number${written === 1 ? "" : "s"}${tallies ? `, ${tallies} tally-only` : ""}
+      ${shown.length} to check${tallies ? `, ${tallies} tally-only` : ""}
+      ${accepted ? ` &middot; ${accepted} filled in and taken as read` : ""}
       ${card.missingSides.length ? ` &middot; ${card.missingSides.join(", ")} page missing` : ""}
     </span>`;
   el.appendChild(head);
 
   const list = document.createElement("div");
   list.className = "cells";
-  for (const cell of card.cells) list.appendChild(renderCell(card.cardNumber, cell));
+  for (const cell of shown) list.appendChild(renderCell(card.cardNumber, cell));
   el.appendChild(list);
 
   return el;
@@ -636,15 +739,11 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   input.dataset.card = String(cardNumber);
   input.dataset.row = String(cell.row);
   input.setAttribute("aria-label", `${cell.itemName} count`);
-  if (prefill) {
-    input.value = String(prefill.value);
-    const values = state.values.get(cardNumber) ?? new Map<number, number>();
-    values.set(cell.row, prefill.value);
-    state.values.set(cardNumber, values);
-    const marks = state.prefilled.get(cardNumber) ?? new Map<number, Reading>();
-    marks.set(cell.row, prefill);
-    state.prefilled.set(cardNumber, marks);
-  }
+  // From `state.values`, not from the reading: `seedPrefills` has already put
+  // every reading there, and a restored draft has since overwritten some of
+  // them with what a person typed. The box shows what will be exported.
+  const current = state.values.get(cardNumber)?.get(cell.row);
+  if (current !== undefined) input.value = String(current);
   input.addEventListener("input", () => {
     // A box a person has touched is theirs, however it started out, so the
     // export stops calling it a machine reading.
@@ -723,7 +822,14 @@ function updateGate() {
               // them are now read off the handwriting, and the two are not
               // equally trustworthy. Saying the wrong one here would tell a
               // reviewer the weaker readings are the stronger kind.
-              ` — ${prefilledCount()} filled in by the tool, not yet checked.`
+              //
+              // The never-shown count is called out separately because it is a
+              // different claim. A pre-filled box the reviewer scrolled past
+              // was at least in front of them beside its picture; these were
+              // not on the list at all, and this line is the only place in the
+              // interface that says so before the file is downloaded.
+              ` — ${prefilledCount()} filled in by the tool and not checked` +
+              (autoAcceptedCount() > 0 ? `, ${autoAcceptedCount()} of them never shown.` : ".")
             : ".");
 }
 

@@ -20,9 +20,17 @@ confident — so it is switched on as an aid to be checked, not as an answer.
 
 That was the chapter's call, made against the measurement rather than around it: 387 of the 453
 cells on a 58-card event hold a handwritten number, and nothing but the recognizer can ever reach
-them. Every filled box is tagged, sits beside a picture of the handwriting, and is recorded in the
-spreadsheet as machine-read rather than human-entered. To turn it off, set `digitsAlone` to false
-in `src/lib/reading.ts`.
+them. To turn it off, set `digitsAlone` to false in `src/lib/reading.ts`.
+
+**As of 22 August 2026 most cells are not shown to anyone.** On the chapter owner's instruction,
+a reading the tool is 75% or more confident of is taken as the answer and its cell is dropped
+from the review list — 158 of 453, 379 of 632 and 296 of 450 cells on the three scans this was
+measured over. Almost all of them are the digit reader working alone, which is right about 86% of
+the time at its most confident, so roughly one hidden value in six is wrong and no one sees the
+handwriting first. They are still exported as machine-read with their confidence, so the
+chapter's audit column can find them afterwards. The threshold is `AUTO_ACCEPT` in
+`src/lib/prefill.ts`; set it above 1 to put every cell back in front of a person, and use
+`scripts/autoaccept-coverage.mjs` to measure any other setting before moving it.
 
 ## The problem
 
@@ -38,7 +46,9 @@ built on. Reading it is offered as a first guess to correct, because a confident
 worse than no number at all — it invites agreement — and the only defence against that is that the
 reviewer is looking at a picture of the handwriting while they decide.
 
-So it answers the easy question, and shows a person a cropped picture of each cell to type from.
+So it answers the easy question, and shows a person a cropped picture of the cells it is least
+sure of to type from — the ones it is surest of it now fills in and keeps to itself, which is the
+one place this reasoning has been overridden, and it is set out under Status above.
 The one exception is a tally strip, which is a run of pencil strokes rather than a shape to be
 recognised, and can be taken apart and counted geometrically:
 
@@ -54,11 +64,16 @@ recognised, and can be taken apart and counted geometrically:
    the numbers, words and scribbles volunteers also put there. Each one is tagged *counted:
    check it* and recorded in the export as a machine reading, so a number nobody checked can
    always be told from one a person typed.
-5. The reviewer sees a picture of each cell beside a box, and types what they see.
-6. The chapter's Excel template is filled in and downloaded.
+5. Every reading either reader offers goes into a box; `PREFILL_GATE` is 0 and no longer holds
+   anything back.
+6. Readings at or above `AUTO_ACCEPT` (0.75) are taken as the answer and their cells are left off
+   the review list entirely — there is no control that shows them.
+7. The reviewer sees a picture of each remaining cell beside a box, and types what they see.
+8. The chapter's Excel template is filled in and downloaded, with each value marked as typed by a
+   person or read by the tool.
 
-On a 58-card event this is 453 cells to check, down from 730 before the shape test, against
-roughly 4,800 on the cards. Five of the 453 arrive filled in. Every cell it fills was rendered
+On a 58-card event this is 295 cells to check, down from 453 before auto-accept and 730 before
+the shape test, against roughly 4,800 on the cards. Every one of the 453 arrives filled in. Every cell it fills was rendered
 and counted by eye before the feature was switched on — 46 across every scan the chapter has,
 and it is right on 40 of the 42 it fills.
 

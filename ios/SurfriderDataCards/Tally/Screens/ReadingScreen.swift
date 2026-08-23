@@ -139,7 +139,7 @@ struct ReadingScreen: View {
         let scan = model.scan
         let aligned = scan.map { $0.pages.filter(\.trusted).count }
         let total = scan?.pageCount ?? engine.progress.total ?? 0
-        let cells = model.cells.count
+        let cells = model.allCells.count
 
         return [
             Step(
@@ -167,8 +167,14 @@ struct ReadingScreen: View {
 
     private func summary(_ scan: ScanResult) -> String {
         let cards = scan.cards.count
-        let cells = model.cells.count
+        let cells = model.allCells.count
         var text = "\(cards) card\(cards == 1 ? "" : "s"), \(cells) cell\(cells == 1 ? "" : "s") with something written in them."
+        // The count found and the count to check are different numbers now, and
+        // the gap is the cells this screen is the last chance to mention: they
+        // are filled in, exported, and on no screen after this one.
+        if model.takenAsReadCount > 0 {
+            text += " \(model.takenAsReadCount) were read confidently and filled in for you; \(model.cells.count) left to check."
+        }
         let refused = model.refusedPages.count
         if refused > 0 {
             text += " \(refused) page\(refused == 1 ? "" : "s") would not line up."

@@ -137,8 +137,80 @@ import type { ExtractedCell } from "./extract";
  * --gate 0.25 fills the same 62 cells at the same 95.3% precision as at
  * --gate 0.5. Its confidences are quantised at 0.60/0.75/0.80 and it declines
  * everything else outright, so the gate never limited it.
+ *
+ * ---------------------------------------------------------------------------
+ * TAKEN TO 0 ON 22 AUGUST 2026, on the chapter owner's instruction to fill in
+ * everything the tool can read. There is no longer a floor: every reading
+ * either reader offers goes into a box.
+ *
+ * Measured with `gate-coverage.mjs`, this buys almost nothing on top of 0.20 --
+ * the same 278, 452 and 380 boxes on the three scans -- because the ceiling has
+ * always been the readers rather than the gate, and both of them declining is
+ * not something a threshold can reach past. What it does change is the SPLIT
+ * reading, the midpoint taken when the two readers disagree, which sits at 0.17
+ * and was deliberately kept under every gate this project has used. Those are
+ * now filled too. They are the weakest answer available, right under a quarter
+ * of the time.
+ *
+ * The guarantee that used to live here has moved to `AUTO_ACCEPT` below, and is
+ * stronger for it: a split is filled, but 0.17 is nowhere near 0.75, so it is
+ * always shown to a person beside the picture. The floor is no longer "which
+ * boxes get a guess" -- every box gets one -- it is "which boxes a person still
+ * sees", which is the line that was actually worth defending.
+ * ---------------------------------------------------------------------------
  */
-export const PREFILL_GATE = 0.2;
+export const PREFILL_GATE = 0;
+
+/**
+ * Confidence at which a reading is taken as the answer and the cell is never
+ * shown to anyone.
+ *
+ * THIS IS NOW THE NUMBER THAT DECIDES WHAT THIS TOOL RISKS, and it is a
+ * different kind of number from `PREFILL_GATE` above. The gate decides which
+ * boxes start with a guess in them; a reviewer still sees the guess, still sees
+ * the picture of the handwriting beside it, and can still refuse it. This one
+ * decides which cells are taken off the review list altogether. Above it, a
+ * machine reading goes into the chapter's spreadsheet with nobody having looked
+ * at the handwriting, ever.
+ *
+ * Set to 0.75 on 22 August 2026 on the chapter owner's instruction.
+ *
+ * WHAT IT HIDES, measured with `autoaccept-coverage.mjs` over the same three
+ * real scans the gate was set on -- 164 cards, 1,535 cells:
+ *
+ *   thresh   test-long      pacific-3.22    imperial-1.18   what it is
+ *            (453 cells)    (632 cells)     (450 cells)
+ *   0.90       0   0.0%       0   0.0%        0   0.0%      nothing reaches it
+ *   0.86      70  15.5%     339  53.6%      256  56.9%      digits at their cap
+ *   0.80     125  27.6%     361  57.1%      280  62.2%
+ *   0.75     158  34.9%     379  60.0%      296  65.8%   <- here
+ *
+ * The reviewer is left 295, 253 and 154 cells to check on those three scans,
+ * down from 453, 632 and 450.
+ *
+ * WHAT IT COSTS, and this is the part to read before moving it further. Almost
+ * everything hidden at 0.75 is the DIGIT reader on its own -- 149 of the 158,
+ * 373 of the 379, 293 of the 296. Not one "agreed" reading clears the threshold
+ * on any of the three scans, because agreement needs both readers to answer the
+ * same cell and the tally counter answers 11, 7 and 3 of them. So this is not a
+ * threshold that hides the readings two independent readers confirmed. It hides
+ * the weakest reader working alone.
+ *
+ * That reader's measured precision, leave-one-event-out over 3,325 labelled
+ * digits, is 86% where it is MOST confident and 84% in the band just below --
+ * the table is in HANDOFF.md. Roughly one hidden number in six or seven is
+ * wrong, which is about 25, 60 and 47 wrong values per scan, and each one now
+ * reaches the spreadsheet unseen. They are still exported as `recognized` with
+ * their confidence rather than as `human`, so the chapter's audit column can
+ * find them afterwards; that is the only remaining defence, and it is an
+ * after-the-fact one.
+ *
+ * Set it to 0.87 to put every digit-only reading back on the review list while
+ * keeping the two-reader agreements off it. Set it above 1 to turn auto-accept
+ * off entirely and show every cell, which is what this tool did until today.
+ */
+export const AUTO_ACCEPT = 0.75;
+
 
 /** What the two readers make of one cell, reconciled. Null when both declined. */
 export function readingFor(cell: ExtractedCell): Reading | null {
@@ -159,6 +231,24 @@ export function readingFor(cell: ExtractedCell): Reading | null {
 export function prefillFor(cell: ExtractedCell): Reading | null {
   const reading = readingFor(cell);
   return reading && reading.confidence >= PREFILL_GATE ? reading : null;
+}
+
+/**
+ * Whether this reading is taken as the answer, with nobody asked to check it.
+ *
+ * The one place the question is decided, for the same reason `PREFILL_GATE`
+ * is: the desktop tool and the phone must take exactly the same cells off
+ * exactly the same review list, or an export tells you a person looked at
+ * something that depended on which device they happened to use.
+ */
+export function isAutoAccepted(reading: Reading | null | undefined): boolean {
+  return reading != null && reading.confidence >= AUTO_ACCEPT;
+}
+
+/** The reading to accept outright for this cell, or null if a person should see it. */
+export function autoAcceptFor(cell: ExtractedCell): Reading | null {
+  const prefill = prefillFor(cell);
+  return isAutoAccepted(prefill) ? prefill : null;
 }
 
 /**
