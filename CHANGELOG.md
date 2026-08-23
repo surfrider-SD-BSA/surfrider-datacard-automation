@@ -9,7 +9,74 @@ count as breaking.
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/export-workbook.mjs`** — a scan all the way to a filled spreadsheet
+  without a browser. The other instruments stop at the readings; this one writes
+  the file, which is the step the totals bug below hid in. It reports what the
+  sheet is made of: for the 58-card test scan, 453 values of which 146 are
+  placeholders and 158 were never shown to anyone.
+- **`docs/sample-export.xlsx`** — a filled sheet from a cleanup that never
+  happened, generated with `--sample`. The one workbook here that carries
+  nobody's data, so it can be committed and opened by anyone deciding whether
+  this tool is worth using. A test checks every total in it against the row it
+  sums, so it cannot go quietly stale.
+
+### Fixed
+
+- **The totals column read 0 on a phone.** Column B holds `SUM(Cn:BZn)` and, in
+  the blank template, a cached `<v>0</v>` from when it was saved. Desktop Excel
+  recalculates on open — `fullCalcOnLoad` was already set for exactly this — but
+  every reader that does not calculate shows the cached number instead: Quick
+  Look, the iOS Files preview, and the preview inside a share sheet. So a
+  spreadsheet exported and opened on the phone showed 0 down the whole totals
+  column beside columns full of counts. Reported from a phone, which is where
+  the tool is now used.
+
+  The export now computes each item's total from the values it is writing and
+  puts it in the formula's cache, so a reader that does not calculate shows the
+  right figure and Excel still recomputes to the same one. `patchFormulaCache`
+  in sheet-patch.ts preserves the formula element byte for byte — shared
+  formulas carry an `si` index and only the first cell of a group holds the
+  text, so rebuilding one is the corruption `assertNeverWritesFormulaColumn`
+  exists to prevent. Mirrored in `scripts/validate_xlsx.py`, which now runs 29
+  checks against the chapter's real template, and covered by six tests.
+
 ### Changed
+
+- **Every box now arrives with a number in it, including the ones nothing was
+  read in.** On the chapter owner's instruction, third time asked: where both
+  readers decline, `prefillFor` puts in a placeholder of 1 at confidence 0,
+  source `placeholder`, tagged "nothing read: type it" in front of the reviewer.
+  That is 146, 164 and 57 cells per scan on the three measured scans. 1 rather
+  than 0 because a cell only reaches a reviewer when the shape test says
+  somebody wrote in it, so 0 would contradict the one thing known about it.
+
+  **A placeholder is a number the image did not produce.** It is exported as a
+  machine value with confidence 0, which is the chapter's only way to find one
+  afterwards, and it is never auto-accepted — 0 is as far below the threshold as
+  a value gets, so every placeholder is in front of a person. Any left untouched
+  reach the spreadsheet as invented counts, and now feed the column B totals
+  above.
+
+- **Two readings the readers used to throw away are now offered as guesses**, on
+  the chapter owner's instruction that every box arrive filled in. Readings
+  offered per scan go from 278 to 307, 452 to 468, and 380 to 393; both are
+  worth far too little to clear auto-accept, so every one is put in front of a
+  person.
+  - A tally strip the counter refused **after** finding strokes -- not parallel,
+    unexplained ink, ragged groups -- is counted as strokes plus crossbars at
+    0.1. `salvageCount` in tally.ts. Two declines are not salvaged: anything
+    with no strokes at all, where there is nothing to count, and "ink continues
+    past the row", where the count belongs to a different debris item and a
+    reviewer looking at the picture could not tell.
+  - A TOTAL box that segments into more than three pieces used to be refused;
+    it is now read as the three tallest, left to right, capped at 0.3. Rare --
+    2 cells of 450 on 1.18 Imperial, none on the 58-card scan.
+  - **What is still blank cannot be guessed at**: 146, 164 and 57 cells per scan
+    where the box holds ink but nothing digit-shaped segments out of it, or the
+    strip has no strokes. Filling those means inventing a number, which is a
+    different thing from reading one wrongly.
 
 - **Most cells are no longer shown to anyone.** On the chapter owner's
   instruction, a reading of 0.75 confidence or better is taken as the answer

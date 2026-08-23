@@ -53,6 +53,10 @@ struct ScanCell: Decodable, Identifiable, Hashable {
             switch source {
             case "digits": return "read: check it"
             case "agreed": return "counted twice: check it"
+            // Nothing was read in this cell. The number in the box is a
+            // starting point and not a claim, and saying so is the only thing
+            // that separates it from a reading on screen.
+            case "placeholder": return "nothing read: type it"
             default: return "counted: check it"
             }
         }

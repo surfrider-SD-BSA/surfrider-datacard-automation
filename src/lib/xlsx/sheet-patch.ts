@@ -109,11 +109,64 @@ export function patchSheetXml(xml: string, cells: Map<string, CellValue>): strin
 }
 
 /**
+ * Refresh the cached result of a formula cell, leaving the formula itself alone.
+ *
+ * A formula cell in xlsx carries two things: the formula, and the value Excel
+ * last computed for it. Every reader that is not a calculation engine shows the
+ * cached one. The chapter's template was saved blank, so all 83 of its column B
+ * totals cache `<v>0</v>`, and `forceFullCalcOnLoad` only helps a reader that
+ * recalculates -- desktop Excel does, and Quick Look, the iOS Files preview and
+ * the preview inside a share sheet do not. On a phone, which is where this tool
+ * is now used, the totals column read 0 all the way down beside columns full of
+ * numbers.
+ *
+ * So the totals are computed here as well as by the sheet, and written into the
+ * cache. Excel still recalculates on open and arrives at the same figures; every
+ * other reader shows them without having to.
+ *
+ * The formula element is preserved byte for byte -- shared formulas carry a
+ * `si` index and only the first cell of a group holds the text, so rebuilding
+ * one is exactly the corruption `assertNeverWritesFormulaColumn` exists to
+ * prevent. This only ever replaces what is between `</f>` and `</c>`.
+ */
+export function patchFormulaCache(xml: string, cached: Map<string, number>): string {
+  const edits = [...cached.entries()].map(([ref, value]) => {
+    if (!Number.isFinite(value)) {
+      throw new SheetPatchError(`cell ${ref}: ${value} is not a finite number`);
+    }
+    const { start, end, startTag } = findCell(xml, ref);
+    const body = xml.slice(start, end);
+    const formula = /<f\b[^>]*(?:\/>|>[\s\S]*?<\/f>)/.exec(body);
+    if (!formula) {
+      throw new SheetPatchError(
+        `cell ${ref} holds no formula -- the template layout changed`,
+      );
+    }
+    return {
+      start,
+      end,
+      text: `<c r="${ref}"${styleAttr(startTag)}>${formula[0]}<v>${value}</v></c>`,
+    };
+  });
+
+  edits.sort((a, b) => b.start - a.start);
+
+  let out = xml;
+  for (const e of edits) {
+    out = out.slice(0, e.start) + e.text + out.slice(e.end);
+  }
+  return out;
+}
+
+/**
  * Force Excel to recalculate on open.
  *
- * Column B holds `SUM(C18:BZ18)` with a cached `<v>0</v>` from when the blank
- * template was saved. Without this flag some readers show the stale 0 next to
- * freshly written volunteer columns.
+ * Column B holds `SUM(C18:BZ18)`. `patchFormulaCache` above now writes the right
+ * answer into each of those cells so that a reader which does not calculate
+ * still shows a correct total; this flag is the other half, and makes Excel
+ * recompute from the sheet itself rather than trusting a number we put there.
+ * Both are needed: the flag alone left phone previews reading 0, and the cache
+ * alone would leave the totals frozen if someone edited a column by hand.
  */
 export function forceFullCalcOnLoad(workbookXml: string): string {
   if (/<calcPr[^>]*fullCalcOnLoad="1"/.test(workbookXml)) {

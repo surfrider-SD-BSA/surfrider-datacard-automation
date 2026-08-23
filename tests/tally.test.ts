@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countTally, type TallyReading } from "../src/lib/tally";
+import { SALVAGE_CONFIDENCE, countTally, salvageCount, type TallyReading } from "../src/lib/tally";
 import type { MarkImage } from "../src/lib/marks";
 
 /**
@@ -340,5 +340,60 @@ describe("countTally", () => {
     // two strokes of a tally span the same rows.
     const img = uprights(blank(), 40, 2);
     expect(count(img).count).toBe(2);
+  });
+});
+
+/**
+ * Salvaging a count from a strip the counter refused.
+ *
+ * The chapter owner asked for every box to arrive filled in. This is the part
+ * of that which is made of something: a decline that already counted strokes
+ * and then rejected their structure. The cases that must NOT be salvaged are
+ * the point of these tests -- a number nobody can derive, and a count that
+ * belongs to a different row.
+ */
+describe("salvageCount", () => {
+  const declined = (o: Partial<TallyReading>): TallyReading => ({
+    count: null,
+    reason: "unexplained ink",
+    strokes: 0,
+    bars: 0,
+    groups: [],
+    explained: 0,
+    confidence: 0,
+    ...o,
+  });
+
+  it("adds up the strokes and crossbars a structural decline threw away", () => {
+    const got = salvageCount(declined({ strokes: 7, bars: 1, reason: "ragged groups" }));
+    expect(got).toEqual({ value: 8, confidence: SALVAGE_CONFIDENCE });
+  });
+
+  it("salvages the other structural declines too", () => {
+    for (const reason of ["unexplained ink", "strokes not parallel", "no common baseline"]) {
+      expect(salvageCount(declined({ strokes: 3, reason }))?.value).toBe(3);
+    }
+  });
+
+  it("refuses a strip where no strokes were found", () => {
+    for (const reason of ["no ink", "no strokes", "too dense", "runs off the strip"]) {
+      expect(salvageCount(declined({ strokes: 0, reason }))).toBeNull();
+    }
+  });
+
+  it("refuses a strip whose ink runs into another row", () => {
+    // Not a weak reading of this row: a plausible number against the wrong
+    // debris item, which is the failure `rowEscape` exists for and the one
+    // thing a reviewer glancing at a picture cannot catch.
+    expect(salvageCount(declined({ strokes: 4, reason: "ink continues past the row" }))).toBeNull();
+  });
+
+  it("leaves a reading the counter accepted alone", () => {
+    expect(salvageCount(declined({ count: 5, reason: "", strokes: 5, confidence: 0.8 }))).toBeNull();
+  });
+
+  it("is worth enough to reach a box and nowhere near enough to skip review", () => {
+    expect(SALVAGE_CONFIDENCE).toBeGreaterThan(0);
+    expect(SALVAGE_CONFIDENCE).toBeLessThan(0.75);
   });
 });

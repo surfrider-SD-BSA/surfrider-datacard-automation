@@ -15,7 +15,15 @@
  * reviewer was making anyway.
  */
 
-export type ReadingSource = "agreed" | "split" | "tally" | "digits";
+/**
+ * Which reader produced a value -- or "placeholder", which means none did.
+ *
+ * A placeholder is not a reading and `reconcile` never returns one. It is put
+ * in by `prefillFor` after both readers have declined, so that every box a
+ * volunteer opens has a number in it. It carries confidence 0, which is what
+ * separates it from everything else here: nothing was read.
+ */
+export type ReadingSource = "agreed" | "split" | "tally" | "digits" | "placeholder";
 
 export interface Reading {
   value: number;

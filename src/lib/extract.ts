@@ -12,7 +12,7 @@ import type { CellMap, Rect } from "./cells";
 import { readDigits, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
 import { boxMarked, cropGray, stripMarked } from "./marks";
-import { countTally } from "./tally";
+import { countTally, salvageCount } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
 import { itemForRow, type CardSide } from "./taxonomy";
 
@@ -227,6 +227,13 @@ export function cellsForSide(
     // for.
     const digitReading = model && hasValue ? readDigits(cropGray(image, cell.total), model) : null;
 
+    // A strip the counter refused, counted anyway where there were strokes to
+    // count. The instruction is that every box arrives filled in; `salvageCount`
+    // is where the line is drawn between a guess made of something and a number
+    // made up, and it declines the second. Worth a tenth of a real reading, so
+    // it fills the box and never clears the auto-accept threshold.
+    const salvaged = tallyReading ? salvageCount(tallyReading) : null;
+
     const region = cropRegion(cell.total, cell.tally, image);
     out.push({
       row: cell.row,
@@ -239,8 +246,10 @@ export function cellsForSide(
       tallyOnly,
       digitValue: digitReading?.value ?? null,
       digitConfidence: digitReading?.confidence ?? 0,
-      tallyCount: tallyReading?.count ?? null,
-      tallyConfidence: tallyReading?.confidence ?? 0,
+      tallyCount: tallyReading?.count ?? salvaged?.value ?? null,
+      tallyConfidence: tallyReading?.count !== null && tallyReading?.count !== undefined
+        ? tallyReading.confidence
+        : (salvaged?.confidence ?? 0),
       rect: rebase(cell.total, region),
       tallyRect: rebase(cell.tally, region),
       // The tally run beside the number, so the reviewer can sanity-check one
