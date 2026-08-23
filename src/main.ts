@@ -37,6 +37,7 @@ import {
   type ExtractedCard,
   type ExtractedCell,
   type PageCells,
+  viewRect,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
 import { rasterizePdf } from "./lib/pdf";
@@ -680,16 +681,20 @@ function renderCell(cardNumber: number, cell: ExtractedCell): HTMLElement {
   // handwritten number was a few pixels across the far right of a very wide
   // strip -- unreadable, and the label was already printed above it as text.
   // The number is the only thing being read here, so it gets the space.
-  const shot = cell.tallyOnly
-    ? cropToCanvas(
-        cell.image,
-        cell.rect.x - cell.rect.width * 0.15,
-        cell.rect.y,
-        cell.rect.width * 1.3,
-        cell.rect.height,
-        2.0,
-      )
-    : cropToCanvas(cell.image, cell.rect.x, cell.rect.y, cell.rect.width, cell.rect.height, 2.4);
+  //
+  // The rectangle is `viewRect` and not the box itself. Cropping to the printed
+  // box cut the foot off most handwritten numbers -- the reviewer was being
+  // shown part of a digit and asked to confirm it. See VIEW_MARGIN in
+  // lib/extract.ts; the paper it shows was already in the crop.
+  const view = viewRect(cell, cell.tallyOnly);
+  const shot = cropToCanvas(
+    cell.image,
+    view.x,
+    view.y,
+    view.width,
+    view.height,
+    cell.tallyOnly ? 2.0 : 2.4,
+  );
   shot.className = "shot";
   left.appendChild(shot);
 

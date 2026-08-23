@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CellMap } from "../src/lib/cells";
-import { cellsForSide } from "../src/lib/extract";
+import { cellsForSide, viewRect } from "../src/lib/extract";
 import type { GrayImage } from "../src/lib/image";
 
 const map: CellMap = JSON.parse(
@@ -78,5 +78,57 @@ describe("cells carry their own crop, not the page", () => {
     const { width, height } = map.referenceSize;
     const blank: GrayImage = { width, height, data: new Uint8Array(width * height).fill(248) };
     expect(cellsForSide(blank, 1, map, "front")).toEqual([]);
+  });
+});
+
+describe("viewRect", () => {
+  /** A cell as the crop path produces one: a box inside a slightly bigger crop. */
+  const cell = (rect: { x: number; y: number; width: number; height: number }, w: number, h: number) => ({
+    rect,
+    image: { width: w, height: h, data: new Uint8Array(w * h) },
+  });
+
+  it("gives the number room the printed box does not", () => {
+    // The defect this exists for: cropping to the box cut the foot off most
+    // handwritten numbers, because a hand does not stop at the rule.
+    const c = cell({ x: 60, y: 40, width: 100, height: 58 }, 400, 160);
+    const v = viewRect(c);
+
+    expect(v.y).toBeLessThan(c.rect.y);
+    expect(v.y + v.height).toBeGreaterThan(c.rect.y + c.rect.height);
+    expect(v.x).toBeLessThan(c.rect.x);
+    expect(v.x + v.width).toBeGreaterThan(c.rect.x + c.rect.width);
+  });
+
+  it("never asks for paper the crop does not have", () => {
+    // The margin comes out of what `cropRegion` already kept. A box flush to
+    // the edge of its crop has to stay inside it, or cropToCanvas silently
+    // clamps and the picture is off-centre instead of merely tight.
+    const c = cell({ x: 0, y: 0, width: 100, height: 58 }, 100, 58);
+    const v = viewRect(c);
+
+    expect(v.x).toBe(0);
+    expect(v.y).toBe(0);
+    expect(v.x + v.width).toBeLessThanOrEqual(100);
+    expect(v.y + v.height).toBeLessThanOrEqual(58);
+  });
+
+  it("keeps the whole box, whatever the clamping", () => {
+    for (const r of [
+      { x: 0, y: 0, width: 100, height: 58 },
+      { x: 300, y: 100, width: 100, height: 58 },
+      { x: 10, y: 5, width: 40, height: 20 },
+    ]) {
+      const v = viewRect(cell(r, 400, 160));
+      expect(v.x).toBeLessThanOrEqual(r.x);
+      expect(v.y).toBeLessThanOrEqual(r.y);
+      expect(v.x + v.width).toBeGreaterThanOrEqual(Math.min(400, r.x + r.width));
+      expect(v.y + v.height).toBeGreaterThanOrEqual(Math.min(160, r.y + r.height));
+    }
+  });
+
+  it("widens a tally-only row instead of hugging its box", () => {
+    const c = cell({ x: 60, y: 40, width: 100, height: 58 }, 400, 160);
+    expect(viewRect(c, true).width).toBeGreaterThan(viewRect(c, false).width);
   });
 });

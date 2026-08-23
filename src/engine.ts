@@ -31,6 +31,7 @@ import {
   type ExtractedCard,
   type ExtractedCell,
   type PageCells,
+  viewRect,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
 import { isAutoAccepted, prefillFor } from "./lib/prefill";
@@ -317,13 +318,15 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
       );
       break;
     default:
-      canvas = cell.tallyOnly
-        ? cropToCanvas(
-            cell.image,
-            cell.rect.x - cell.rect.width * 0.15, cell.rect.y,
-            cell.rect.width * 1.3, cell.rect.height, 2.0,
-          )
-        : cropToCanvas(cell.image, cell.rect.x, cell.rect.y, cell.rect.width, cell.rect.height, 2.4);
+      {
+        // `viewRect`, not `cell.rect`: the box plus the room a hand actually
+        // uses. Cropping to the printed box cut the foot off most numbers --
+        // see the note beside VIEW_MARGIN in lib/extract.ts.
+        const view = viewRect(cell, cell.tallyOnly);
+        canvas = cropToCanvas(
+          cell.image, view.x, view.y, view.width, view.height, cell.tallyOnly ? 2.0 : 2.4,
+        );
+      }
   }
 
   return {
