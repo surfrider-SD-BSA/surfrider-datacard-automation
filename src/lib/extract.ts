@@ -138,6 +138,49 @@ function cropRegion(total: Rect, tally: Rect, page: GrayImage): Rect {
   };
 }
 
+/**
+ * Breathing room around the TOTAL box in the picture a PERSON is shown, as a
+ * share of the box's height.
+ *
+ * The box the tool crops is the printed box, and handwriting is not confined to
+ * it. Rendered with the crop boundary drawn on, most cells on the 58-card test
+ * scan have the number's foot cut off by it, and some -- a 3 written low, a 1
+ * with a long tail -- are cut in half. The reviewer was being shown a picture
+ * of part of a digit and asked to confirm a number.
+ *
+ * The paper is already there: `cropRegion` keeps `CROP_MARGIN` around the whole
+ * row, so this costs no new pixels and no new work, only the decision to show
+ * them. 0.3 of a 58px box is about 17px, which is what the overhang measures.
+ *
+ * THIS IS THE VIEW ONLY. `readDigits` still reads `cell.total` exactly, because
+ * every segmentation and accuracy figure in HANDOFF.md was measured on that
+ * rectangle and widening it silently would invalidate all of them. Whether the
+ * reader should get the same room is a real question and a separate, measured
+ * one.
+ */
+const VIEW_MARGIN = 0.3;
+
+/**
+ * The rectangle to SHOW for a cell: its box, plus room for the overhang,
+ * clamped to the crop that was taken.
+ *
+ * `wide` is for a tally-only row, whose number is not there to be read and
+ * whose box is drawn wider so the strip beside it stays recognisable.
+ */
+export function viewRect(cell: { rect: Rect; image: GrayImage }, wide = false): Rect {
+  const m = Math.round(cell.rect.height * VIEW_MARGIN);
+  const mx = wide ? Math.round(cell.rect.width * 0.15) : Math.round(m * 0.6);
+
+  const x = Math.max(0, cell.rect.x - mx);
+  const y = Math.max(0, cell.rect.y - m);
+  return {
+    x,
+    y,
+    width: Math.min(cell.image.width, cell.rect.x + cell.rect.width + mx) - x,
+    height: Math.min(cell.image.height, cell.rect.y + cell.rect.height + m) - y,
+  };
+}
+
 /** Move a rectangle from page coordinates into a crop's own coordinates. */
 const rebase = (r: Rect, origin: Rect): Rect => ({
   x: r.x - origin.x,

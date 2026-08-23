@@ -652,6 +652,42 @@ described from the start. Leaving 20 for a person means the tool correctly
 filling roughly 309 of 329 -- 94% coverage at essentially perfect precision --
 and almost all of that has to come from the digits.
 
+### The picture the reviewer was shown cut the number in half
+
+Reported from the app: the cell pictures look wrong. They were, and not only in
+the app -- the browser did the same thing, because both front ends cropped
+`cell.rect`, which is the printed TOTAL box exactly.
+
+Handwriting is not confined to the printed box. Rendering the crop boundary on
+top of a margin of surrounding paper shows it immediately: on the 58-card test
+scan most numbers have their foot cut off by the edge of their own picture, and
+a 3 written low or a 1 with a long tail is cut in half. The reviewer was being
+shown part of a digit and asked to confirm a number -- which is the one job
+this tool exists to make safe.
+
+`viewRect` in `extract.ts` is the fix: the box plus 0.3 of its height above and
+below, clamped to the crop. **It costs no new pixels** -- `cropRegion` already
+keeps `CROP_MARGIN` of paper around the whole row, so the paper was there and
+was being thrown away at the last step.
+
+**The READER deliberately did not get the same room, and that is measured.**
+Giving `readDigits` the padded rectangle looks obviously right and is much
+worse, scored the way `diagnose-segmentation.mjs` scores -- pieces found
+against the digits in the spreadsheet's value, over 3,285 cells and 28 scans:
+
+```
+                                       bare box (shipped)   padded
+  cut into the right number of pieces        73.0%           53.8%
+  nothing found at all                         274             118
+  cut into too many pieces                     251             944
+```
+
+Padding finds ink in half the cells that used to yield nothing, and pays for it
+four times over by pulling in the printed rules and the neighbouring rows'
+strokes. **The tight crop that was failing the viewer is the same tight crop
+that protects the reader.** They want different rectangles, which is why there
+are now two.
+
 ### Segmentation is the bottleneck, not the classifier. This is new, and measured
 
 `scripts/diagnose-segmentation.mjs` asks a question nobody had asked
