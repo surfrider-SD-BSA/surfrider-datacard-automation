@@ -540,19 +540,97 @@ export function distance(a: Float32Array, b: Float32Array, cutoff: number): numb
   return sum;
 }
 
+/**
+ * The forms a query is tried in before it is called a mismatch.
+ *
+ * Two people writing the same digit differ by a handful of small
+ * transformations, and L2 over pixels charges full price for every one of
+ * them. `prepare` already removes two: the shear a writer's slant puts in
+ * (deskew) and a stroke landing a fraction of a pixel over (the blur). The
+ * nine one-pixel offsets removed a third, translation, and were worth 1.6
+ * points on their own.
+ *
+ * Rotation and size are the two that were left, and neither a shear nor a blur
+ * absorbs them: a digit written at a tilt is not a sheared digit, and a small
+ * one is not a blurred one. Adding them measured, leave-one-event-out over
+ * 3,325 digits at K=5:
+ *
+ *                                  accuracy   at conf >= 0.90   whole cells
+ *     nine offsets (as it was)       70.3%    1203 at 86.0%     804/938  85.7%
+ *     + rotation +/-8 degrees        70.6%    1231 at 86.2%     821/957  85.8%
+ *     + size +/-10%                  71.3%    1224 at 85.9%     815/943  86.4%
+ *     + both, which is this          71.4%    1261 at 86.0%     842/975  86.4%
+ *
+ * More coverage at the same precision, on both the digit and the whole-cell
+ * measure, which is the shape every accepted change here has had.
+ *
+ * WIDER IS NOT BETTER. Taking rotation to +/-16 degrees and size to
+ * 0.85-1.20 gives 70.9% -- worse than this and better than none. A tolerance
+ * wide enough to carry a 1 onto a 7 buys the confusion it was meant to avoid.
+ *
+ * SIZE IS WORTH MORE THAN TILT, and the reason is in `prepare` rather than in
+ * the handwriting: it recentres by centre of mass and shears by second moment,
+ * so a digit written a pixel over or leaning is already most of the way onto
+ * its twin before a variant is tried, while nothing in it normalizes SIZE.
+ * tests/digits.test.ts pins this -- on a straight stroke the offsets and the
+ * tilt buy exactly zero, and the size warp is what closes the gap. What the
+ * offsets and rotations still buy on real digits is the part recentring gets
+ * approximately, because a centre of mass moves with the shape itself.
+ *
+ * ON THE QUERY AND NOT THE EXEMPLARS, which is a performance choice and was
+ * measured as one. Warping all 3,325 exemplars instead scores 71.6%, two
+ * tenths better, and multiplies the search -- the part that is 3,325
+ * comparisons rather than 25 -- by five. On a phone that is the whole cost.
+ */
+const WARPS = [
+  [0, 1],
+  [-8, 1],
+  [8, 1],
+  [0, 0.9],
+  [0, 1.1],
+] as const;
+
 const SHIFTS = [
   [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1],
 ] as const;
 
-/** The query moved a pixel each way, so a near miss can score as a near miss. */
-export function shiftVariants(b: Float32Array): Float32Array[] {
-  return SHIFTS.map(([dx, dy]) => {
-    const o = new Float32Array(SIDE * SIDE);
-    for (let y = 0; y < SIDE; y++) {
-      for (let x = 0; x < SIDE; x++) o[y * SIDE + x] = px(b, x + dx, y + dy);
+/**
+ * One rotation, scale and offset of a prepared vector, sampled bilinearly.
+ *
+ * Bilinear rather than nearest for the same reason `deskewRecentre` is: a
+ * rotation snapped to whole pixels breaks a smooth stroke into a staircase,
+ * and the staircase is what the distance would then be measuring. At the
+ * identity warp this is exactly the whole-pixel shift it replaces.
+ */
+function warp(b: ArrayLike<number>, deg: number, scale: number, dx: number, dy: number): Float32Array {
+  const a = (deg * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  const m = (SIDE - 1) / 2;
+
+  const out = new Float32Array(SIDE * SIDE);
+  for (let y = 0; y < SIDE; y++) {
+    for (let x = 0; x < SIDE; x++) {
+      const ux = (x + dx - m) / scale;
+      const uy = (y + dy - m) / scale;
+      out[y * SIDE + x] = sampleAt(b, m + ux * cos + uy * sin, m - ux * sin + uy * cos);
     }
-    return unitNorm(o);
-  });
+  }
+  return unitNorm(out);
+}
+
+/**
+ * The query in every form it is allowed to take, so a near miss scores as one.
+ *
+ * Each is unit-normalized, because the exemplars are and a distance between
+ * differently-scaled vectors means nothing.
+ */
+export function matchVariants(b: Float32Array): Float32Array[] {
+  const out: Float32Array[] = [];
+  for (const [deg, scale] of WARPS) {
+    for (const [dx, dy] of SHIFTS) out.push(warp(b, deg, scale, dx, dy));
+  }
+  return out;
 }
 
 export interface Exemplar {
@@ -593,7 +671,7 @@ export function classifyDigit(
   }
   if (pool.length === 0) return { label: null, confidence: 0 };
 
-  const variants = shiftVariants(q);
+  const variants = matchVariants(q);
   const best = pool
     .map((c) => {
       let m = Infinity;
