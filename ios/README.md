@@ -3,6 +3,11 @@
 The data-card tool on the phone that is already at the cleanup. Eight screens in
 SwiftUI, over the same reading pipeline the browser tool runs.
 
+**Picking this up? Start with [HANDOFF.md](HANDOFF.md)** — what is proven, what is
+assumed, the settings and what they are measured to be worth, the three places the
+design was deliberately not followed, and the traps. This file is how to build and
+sign it; that one is why it is the way it is.
+
 ## What is native and what is not
 
 **The interface is native. The reading is not, and should never be.**
