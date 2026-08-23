@@ -27,7 +27,7 @@ struct CardsScreen: View {
                     .font(Nocturne.Face.title(26))
                     .tracking(-0.26)
                     .foregroundStyle(Nocturne.text)
-                Text("\(model.checkedCount) of \(model.cells.count) filled in · tap a row to look at the picture again")
+                Text("\(model.checkedCount) of \(model.allCells.count) filled in · tap a row to look at the picture again")
                     .font(Nocturne.Face.body(13))
                     .foregroundStyle(Nocturne.text(55))
             }
