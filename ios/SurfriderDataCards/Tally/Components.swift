@@ -9,6 +9,42 @@
 //
 
 import SwiftUI
+import UIKit
+
+// MARK: - Feedback
+
+/// The part of a tap you feel before you can see anything.
+///
+/// Screen 6 is a keypad somebody works at for an hour, and a keypad with no
+/// haptic reads as lag even when the digit lands in the same frame -- the thing
+/// it is being compared against is the system keyboard, which has one. This is
+/// the cheapest speed there is: nothing gets faster, but the tap stops feeling
+/// like it went unanswered.
+///
+/// Prepared rather than fired cold. The Taptic Engine takes a beat to wake, and
+/// the press that would land in it is the first of the session -- the one that
+/// sets what the screen feels like.
+enum Haptics {
+    private static let key = UIImpactFeedbackGenerator(style: .light)
+    private static let step = UIImpactFeedbackGenerator(style: .medium)
+
+    static func prepare() {
+        key.prepare()
+        step.prepare()
+    }
+
+    /// A digit. Softer than the system keyboard's, because there are hundreds.
+    static func tap() {
+        key.impactOccurred(intensity: 0.7)
+        key.prepare()
+    }
+
+    /// A value committed and the screen moving on.
+    static func advance() {
+        step.impactOccurred()
+        step.prepare()
+    }
+}
 
 // MARK: - Buttons
 

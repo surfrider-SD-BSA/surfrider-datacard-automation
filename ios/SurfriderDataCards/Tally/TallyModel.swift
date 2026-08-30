@@ -82,6 +82,11 @@ enum Screen: Hashable {
 final class TallyModel: ObservableObject {
 
     let engine: Engine
+
+    /// The cell pictures, kept and fetched ahead of the reviewer. Screen 6 asks
+    /// this rather than the engine; see the note on `CropCache`.
+    let crops: CropCache
+
     let chapter = "Surfrider San Diego · CH54"
 
     // MARK: Navigation
@@ -162,6 +167,7 @@ final class TallyModel: ObservableObject {
 
     init(engine: Engine) {
         self.engine = engine
+        self.crops = CropCache(engine: engine)
         offeredDraft = drafts.load()
     }
 
@@ -305,6 +311,7 @@ final class TallyModel: ObservableObject {
         index = 0
         entry = ""
         exportedFile = nil
+        crops.clear()
         Task { await engine.reset() }
     }
 
@@ -383,13 +390,29 @@ final class TallyModel: ObservableObject {
         saveTask = Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
-            flush()
+            guard let draft = currentDraft() else { return }
+            // Off the main thread. A few hundred values through JSONEncoder and
+            // out to disk is small, but on this path it lands between two
+            // keystrokes on the one screen whose whole job is keystrokes, and
+            // there is nothing waiting on it. `flush` stays synchronous, for
+            // the opposite reason.
+            let store = drafts
+            await Task.detached(priority: .utility) { store.save(draft) }.value
         }
     }
 
+    /// Write the draft now, on this thread.
+    ///
+    /// The one caller is the app going to the background, which is exactly the
+    /// moment a write must not be left in the air.
     func flush() {
-        guard let scan, !values.isEmpty else { return }
-        drafts.save(Draft(scan: scan, event: event, values: values))
+        guard let draft = currentDraft() else { return }
+        drafts.save(draft)
+    }
+
+    private func currentDraft() -> Draft? {
+        guard let scan, !values.isEmpty else { return nil }
+        return Draft(scan: scan, event: event, values: values)
     }
 
     // MARK: - Export
