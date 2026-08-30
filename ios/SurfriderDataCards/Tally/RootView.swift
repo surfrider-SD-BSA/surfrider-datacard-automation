@@ -43,6 +43,12 @@ struct RootView: View {
                 .allowsHitTesting(false)
         }
         .task {
+            // A cold launch: `onChange` below does not fire for the value the
+            // scene starts at, so the drawer is checked here as well. Before
+            // the await, because a scan shared a moment ago is why the app is
+            // being opened at all.
+            model.takeShared()
+
             // Warm the reference card, the cell maps and the digit model while
             // the volunteer is still on the first screen. A few megabytes off
             // local storage, and it means the reading starts the moment a scan
@@ -50,14 +56,27 @@ struct RootView: View {
             await model.engine.open()
         }
         .onOpenURL { url in
-            // A PDF sent to the app from Files, Mail, Messages or AirDrop.
-            // The other way in besides the two buttons on screen 3.
-            model.openExternal(url)
+            if url.isFileURL {
+                // A PDF sent to the app from Files, Mail, Messages or AirDrop.
+                // The other way in besides the two buttons on screen 3.
+                model.openExternal(url)
+            } else {
+                // `datacards://inbox`, from the share extension. It carries no
+                // file and does not need to -- the PDF is already in the App
+                // Group drawer and the line below is what fetches it. The URL
+                // only brings the app forward, and is allowed to never arrive.
+                model.takeShared()
+            }
         }
         .onChange(of: scenePhase) { phase in
             // The draft is debounced while typing. Going to the background is
             // the one moment that gap matters, so it is closed here.
             if phase != .active { model.flush() }
+
+            // Coming back is the other moment that matters: the share sheet
+            // runs in its own process, so a scan can appear in the drawer while
+            // this app is suspended, with nothing to announce it.
+            if phase == .active { model.takeShared() }
         }
     }
 }

@@ -115,6 +115,96 @@ camera.
 When the resolution has been measured on a real card, take the gate out and let
 it be an ordinary button.
 
+## The share sheet
+
+**Data Cards is a destination in the iOS share sheet.** Share a scan from Files,
+Mail, Drive, or a scanner app, and the app is in the row of icons; the extension
+copies the PDF across and it is waiting on screen 3 the next time the app is
+opened.
+
+There are two separate mechanisms here and they are easy to confuse:
+
+- **The document type** in `Info.plist` (`CFBundleDocumentTypes`) is what puts
+  *"Copy to Data Cards"* in the **list below** the icon row, and what handles
+  *Open in* from apps that offer it. It has been there since the beginning and is
+  unchanged. It only works for apps that hand over a real file, and the list is
+  where things go to be scrolled past.
+- **The share extension** (`SurfriderDataCards/Share/`) is what puts the app in
+  the **icon row itself**. That is the whole reason it exists.
+
+**It does not read the scan.** An extension is given a fraction of the app's
+memory and is killed without ceremony when it exceeds it, and the pipeline in
+`Engine.swift` is a WKWebView holding the reference card, the cell maps and the
+digit model. So the extension copies one PDF and says so; `read(pdf:)` runs in
+the app, from screen 3, exactly as it does for a file chosen from the picker.
+
+**One PDF, and only a PDF.** `NSExtensionActivationRule` is a predicate rather
+than the usual `…SupportsFileWithMaxCount` dictionary, because that dictionary
+form offers this app for every file type on the phone and then says *"that is not
+a PDF"* after the tap has been spent. A cleanup is one PDF, front and back in
+card order, and the rule says exactly that.
+
+### How the file crosses
+
+An extension is a separate process with a separate container, so an App Group is
+the only supported way across. `Shared/SharedInbox.swift` is the whole of it:
+the extension writes a copy into `Inbox/` in the group container, and the app
+moves it out and deletes the original the next time it becomes active
+(`TallyModel.takeShared`, called from `RootView`). **The drawer is empty between
+the share and the read**, and `sweep` throws away anything a week old, because a
+shared container that quietly accumulated old cleanups would break the second
+half of the promise every screen makes.
+
+The group identifier is written in exactly one place — `APP_GROUP_ID` in the
+project's build settings, which is `group.$(APP_BUNDLE_ID)`. Both `Info.plist`
+files carry it into the bundle as `AppGroupIdentifier` and both `.entitlements`
+files expand it. Do not type it anywhere else: two halves pointed at different
+drawers fails silently and looks exactly like the share doing nothing.
+
+`datacards://inbox` is the extension's attempt to bring the app forward after it
+has written the file. It is only ever a nudge — `NSExtensionContext.open` is
+documented for Today extensions and may simply report failure from here, and the
+responder-chain trick around that is the kind of thing that passes review until
+it does not. The scan arrives either way; without it the volunteer opens the app
+themselves, which is one tap.
+
+### What this costs at signing time
+
+The app is now **two bundles**, `$(APP_BUNDLE_ID)` and `$(APP_BUNDLE_ID).Share`,
+and both need the **App Groups** capability on `group.$(APP_BUNDLE_ID)`.
+`testflight.sh` passes `-allowProvisioningUpdates`, which creates the second App
+ID and the group on the first run; without it the archive fails at signing with
+a missing-entitlement error that does not mention capabilities.
+
+It also passes `APP_BUNDLE_ID=` rather than `PRODUCT_BUNDLE_IDENTIFIER=`. A
+setting given on the `xcodebuild` command line applies to *every* target, and
+handing the app and its extension the same identifier produces an archive App
+Store Connect rejects.
+
+**On an unsigned simulator build the App Group is not there** — entitlements are
+not applied when `CODE_SIGNING_ALLOWED=NO`, so `SharedInbox.directory` is nil and
+the extension says so rather than failing quietly. That is the ordinary state of
+the build command below, and it is why the drawer does nothing there.
+
+A team is not needed to exercise it, though. Signing the simulator build ad hoc
+is enough — the simulator does not check the entitlement against a provisioning
+profile, so the group container exists:
+
+```sh
+xcodebuild -project ios/SurfriderDataCards.xcodeproj -scheme "Data Cards" \
+  -sdk iphonesimulator -derivedDataPath ios/build-adhoc \
+  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" build
+xcrun simctl install booted "ios/build-adhoc/Build/Products/Debug-iphonesimulator/Data Cards.app"
+xcrun simctl get_app_container booted com.mateobesse.datacards group.com.mateobesse.datacards
+```
+
+The last line prints the drawer. Dropping a file into its `Inbox/` named
+`<uuid>__scan.pdf` — which is exactly what `SharedInbox.deposit` writes — and
+launching or foregrounding the app is the whole of the app's half of the
+hand-off, without going near the share sheet. `pluginkit -m -p
+com.apple.share-services` inside `simctl spawn booted` is how to check the
+extension registered at all.
+
 ## Building it
 
 ```sh

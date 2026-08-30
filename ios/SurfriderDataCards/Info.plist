@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- The App Group the share extension writes a shared scan into. Read by
+	     SharedInbox, which will not guess if this is missing; the extension's
+	     Info.plist sets the same key from the same build setting. -->
+	<key>AppGroupIdentifier</key>
+	<string>$(APP_GROUP_ID)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -16,10 +21,22 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- Both from the build settings, and both for the same reason: the share
+	     extension is a second bundle inside this one, and App Store Connect
+	     rejects an upload whose extension does not carry the app's exact
+	     version and build. Its Info.plist reads MARKETING_VERSION and
+	     CURRENT_PROJECT_VERSION, so this one has to as well, or the two drift
+	     the moment either is set.
+
+	     It also makes testflight.sh's build number work. That script passes
+	     CURRENT_PROJECT_VERSION=$(date +%s) so that every upload carries a
+	     number nobody has used; while this key was the literal 1 the setting
+	     reached nothing, and the second upload would have been refused as a
+	     duplicate. -->
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<!-- App Store Connect asks about encryption on every upload and the answer
 	     never changes: this app makes no network calls at all. The bundle is
 	     served from inside the app package and the scan never leaves the
@@ -70,6 +87,22 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.adobe.pdf</string>
+			</array>
+		</dict>
+	</array>
+	<!-- `datacards://inbox` — the share extension's attempt to bring the app
+	     forward after it has put a PDF in the drawer. It is only ever a nudge:
+	     RootView checks the drawer whenever the app becomes active, so the scan
+	     arrives whether or not this URL is ever opened, and nothing about the
+	     file travels in it. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(APP_BUNDLE_ID)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>datacards</string>
 			</array>
 		</dict>
 	</array>

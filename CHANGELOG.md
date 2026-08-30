@@ -11,6 +11,15 @@ count as breaking.
 
 ### Added
 
+- **Data Cards is a destination in the iOS share sheet.** Share a scan from
+  Files, Mail, Drive or a scanner app and the app is in the row of icons rather
+  than in the list under it; the PDF is waiting on the capture screen the next
+  time the app is opened. The extension only carries the file across an App
+  Group — it does not read the scan, because an extension gets a fraction of the
+  app's memory and the reading pipeline is a WKWebView. The drawer it crosses
+  through is empty between the share and the read, and anything the app never
+  came back for is thrown away after a week. The scan still never leaves the
+  phone.
 - **`scripts/export-workbook.mjs`** — a scan all the way to a filled spreadsheet
   without a browser. The other instruments stop at the readings; this one writes
   the file, which is the step the totals bug below hid in. It reports what the

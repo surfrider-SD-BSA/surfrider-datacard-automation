@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<!-- What the share sheet writes under the icon. The app's own name, because
+	     from the sheet there is no distinction to draw: a volunteer sharing a
+	     scan is sending it to Data Cards, not to an extension of it. -->
+	<key>CFBundleDisplayName</key>
+	<string>Data Cards</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- The drawer, as a build setting rather than a literal. SharedInbox reads
+	     this key; the app's Info.plist sets the same one to the same value. -->
+	<key>AppGroupIdentifier</key>
+	<string>$(APP_GROUP_ID)</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.share-services</string>
+		<!-- No storyboard: ShareViewController builds its own view. @objc keeps
+		     the name unqualified so this does not have to know the module. -->
+		<key>NSExtensionPrincipalClass</key>
+		<string>ShareViewController</string>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<!-- ONE PDF, AND NOTHING ELSE.
+
+			     The dictionary form of this rule
+			     (NSExtensionActivationSupportsFileWithMaxCount) would put this
+			     app in the share sheet for every file type on the phone, and an
+			     app that offers itself for a photo and then says "that is not a
+			     PDF" has wasted the tap. The predicate asks the attachments
+			     themselves: exactly one extension item, carrying exactly one
+			     attachment, and that attachment conforming to com.adobe.pdf.
+
+			     One is not a limitation to be lifted later. A cleanup is one
+			     PDF, front and back in card order -- see the capture screen. -->
+			<key>NSExtensionActivationRule</key>
+			<string>SUBQUERY (
+    extensionItems, $item,
+    $item.attachments.@count == 1
+    AND SUBQUERY (
+        $item.attachments, $attachment,
+        ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf"
+    ).@count == 1
+).@count == 1</string>
+		</dict>
+	</dict>
+</dict>
+</plist>
