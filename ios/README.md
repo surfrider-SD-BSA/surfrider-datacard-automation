@@ -99,9 +99,21 @@ library or writes to it.
 decides whether this is worth having. The pipeline expects 200 DPI on the card's
 short edge; whether a handheld capture clears that in beach light has never been
 tested on a real card, and the design handoff calls it "the biggest open risk in
-the whole concept". The screen says the scanner is the surer route, as a warning
-rather than a wall. **Measure it on a real card before telling a chapter to rely
+the whole concept". **Measure it on a real card before telling a chapter to rely
 on it.**
+
+**So the button is gated.** `Beta.cameraCapture`, at the top of
+`Tally/Screens/CaptureScreen.swift`, decides whether it is offered at all, and
+it carries a BETA tag on the control itself when it is. Nothing is wrong with
+the code -- the rectification is right and the page-size arithmetic is right --
+so it is not deleted; what is missing is the measurement, and an unmeasured
+input should not sit beside the scanner as though the two were equal. Turn it
+off for a build going to volunteers typing up a real cleanup. With it off, the
+picker becomes the screen's primary action and the hint stops mentioning the
+camera.
+
+When the resolution has been measured on a real card, take the gate out and let
+it be an ordinary button.
 
 ## Building it
 

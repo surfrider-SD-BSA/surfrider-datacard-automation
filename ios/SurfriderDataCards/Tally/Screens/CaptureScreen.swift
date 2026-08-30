@@ -28,6 +28,31 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VisionKit
 
+/// What is here to be tried rather than relied on.
+///
+/// The camera is the only one so far, and it is here rather than deleted
+/// because nothing is wrong with the code. VisionKit rectifies the page and the
+/// pipeline receives a flat one; `CapturedPages.pdf` preserves the capture's
+/// pixels instead of resampling them. Both of those took work and both are
+/// right.
+///
+/// What has never been taken is the one number that decides whether the path is
+/// worth having: the reading wants 200 DPI on the card's short edge, and
+/// whether a handheld capture clears that in beach light has not been measured
+/// on a real card. The design handoff calls that "the biggest open risk in the
+/// whole concept".
+///
+/// So the answer is not to throw the path away and not to leave it sitting
+/// beside the scanner as though the two were equal. It is gated, and it says
+/// what it is. Turn it off for a build going to volunteers typing up a real
+/// cleanup; leave it on for anyone deliberately trying it.
+///
+/// **Measure it on a real card before this becomes an ordinary button.**
+enum Beta {
+    /// Photographing the cards instead of scanning them.
+    static let cameraCapture = true
+}
+
 struct CaptureScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
@@ -83,26 +108,41 @@ struct CaptureScreen: View {
                     .buttonStyle(PrimaryButtonStyle())
                 }
 
-                Button {
-                    scanning = true
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: Nocturne.Icon.capture)
-                        Text("Take pictures of the cards")
+                if Beta.cameraCapture {
+                    Button {
+                        scanning = true
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: Nocturne.Icon.capture)
+                            Text("Take pictures of the cards")
+                            // Said on the control itself, not only in the hint
+                            // underneath. Somebody choosing between two buttons
+                            // is entitled to know one of them is unproven at the
+                            // moment they choose.
+                            Text("BETA")
+                                .font(Nocturne.Face.label(10, weight: .medium))
+                                .tracking(0.8)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Nocturne.accent800))
+                        }
                     }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(!CapturedPages.scanningAvailable)
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!CapturedPages.scanningAvailable)
 
-                Button {
-                    picking = true
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: Nocturne.Icon.scan)
-                        Text("Choose a scanned PDF")
+                // Secondary beside the camera, primary when it is the only way
+                // in. Two ButtonStyles are two types, so this is a branch rather
+                // than a ternary.
+                Group {
+                    if Beta.cameraCapture {
+                        Button { picking = true } label: { pickLabel }
+                            .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
+                    } else {
+                        Button { picking = true } label: { pickLabel }
+                            .buttonStyle(PrimaryButtonStyle())
                     }
                 }
-                .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
                 .sheet(isPresented: $picking) {
                     PDFPicker { url in
                         picking = false
@@ -150,8 +190,18 @@ struct CaptureScreen: View {
         }
     }
 
-    /// What to say under the two buttons.
+    private var pickLabel: some View {
+        HStack(spacing: 9) {
+            Image(systemName: Nocturne.Icon.scan)
+            Text("Choose a scanned PDF")
+        }
+    }
+
+    /// What to say under the buttons.
     private var hint: String {
+        guard Beta.cameraCapture else {
+            return "Both sides of every card, in card order, from the chapter's scanner. The reading wants 200 DPI, which is what it produces."
+        }
         if !CapturedPages.scanningAvailable {
             return "This device has no document scanner, so the cards have to come from a PDF. Scanned front-and-back, in card order."
         }
