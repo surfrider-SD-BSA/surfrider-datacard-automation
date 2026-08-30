@@ -28,7 +28,36 @@
 		AA000000000000000000020E /* FinishScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010E /* FinishScreen.swift */; };
 		AA0000000000000000000230 /* DocumentScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000130 /* DocumentScanner.swift */; };
 		AA0000000000000000000231 /* PDFPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000131 /* PDFPicker.swift */; };
+		AA0000000000000000000320 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000310 /* ShareViewController.swift */; };
+		AA0000000000000000000321 /* SharedInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000313 /* SharedInbox.swift */; };
+		AA0000000000000000000322 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000100 /* Theme.swift */; };
+		AA0000000000000000000323 /* SharedInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000313 /* SharedInbox.swift */; };
+		AA0000000000000000000324 /* Share.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000301 /* Share.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA0000000000000000000307 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000000000000000000300;
+			remoteInfo = Share;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AA0000000000000000000305 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AA0000000000000000000324 /* Share.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		AA0000000000000000000005 /* Data Cards.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Data Cards.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -54,10 +83,23 @@
 		AA000000000000000000010E /* FinishScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FinishScreen.swift; path = Tally/Screens/FinishScreen.swift; sourceTree = "<group>"; };
 		AA0000000000000000000130 /* DocumentScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentScanner.swift; path = Tally/DocumentScanner.swift; sourceTree = "<group>"; };
 		AA0000000000000000000131 /* PDFPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PDFPicker.swift; path = Tally/PDFPicker.swift; sourceTree = "<group>"; };
+		AA0000000000000000000301 /* Share.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = Share.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000310 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		AA0000000000000000000311 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA0000000000000000000312 /* Share.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Share.entitlements; sourceTree = "<group>"; };
+		AA0000000000000000000313 /* SharedInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedInbox.swift; path = Shared/SharedInbox.swift; sourceTree = "<group>"; };
+		AA0000000000000000000314 /* DataCards.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DataCards.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		AA0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000303 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -79,6 +121,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000005 /* Data Cards.app */,
+				AA0000000000000000000301 /* Share.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -105,11 +148,24 @@
 				AA000000000000000000010D /* CardsScreen.swift */,
 				AA000000000000000000010E /* FinishScreen.swift */,
 				AA000000000000000000000B /* WebAssetSchemeHandler.swift */,
+				AA0000000000000000000313 /* SharedInbox.swift */,
+				AA000000000000000000030B /* Share */,
 				AA000000000000000000000D /* Info.plist */,
+				AA0000000000000000000314 /* DataCards.entitlements */,
 				AA000000000000000000000F /* Assets.xcassets */,
 				AA000000000000000000000E /* web */,
 			);
 			path = SurfriderDataCards;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000030B /* Share */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000310 /* ShareViewController.swift */,
+				AA0000000000000000000311 /* Info.plist */,
+				AA0000000000000000000312 /* Share.entitlements */,
+			);
+			path = Share;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -122,15 +178,34 @@
 				AA0000000000000000000006 /* Sources */,
 				AA0000000000000000000008 /* Frameworks */,
 				AA0000000000000000000007 /* Resources */,
+				AA0000000000000000000305 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				AA0000000000000000000306 /* PBXTargetDependency */,
 			);
 			name = "Data Cards";
 			productName = SurfriderDataCards;
 			productReference = AA0000000000000000000005 /* Data Cards.app */;
 			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000300 /* Share */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000308 /* Build configuration list for PBXNativeTarget "Share" */;
+			buildPhases = (
+				AA0000000000000000000302 /* Sources */,
+				AA0000000000000000000303 /* Frameworks */,
+				AA0000000000000000000304 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Share;
+			productName = Share;
+			productReference = AA0000000000000000000301 /* Share.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -143,6 +218,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					AA0000000000000000000004 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					AA0000000000000000000300 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -161,6 +239,7 @@
 			projectRoot = "";
 			targets = (
 				AA0000000000000000000004 /* Data Cards */,
+				AA0000000000000000000300 /* Share */,
 			);
 		};
 /* End PBXProject section */
@@ -172,6 +251,13 @@
 			files = (
 				AA000000000000000000001A /* Assets.xcassets in Resources */,
 				AA0000000000000000000013 /* web in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000304 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -201,15 +287,36 @@
 				AA000000000000000000020D /* CardsScreen.swift in Sources */,
 				AA000000000000000000020E /* FinishScreen.swift in Sources */,
 				AA0000000000000000000011 /* WebAssetSchemeHandler.swift in Sources */,
+				AA0000000000000000000323 /* SharedInbox.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000302 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000000000000000000320 /* ShareViewController.swift in Sources */,
+				AA0000000000000000000321 /* SharedInbox.swift in Sources */,
+				AA0000000000000000000322 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		AA0000000000000000000306 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0000000000000000000300 /* Share */;
+			targetProxy = AA0000000000000000000307 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		AA0000000000000000000016 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_BUNDLE_ID = com.mateobesse.datacards;
+				APP_GROUP_ID = "group.$(APP_BUNDLE_ID)";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
@@ -254,6 +361,8 @@
 		AA0000000000000000000017 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_BUNDLE_ID = com.mateobesse.datacards;
+				APP_GROUP_ID = "group.$(APP_BUNDLE_ID)";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
@@ -297,6 +406,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SurfriderDataCards/DataCards.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -306,7 +416,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mateobesse.datacards;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
 				PRODUCT_NAME = "Data Cards";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -318,6 +428,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SurfriderDataCards/DataCards.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -327,8 +438,54 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mateobesse.datacards;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
 				PRODUCT_NAME = "Data Cards";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AA0000000000000000000309 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SurfriderDataCards/Share/Share.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SurfriderDataCards/Share/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).Share";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA000000000000000000030A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SurfriderDataCards/Share/Share.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SurfriderDataCards/Share/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).Share";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -352,6 +509,15 @@
 			buildConfigurations = (
 				AA0000000000000000000018 /* Debug */,
 				AA0000000000000000000019 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000308 /* Build configuration list for PBXNativeTarget "Share" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000309 /* Debug */,
+				AA000000000000000000030A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

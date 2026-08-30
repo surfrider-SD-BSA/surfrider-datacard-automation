@@ -234,10 +234,13 @@ sweep, not a change.
 | Build | typechecks, both entry points, `check-dist` clean, 5 CI checks |
 | Device | builds, signs, installs, launches on a physical iPhone 16 |
 | Screens 1–3 | driven by hand in the simulator |
+| Share extension | registers under `com.apple.share-services`; the drawer hand-off on both cold launch and warm foreground, on an ad-hoc signed simulator build |
 
 **Not proven:** a card read end to end inside the app; any screen after 3 with real
 data in it; the export reaching the share sheet; the draft surviving a real
-backgrounding; capture resolution on a real card.
+backgrounding; capture resolution on a real card; the share extension's own
+screen, which needs a real share sheet to reach — only the app's half of that
+hand-off has been driven.
 
 ## What to do next, in order
 

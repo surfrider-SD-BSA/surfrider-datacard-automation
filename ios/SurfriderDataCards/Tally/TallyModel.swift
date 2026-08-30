@@ -174,27 +174,67 @@ final class TallyModel: ObservableObject {
     // MARK: - Starting
 
     /// Another app opened a PDF with us. Start a cleanup and hold the file.
-    func openExternal(_ url: URL) {
+    ///
+    /// Returns whether the copy is in hand. Only `takeShared` looks: it deletes
+    /// the original afterwards and must not do that for a file it failed to
+    /// take.
+    @discardableResult
+    func openExternal(_ url: URL, named name: String? = nil) -> Bool {
         // Copied out of the inbox immediately: the system deletes what it puts
         // there, on its own schedule, and a scan that vanishes between the tap
         // and the read is a bug nobody could reproduce.
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let copy = dir.appendingPathComponent(url.lastPathComponent)
+        let copy = dir.appendingPathComponent(name ?? url.lastPathComponent)
 
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { return }
+        guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { return false }
 
         startNewCleanup()
         pendingPDF = copy
+        return true
+    }
+
+    /// A PDF the share extension left in the App Group drawer.
+    ///
+    /// Checked every time the app becomes active, because there is no
+    /// notification when an extension writes: the share happens in another
+    /// process, often while this one is not running at all.
+    ///
+    /// It goes through `openExternal` and so starts a cleanup, discarding
+    /// whatever was on screen. That is the same thing opening a PDF from Files
+    /// has always done, and it is safe for the same reason -- the draft was
+    /// flushed on the way to the background and is offered back on screen 1.
+    /// Only the newest is taken; a cleanup is one PDF, and the rest are cleared
+    /// rather than queued, so that nothing is left in a container two processes
+    /// can reach.
+    func takeShared() {
+        let waiting = SharedInbox.waiting()
+        guard let newest = waiting.last else { return }
+
+        // The drawer is cleared only once the copy is in hand. Deleting the
+        // original after a failed copy would lose the scan and leave nothing to
+        // say so; leaving it means the next launch tries again, and the
+        // extension's `sweep` is the backstop if it never works.
+        guard openExternal(newest, named: SharedInbox.originalName(of: newest)) else { return }
+        waiting.forEach(SharedInbox.remove)
     }
 
     func startNewCleanup() {
         event = EventForm()
         clearScan()
         pendingPDF = nil
+        // Whatever was on screen is being replaced, and `flush` has already put
+        // it on disk. Re-read the offer so screen 1 actually has it: this was
+        // loaded at launch and nowhere else, so a cleanup replaced by an
+        // arriving scan left its draft on disk with nothing offering it back
+        // until the app was next started -- and, worse, left screen 1 offering
+        // whatever draft had been on disk at launch instead. `takeShared` says
+        // discarding is safe because the draft comes back; this is the line
+        // that makes that true.
+        offeredDraft = drafts.load()
         path = [.event]
     }
 

@@ -17,6 +17,13 @@
 #      and do not commit it anywhere.
 #   3. An app record in App Store Connect whose bundle ID matches BUNDLE_ID
 #      below, and a registered App ID for it in the developer portal.
+#   4. The share extension is a SECOND bundle, "$BUNDLE_ID.Share", and both it
+#      and the app need the App Groups capability on "group.$BUNDLE_ID". No app
+#      record is needed for the extension -- it ships inside the app -- but the
+#      App ID and the group do have to exist. `-allowProvisioningUpdates` below
+#      creates all three the first time this runs, which is why it is there;
+#      without it the archive fails at signing with a missing-entitlement error
+#      and no hint that a capability is what is missing.
 #
 # Then:
 #
@@ -48,6 +55,11 @@ build_number="${BUILD_NUMBER:-$(date +%s)}"
 echo "==> refreshing the web bundle"
 "$root/ios/sync-web.sh"
 
+# APP_BUNDLE_ID, not PRODUCT_BUNDLE_IDENTIFIER: a setting given on the command
+# line applies to every target, and handing the app and the share extension the
+# same identifier produces an archive App Store Connect rejects. The project
+# derives both from this one -- the app is $(APP_BUNDLE_ID) and the extension is
+# $(APP_BUNDLE_ID).Share -- and the App Group with them.
 echo "==> archiving (build $build_number, team $TEAM_ID, bundle $BUNDLE_ID)"
 rm -rf "$archive" "$export_dir"
 mkdir -p "$build_dir"
@@ -57,8 +69,9 @@ xcodebuild \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$archive" \
+  -allowProvisioningUpdates \
   DEVELOPMENT_TEAM="$TEAM_ID" \
-  PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+  APP_BUNDLE_ID="$BUNDLE_ID" \
   CURRENT_PROJECT_VERSION="$build_number" \
   archive
 
