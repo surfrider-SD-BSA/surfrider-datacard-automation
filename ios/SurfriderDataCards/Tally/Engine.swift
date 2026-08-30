@@ -360,6 +360,121 @@ extension Engine: WKNavigationDelegate {
     }
 }
 
+// MARK: - The crops, kept and fetched ahead
+
+/// The pictures screen 6 reads from, held in memory and fetched before they are
+/// asked for.
+///
+/// A crop is cheap and a long way away: JavaScript cuts the row out of the page
+/// it is still holding, encodes a PNG and posts it back as base64, and the app
+/// then decodes it twice. None of that is slow on its own. Done on arrival it
+/// was all in front of the tap, three times over -- the box, the row strip and
+/// the marks were awaited one after another -- so every "Next" on a screen
+/// somebody works for an hour spent a white card and a spinner before it showed
+/// anything. That, and not the reading, is what made the app feel slow.
+///
+/// So the work moves behind the tap. The cell on screen is fetched, and the
+/// next few are fetched after it while the reviewer is still reading this one.
+/// Advancing then hits memory and paints in the same frame.
+@MainActor
+final class CropCache {
+
+    struct Key: Hashable {
+        let card: Int
+        let row: Int
+        /// "total" | "context" | "marks", as `crop` in src/engine.ts names them.
+        let kind: String
+    }
+
+    private let engine: Engine
+
+    private var images: [Key: UIImage] = [:]
+    /// Insertion order, oldest first. A decoded crop is a bitmap and an event is
+    /// hundreds of cells, so this is bounded rather than left to grow into the
+    /// second copy of the scan the engine went to some trouble not to keep.
+    private var order: [Key] = []
+    private var inFlight: [Key: Task<UIImage?, Never>] = [:]
+
+    /// Comfortably more than the window that is prefetched, and far short of an
+    /// event.
+    private let limit = 48
+
+    /// Bumped by `clear`. A fetch already in the air when the scan goes belongs
+    /// to a card that is no longer loaded, and must not land in the cache the
+    /// next scan will read from.
+    private var generation = 0
+
+    init(engine: Engine) { self.engine = engine }
+
+    /// What is in memory now, for a caller that cannot wait -- which is the
+    /// checking screen's body, every frame.
+    func cached(_ key: Key) -> UIImage? { images[key] }
+
+    /// The picture, from memory if it is there and from the engine if it is not.
+    ///
+    /// Two callers wanting the same crop share one round trip: the screen asks
+    /// for the cell it is showing at the same moment the prefetch the previous
+    /// cell started is still in the air, and that is the common case rather than
+    /// a race worth ignoring.
+    func image(_ key: Key) async -> UIImage? {
+        if let hit = images[key] { return hit }
+        if let running = inFlight[key] { return await running.value }
+
+        let era = generation
+        let task = Task<UIImage?, Never> { [engine] in
+            guard let result = try? await engine.crop(card: key.card, row: key.row, kind: key.kind) else { return nil }
+            let png = result.png
+            // Base64, the PNG decode, and the bitmap the renderer actually
+            // draws, all off the main thread. Left alone, the last of those
+            // three happens on the first frame the picture is on screen, which
+            // is the one frame that must not drop.
+            return await Task.detached(priority: .userInitiated) {
+                guard let data = Data(base64Encoded: png), let image = UIImage(data: data) else { return nil }
+                return image.preparingForDisplay() ?? image
+            }.value
+        }
+
+        inFlight[key] = task
+        let image = await task.value
+        inFlight.removeValue(forKey: key)
+        if let image, era == generation { store(key, image) }
+        return image
+    }
+
+    /// The picture, or nothing where this cell has none to show. Saves the
+    /// caller a branch around three parallel fetches.
+    func image(_ key: Key, when needed: Bool) async -> UIImage? {
+        needed ? await image(key) : nil
+    }
+
+    /// Fetch ahead and do not wait. Anything already held or already asked for
+    /// falls straight through `image`.
+    func prefetch(_ keys: [Key]) {
+        for key in keys where images[key] == nil && inFlight[key] == nil {
+            Task { _ = await image(key) }
+        }
+    }
+
+    /// The crops belong to one scan and nothing in them outlives it. Same
+    /// promise as the one on every screen: the pictures stay in memory and go
+    /// when the event does.
+    func clear() {
+        generation += 1
+        for task in inFlight.values { task.cancel() }
+        inFlight = [:]
+        images = [:]
+        order = []
+    }
+
+    private func store(_ key: Key, _ image: UIImage) {
+        if images[key] == nil { order.append(key) }
+        images[key] = image
+        while order.count > limit {
+            images.removeValue(forKey: order.removeFirst())
+        }
+    }
+}
+
 // MARK: -
 
 /// Plants the engine's web view in the window so WebKit does not throttle it.

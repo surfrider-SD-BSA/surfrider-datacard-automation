@@ -23,11 +23,16 @@ struct ReviewScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
 
-    /// The TOTAL box, enlarged. Always shown, never replaced.
-    @State private var crop: UIImage?
-    /// The whole row, shown as a strip beneath it.
-    @State private var row: UIImage?
-    @State private var marks: UIImage?
+    /// Bumped when a crop lands, to bring the body back to the cache.
+    ///
+    /// The pictures are NOT held in `@State` here, and that is the point. This
+    /// screen re-renders with the next cell's name and number the instant the
+    /// index moves, while its crops are still being looked up -- and three
+    /// images left over from the previous cell would be shown underneath that
+    /// name for a frame. At the rate this screen is worked, that flicker is
+    /// precisely the thing being fixed. So the body reads the cache, keyed by
+    /// the cell it is drawing, and this only tells it to look again.
+    @State private var revision = 0
 
     /// Show the whole row as a strip beneath the box.
     ///
@@ -59,7 +64,7 @@ struct ReviewScreen: View {
                 progressBlock(flat)
                 itemBlock(flat)
                 cropBlock(flat)
-                if flat.cell.tallyOnly { tallyPanel }
+                if flat.cell.tallyOnly { tallyPanel(flat) }
 
                 Spacer(minLength: 8)
 
@@ -75,6 +80,7 @@ struct ReviewScreen: View {
             }
         }
         .navigationBarBackButtonHidden()
+        .onAppear { Haptics.prepare() }
         .task(id: model.current?.key) { await loadCrops() }
         .onChange(of: showWholeRow) { _ in Task { await loadCrops() } }
     }
@@ -138,7 +144,7 @@ struct ReviewScreen: View {
             // The TOTAL box, enlarged. This is the picture the number is read
             // from and it is never traded for anything else.
             paper(height: 118) {
-                if let crop {
+                if let crop = picture(flat, "total") {
                     Image(uiImage: crop)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -151,7 +157,7 @@ struct ReviewScreen: View {
             // The row it sits in, as a strip. Context for whether this ink
             // belongs to THIS item -- the one mistake nothing downstream can
             // catch -- without costing the box any size.
-            if showWholeRow, let row {
+            if showWholeRow, let row = picture(flat, "context") {
                 paper(height: 42) {
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -203,7 +209,7 @@ struct ReviewScreen: View {
 
     /// A tally-only cell has no number to read. What the reviewer has to do is
     /// count the marks, so the marks are shown at the size they were drawn.
-    private var tallyPanel: some View {
+    private func tallyPanel(_ flat: FlatCell) -> some View {
         TintedPanel {
             VStack(alignment: .leading, spacing: 9) {
                 Text("Tally marks, no total written. Count them.")
@@ -212,7 +218,7 @@ struct ReviewScreen: View {
 
                 ZStack {
                     RoundedRectangle(cornerRadius: 5).fill(Nocturne.Paper.fill)
-                    if let marks {
+                    if let marks = picture(flat, "marks") {
                         Image(uiImage: marks)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -240,7 +246,12 @@ struct ReviewScreen: View {
     private var keypad: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
             ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "<"], id: \.self) { key in
-                Button { model.press(key) } label: {
+                Button {
+                    // Before the model, not after: the felt half of the tap is
+                    // the half that must not wait on anything.
+                    Haptics.tap()
+                    model.press(key)
+                } label: {
                     Group {
                         if key == "<" {
                             Image(systemName: "delete.left").font(.system(size: 20))
@@ -262,11 +273,15 @@ struct ReviewScreen: View {
             // A true zero. Blank is normal -- volunteers are unpaid and leave
             // things blank -- but a zero somebody looked at and a box nobody
             // reached are not the same fact.
-            Button("Nothing there") { model.commit(0) }
+            Button("Nothing there") {
+                Haptics.advance()
+                model.commit(0)
+            }
                 .buttonStyle(SecondaryButtonStyle())
                 .frame(maxWidth: .infinity)
 
             Button {
+                Haptics.advance()
                 model.commit(Int(model.entry))
             } label: {
                 HStack(spacing: 8) {
@@ -286,24 +301,59 @@ struct ReviewScreen: View {
 
     // MARK: -
 
+    /// Whatever the cache holds for this cell right now. Never a wait, and
+    /// never a picture belonging to a different cell.
+    private func picture(_ flat: FlatCell, _ kind: String) -> UIImage? {
+        model.crops.cached(.init(card: flat.key.card, row: flat.key.row, kind: kind))
+    }
+
     private func loadCrops() async {
         guard let flat = model.current else { return }
-        crop = nil
-        row = nil
-        marks = nil
-        crop = try? await model.engine
-            .crop(card: flat.key.card, row: flat.key.row, kind: "total")
-            .image
-        if showWholeRow {
-            row = try? await model.engine
-                .crop(card: flat.key.card, row: flat.key.row, kind: "context")
-                .image
+        let cache = model.crops
+
+        let totalKey = CropCache.Key(card: flat.key.card, row: flat.key.row, kind: "total")
+        let contextKey = CropCache.Key(card: flat.key.card, row: flat.key.row, kind: "context")
+        let marksKey = CropCache.Key(card: flat.key.card, row: flat.key.row, kind: "marks")
+
+        // The three pictures of one cell have nothing to do with each other,
+        // and awaiting them in a row cost the sum of three round trips to show
+        // the first one.
+        async let total = cache.image(totalKey)
+        async let context = cache.image(contextKey, when: showWholeRow)
+        async let tally = cache.image(marksKey, when: flat.cell.tallyOnly)
+        _ = await (total, context, tally)
+
+        // Somebody who taps faster than the engine answers has already moved
+        // on. The crops are in the cache either way and the cell they belong
+        // to has its own load running; this one just stops talking.
+        guard model.current?.key == flat.key else { return }
+        revision &+= 1
+
+        // The cells they are about to reach, while they are still reading this
+        // one. This is the part that makes "Next" instant: by the time the tap
+        // lands the picture is already decoded, and the screen paints in the
+        // frame the tap arrived in.
+        cache.prefetch(cropsAhead())
+    }
+
+    /// Three cells ahead: enough to stay in front of somebody typing quickly,
+    /// and short enough not to encode a whole event's crops for a list that is
+    /// usually left half done.
+    private func cropsAhead() -> [CropCache.Key] {
+        var keys: [CropCache.Key] = []
+        for offset in 1...3 {
+            let at = model.index + offset
+            guard model.cells.indices.contains(at) else { break }
+            let flat = model.cells[at]
+            keys.append(.init(card: flat.key.card, row: flat.key.row, kind: "total"))
+            if showWholeRow {
+                keys.append(.init(card: flat.key.card, row: flat.key.row, kind: "context"))
+            }
+            if flat.cell.tallyOnly {
+                keys.append(.init(card: flat.key.card, row: flat.key.row, kind: "marks"))
+            }
         }
-        if flat.cell.tallyOnly {
-            marks = try? await model.engine
-                .crop(card: flat.key.card, row: flat.key.row, kind: "marks")
-                .image
-        }
+        return keys
     }
 }
 
