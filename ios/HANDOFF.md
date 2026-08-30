@@ -169,7 +169,9 @@ at an angle keystones, and registration corrects rotation and scale but not that
 `VNDocumentCameraViewController` rectifies the perspective before the image reaches
 the pipeline, which answers the objection rather than ignoring it. Captured pages
 are bound into a PDF laid out at `pixels × 72/200` so that rasterizing at 200 DPI
-returns exactly the pixels the camera captured.
+returns exactly the pixels the camera captured. It is gated behind
+`Beta.cameraCapture` and tagged BETA on the control, because the resolution
+question below was never settled.
 
 **Screen 5 cannot retake one page.** The design offers *"Retake page 7"*. Per-page
 retake does not exist, so the screen offers a better scan instead, and says the
