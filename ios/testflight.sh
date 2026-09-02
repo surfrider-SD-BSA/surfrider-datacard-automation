@@ -110,14 +110,22 @@ xcodebuild \
   archive
 
 echo "==> exporting a signed .ipa"
-/usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" ios/ExportOptions.plist 2>/dev/null \
-  || /usr/libexec/PlistBuddy -c "Set :teamID $TEAM_ID" ios/ExportOptions.plist
+# The team id goes into a COPY, for the same reason the beta camera key does.
+# The committed ExportOptions.plist is nine tenths explanatory comment, and
+# PlistBuddy does not edit a plist -- it parses one and writes a new one, which
+# silently drops every comment in the file. Adding the key and deleting it again
+# therefore does NOT leave the file as it was found, which is what the previous
+# version of this block believed: it left a comment-stripped plist in the working
+# tree after every run, and a dirty tree in the middle of a release is a thing
+# you have to stop and think about.
+export_options="$build_dir/ExportOptions.plist"
+mkdir -p "$build_dir"
+cp ios/ExportOptions.plist "$export_options"
+/usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" "$export_options"
 xcodebuild -exportArchive \
   -archivePath "$archive" \
-  -exportOptionsPlist ios/ExportOptions.plist \
+  -exportOptionsPlist "$export_options" \
   -exportPath "$export_dir"
-# Leave the committed file as it was found: the team id is not ours to keep.
-/usr/libexec/PlistBuddy -c "Delete :teamID" ios/ExportOptions.plist 2>/dev/null || true
 
 ipa=$(find "$export_dir" -name '*.ipa' | head -1)
 [ -n "$ipa" ] || { echo "no .ipa was produced"; exit 1; }
