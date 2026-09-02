@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Apple requires this file of every app that calls a "required reason"
+	     API, and rejects uploads that use one without declaring it (ITMS-91053).
+	     The declarations below are the two this app actually makes; do not add
+	     categories speculatively, because each one is a claim about behaviour
+	     that has to stay true.
+
+	     The same file is built into the share extension as well as the app.
+	     Shared/SharedInbox.swift is compiled into both bundles and is where one
+	     of the two calls lives, so a manifest in the app alone would leave the
+	     extension undeclared. -->
+
+	<!-- Nothing here tracks anybody. The app makes no network calls at all --
+	     the web bundle is served from inside the app package and the scan never
+	     leaves the device -- so there is no domain to list and no identifier
+	     that could be joined with anything. This is the same answer given to
+	     ITSAppUsesNonExemptEncryption in Info.plist, for the same reason. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- Empty on purpose, and it is the honest answer rather than a shortcut:
+	     the cleanup data a volunteer types stays in this app's container until
+	     they share the spreadsheet themselves. Nothing is collected, so the
+	     App Store nutrition label is "Data Not Collected". -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- @AppStorage("tally.showWholeRow") in Tally/Screens/ReviewScreen.swift.
+			     @AppStorage is UserDefaults, which surprises people; a property
+			     wrapper is still an API call. It is UserDefaults.standard, not a
+			     shared suite, so the value is readable only by this app -- which
+			     is exactly what CA92.1 covers. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- .creationDateKey in Shared/SharedInbox.swift, which sorts the
+			     drawer and is how `sweep` decides a shared scan is a week old and
+			     should go. Also .fileSizeKey in Tally/Engine.swift.
+
+			     Both read metadata of files this app wrote, in its own container
+			     or in the App Group it shares with its own extension, and never
+			     anywhere else. That is what C617.1 says, and it covers size and
+			     other metadata as well as timestamps. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
