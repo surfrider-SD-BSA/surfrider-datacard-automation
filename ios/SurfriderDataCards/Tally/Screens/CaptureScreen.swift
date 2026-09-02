@@ -50,7 +50,7 @@ import VisionKit
 /// **Measure it on a real card before this becomes an ordinary button.**
 enum Beta {
     /// Photographing the cards instead of scanning them.
-    static let cameraCapture = true
+    static let cameraCapture = false
 }
 
 struct CaptureScreen: View {
