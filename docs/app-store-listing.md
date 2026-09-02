@@ -153,10 +153,6 @@ attachment control on the same screen.
 >
 > The app works entirely offline and makes no network requests. There is no
 > account or login.
->
-> Note on the camera permission: the app declares NSCameraUsageDescription for a
-> photograph-the-cards feature that is disabled in this release. This version
-> never presents the camera and will not request camera access.
 
 **Why this matters more than the rest of the listing.** A reviewer who opens this
 app with no scan available sees a tool that appears to do nothing, and that is a
