@@ -16,7 +16,13 @@
 //  card's short edge, and whether a handheld capture clears that in beach light
 //  has never been tested on a real card. The capture path preserves whatever
 //  the camera gives rather than resampling it, and the screen says plainly that
-//  the scanner is the surer route. It is a warning, not a wall.
+//  the scanner is the surer route.
+//
+//  AS OF 1 SEPTEMBER 2026 IT IS A WALL, not a warning, and only for the App
+//  Store. Shipping an unmeasured reading path to volunteers who cannot tell a
+//  bad capture from a good one is how you get wrong numbers into a dataset
+//  nobody re-checks. The button is behind `Beta.cameraCapture`, below; the code
+//  underneath it is untouched and one build flag away.
 //
 //  The frame below is drawn rather than live, and is doing real work as a
 //  picture of what a usable page looks like: all four corners in, flat paper,
@@ -44,13 +50,38 @@ import VisionKit
 ///
 /// So the answer is not to throw the path away and not to leave it sitting
 /// beside the scanner as though the two were equal. It is gated, and it says
-/// what it is. Turn it off for a build going to volunteers typing up a real
-/// cleanup; leave it on for anyone deliberately trying it.
+/// what it is.
 ///
 /// **Measure it on a real card before this becomes an ordinary button.**
 enum Beta {
     /// Photographing the cards instead of scanning them.
-    static let cameraCapture = true
+    ///
+    /// A compilation condition rather than a constant, so that turning it on is
+    /// something a build has to ask for and not something a person has to
+    /// remember to turn off. An App Store archive cannot pick it up by
+    /// forgetting something:
+    ///
+    ///     BETA=1 ios/testflight.sh
+    ///
+    /// Use the script, not a bare `SWIFT_ACTIVE_COMPILATION_CONDITIONS=BETA`.
+    /// The flag alone gives a build with the button still hidden, because the
+    /// camera permission it needs is injected by the script and by nothing
+    /// else. NSCameraUsageDescription ships ABSENT: the store build never opens
+    /// a camera, and a reviewer who cannot find the feature a permission string
+    /// is for is a reviewer who writes to ask.
+    ///
+    /// Hence the runtime check, which is not paranoia about a key that is
+    /// normally there -- it is normally not. Presenting the scanner without it
+    /// does not fail politely; iOS terminates the app. A BETA build that missed
+    /// the injection loses a button here instead of dying mid-cleanup in a
+    /// volunteer's hand.
+    static var cameraCapture: Bool {
+        #if BETA
+        return Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") != nil
+        #else
+        return false
+        #endif
+    }
 }
 
 struct CaptureScreen: View {
