@@ -115,12 +115,36 @@ There is no server, no account, no API key and no billing relationship. The PDF 
 page itself and never uploaded. That is a deliberate constraint: the scans carry volunteer
 handwriting, and the simplest way to keep them private is for them never to go anywhere.
 
+**One optional exception, off unless you switch it on.** The scans arrive in a shared Google Drive
+folder, so the data-entry volunteer was downloading one to their laptop purely in order to drag it
+back into this page. A build configured with a Google client ID gets a **Choose from Google Drive**
+button that skips that round trip. It is the only path through the tool with a third party in it,
+so what it does and does not change is worth stating exactly:
+
+- The scan is still not uploaded — it is *downloaded*, from a folder that already holds it, into
+  the tab, and read there like any other file. There is still no server of ours.
+- Google learns that this account opened this file, which it would have learned from someone
+  downloading it by hand.
+- The scope asked for is `drive.file`: access to the files the person picks in the picker and to
+  nothing else in their Drive, ending when the tab closes. `drive.readonly` would have been fewer
+  lines and would mean asking a volunteer to let a transcription tool read their whole Drive.
+- The token is held in memory for the tab and never stored. There is a **Sign out of Google**
+  button on the review screen, for shared laptops.
+
+A build with no configuration draws no button and fetches nothing from Google — not even the
+scripts. Dropping a file in keeps working exactly as before, and remains the path with nobody else
+in it. Setup, and what it costs, is in [docs/google-drive.md](docs/google-drive.md).
+
 ## Running it
 
 ```bash
 npm install
 npm run dev      # then open the printed URL and drop in a scanned PDF
 ```
+
+To let people pick scans out of the chapter's shared Drive folder instead, copy `.env.example` to
+`.env.local` and fill it in — see [docs/google-drive.md](docs/google-drive.md). Skipping this
+leaves the tool exactly as described above.
 
 `npm test` runs the suite; `npm run build` produces a static bundle in `dist/` that can be opened
 from a file share or hosted anywhere, since there is no back end.
