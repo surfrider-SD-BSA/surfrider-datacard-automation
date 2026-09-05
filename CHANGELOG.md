@@ -11,6 +11,19 @@ count as breaking.
 
 ### Added
 
+- **The same Drive folder, from the iOS app.** *Choose from Drive* on the capture
+  screen, under the PDF picker. Google's consent screen, then the picker on the
+  chapter's folder, then the scan downloads with a progress bar and goes into the
+  ordinary reading path — downstream it is indistinguishable from a file that was
+  AirDropped, because it is the same `read(pdf:)`. Same `drive.file` scope as the
+  web tool and the same refusal of `drive.readonly`: the picking happens in
+  Google's Picker, served from `docs/ios-picker.html` on this project's Pages
+  site, because that scope cannot list a folder and the Picker has no native iOS
+  counterpart. Sign-in is native — PKCE, an iOS client with no secret, no refresh
+  token, and the token held in memory until the app quits. **Off unless the build
+  was configured with a Google project**, and a build without one makes no network
+  call of any kind. Setup is in `docs/google-drive-ios.md`.
+
 - **Pick a scan out of the chapter's shared Google Drive folder.** The scans are
   already in Drive, so the data-entry volunteer was downloading one to their
   laptop purely in order to drag it back into the page. The button skips that:

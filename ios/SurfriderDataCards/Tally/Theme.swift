@@ -137,6 +137,7 @@ enum Nocturne {
         static let next = "arrow.right"                  // ph-arrow-right
         static let spreadsheet = "tablecells"            // ph-file-xls
         static let share = "square.and.arrow.up"         // ph-share-network
+        static let drive = "arrow.down.doc"              // pulling a scan out of Drive
     }
 }
 

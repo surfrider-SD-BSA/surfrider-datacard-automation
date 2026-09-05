@@ -37,13 +37,54 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<!-- App Store Connect asks about encryption on every upload and the answer
-	     never changes: this app makes no network calls at all. The bundle is
-	     served from inside the app package and the scan never leaves the
-	     device, so there is nothing to declare. Xcode strips comments when it
-	     rewrites this file; if this one is gone, that is why. -->
+	<!-- App Store Connect asks about encryption on every upload, and the answer
+	     is still false -- but the reason changed and the old one is no longer
+	     true, so it is written out rather than left to be re-derived.
+
+	     It used to be that this app made no network calls at all. A build
+	     configured with a Google project now makes three: the consent screen,
+	     the token exchange and the file download. All of them are ordinary
+	     HTTPS through URLSession and ASWebAuthenticationSession, using only the
+	     system's own TLS, which is exempt. Nothing here implements or bundles
+	     cryptography, so there is still nothing to declare.
+
+	     A build made WITHOUT that configuration still makes no network call of
+	     any kind -- DriveConfig.current is nil, no button is drawn, and no code
+	     path reaches a URL. That is the default and it is deliberate.
+
+	     Xcode strips comments when it rewrites this file; if this one is gone,
+	     that is why. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- The chapter's Google project, or nothing.
+
+	     Every one of these comes from a build setting, so this repository holds
+	     no account identifiers and a plain `xcodebuild` with none of them
+	     passed produces a build with the Drive button absent rather than one
+	     that is broken. An unset setting leaves the literal `$(NAME)` behind
+	     instead of removing the key, which DriveConfig knows to reject.
+
+	     None of them are secrets -- an iOS OAuth client has no client secret,
+	     and the API key is constrained by the referrer allowlist on it. What
+	     matters is that restriction, not the secrecy of the key. Setup is in
+	     docs/google-drive-ios.md.
+
+	     There is deliberately no CFBundleURLTypes entry for the OAuth redirect:
+	     ASWebAuthenticationSession waits on the callback scheme itself and
+	     never hands it to the app, so registering it would only give another
+	     app something to squat on. -->
+	<key>GoogleClientID</key>
+	<string>$(GOOGLE_CLIENT_ID)</string>
+	<key>GoogleAPIKey</key>
+	<string>$(GOOGLE_API_KEY)</string>
+	<key>GooglePickerURL</key>
+	<string>$(GOOGLE_PICKER_URL)</string>
+	<key>GoogleDriveFolderID</key>
+	<string>$(GOOGLE_DRIVE_FOLDER_ID)</string>
+	<key>GoogleAppID</key>
+	<string>$(GOOGLE_APP_ID)</string>
+	<key>GoogleSharedDrives</key>
+	<string>$(GOOGLE_SHARED_DRIVES)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<!-- THERE IS NO NSCameraUsageDescription, AND ITS ABSENCE IS LOAD-BEARING.

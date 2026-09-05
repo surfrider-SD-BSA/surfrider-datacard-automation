@@ -36,6 +36,10 @@
 		AA0000000000000000000322 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000100 /* Theme.swift */; };
 		AA0000000000000000000323 /* SharedInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000313 /* SharedInbox.swift */; };
 		AA0000000000000000000324 /* Share.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000301 /* Share.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AA00000000000000000004000 /* DriveConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004001 /* DriveConfig.swift */; };
+		AA00000000000000000004010 /* DriveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004011 /* DriveAuth.swift */; };
+		AA00000000000000000004020 /* DriveDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004021 /* DriveDownload.swift */; };
+		AA00000000000000000004030 /* DrivePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004031 /* DrivePicker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +98,10 @@
 		AA0000000000000000000312 /* Share.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Share.entitlements; sourceTree = "<group>"; };
 		AA0000000000000000000313 /* SharedInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedInbox.swift; path = Shared/SharedInbox.swift; sourceTree = "<group>"; };
 		AA0000000000000000000314 /* DataCards.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DataCards.entitlements; sourceTree = "<group>"; };
+		AA00000000000000000004001 /* DriveConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveConfig.swift; path = Drive/DriveConfig.swift; sourceTree = "<group>"; };
+		AA00000000000000000004011 /* DriveAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveAuth.swift; path = Drive/DriveAuth.swift; sourceTree = "<group>"; };
+		AA00000000000000000004021 /* DriveDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveDownload.swift; path = Drive/DriveDownload.swift; sourceTree = "<group>"; };
+		AA00000000000000000004031 /* DrivePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DrivePicker.swift; path = Drive/DrivePicker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -155,6 +163,7 @@
 				AA000000000000000000010E /* FinishScreen.swift */,
 				AA000000000000000000000B /* WebAssetSchemeHandler.swift */,
 				AA0000000000000000000313 /* SharedInbox.swift */,
+				AA0000000000000000000410 /* Drive */,
 				AA000000000000000000030B /* Share */,
 				AA000000000000000000000D /* Info.plist */,
 				AA000000000000000000001D /* PrivacyInfo.xcprivacy */,
@@ -163,6 +172,17 @@
 				AA000000000000000000000E /* web */,
 			);
 			path = SurfriderDataCards;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000410 /* Drive */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000004001 /* DriveConfig.swift */,
+				AA00000000000000000004011 /* DriveAuth.swift */,
+				AA00000000000000000004021 /* DriveDownload.swift */,
+				AA00000000000000000004031 /* DrivePicker.swift */,
+			);
+			name = Drive;
 			sourceTree = "<group>";
 		};
 		AA000000000000000000030B /* Share */ = {
@@ -298,6 +318,10 @@
 				AA000000000000000000020E /* FinishScreen.swift in Sources */,
 				AA0000000000000000000011 /* WebAssetSchemeHandler.swift in Sources */,
 				AA0000000000000000000323 /* SharedInbox.swift in Sources */,
+				AA00000000000000000004000 /* DriveConfig.swift in Sources */,
+				AA00000000000000000004010 /* DriveAuth.swift in Sources */,
+				AA00000000000000000004020 /* DriveDownload.swift in Sources */,
+				AA00000000000000000004030 /* DrivePicker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -92,10 +92,32 @@ if [ "${BETA:-0}" != "0" ]; then
   echo "==> BETA: camera capture is IN this build, and so is the camera permission"
 fi
 
+# The chapter's Google project, if this build is to have the Drive button.
+#
+# Passed through from the environment for the same reason TEAM_ID is: this
+# repository is public, and while none of these is a secret -- an iOS OAuth
+# client has no client secret, and the API key is constrained by the referrer
+# allowlist on it -- an account identifier committed to a public repo is a thing
+# somebody has to go and rotate later.
+#
+# Set none of them and the archive simply has no Drive button and makes no
+# network call, which is the right default for a chapter that has not set up a
+# Google project. Setup is in docs/google-drive-ios.md.
+drive_settings=""
+if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
+  : "${GOOGLE_API_KEY:?set GOOGLE_API_KEY too. The picker needs both, and a build with only one draws a button that fails inside the Google picker}"
+  drive_settings="GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID GOOGLE_API_KEY=$GOOGLE_API_KEY"
+  [ -n "${GOOGLE_DRIVE_FOLDER_ID:-}" ] && drive_settings="$drive_settings GOOGLE_DRIVE_FOLDER_ID=$GOOGLE_DRIVE_FOLDER_ID"
+  [ -n "${GOOGLE_PICKER_URL:-}" ] && drive_settings="$drive_settings GOOGLE_PICKER_URL=$GOOGLE_PICKER_URL"
+  [ -n "${GOOGLE_APP_ID:-}" ] && drive_settings="$drive_settings GOOGLE_APP_ID=$GOOGLE_APP_ID"
+  [ -n "${GOOGLE_SHARED_DRIVES:-}" ] && drive_settings="$drive_settings GOOGLE_SHARED_DRIVES=$GOOGLE_SHARED_DRIVES"
+  echo "==> Drive: the picker is IN this build"
+fi
+
 echo "==> archiving (build $build_number, team $TEAM_ID, bundle $BUNDLE_ID)"
 rm -rf "$archive" "$export_dir"
 mkdir -p "$build_dir"
-# shellcheck disable=SC2086 # beta_settings is deliberately two settings or none
+# shellcheck disable=SC2086 # beta_settings and drive_settings are deliberately word-split
 xcodebuild \
   -project ios/SurfriderDataCards.xcodeproj \
   -scheme "Data Cards" \
@@ -107,6 +129,7 @@ xcodebuild \
   APP_BUNDLE_ID="$BUNDLE_ID" \
   CURRENT_PROJECT_VERSION="$build_number" \
   $beta_settings \
+  $drive_settings \
   archive
 
 echo "==> exporting a signed .ipa"
