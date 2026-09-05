@@ -56,8 +56,7 @@ struct ReviewScreen: View {
         ScreenBody {
             NavBar(back: "Back") { dismiss() } trailing: {
                 Button("All cards") { model.path.append(.cards) }
-                    .buttonStyle(TextButtonStyle(size: 15))
-                    .padding(8)
+                    .buttonStyle(ChromeButtonStyle(size: 15))
             }
 
             if let flat = model.current {
@@ -91,11 +90,13 @@ struct ReviewScreen: View {
         VStack(spacing: 7) {
             HStack {
                 Text("Cell \(model.index + 1) of \(model.cells.count)")
+                    .contentTransition(.numericText())
                 Spacer()
                 Text("Card \(flat.key.card) → column \(flat.column)")
             }
             .font(Nocturne.Face.label(12))
             .foregroundStyle(Nocturne.text(52))
+            .animation(Nocturne.Motion.entry, value: model.index)
 
             ProgressLine(
                 fraction: model.cells.isEmpty ? 0 : Double(model.index + 1) / Double(model.cells.count),
@@ -125,12 +126,7 @@ struct ReviewScreen: View {
                 // Which reader spoke, if one did. The reviewer is entitled to
                 // know which claim they are being asked to check.
                 if let prefill = model.untouched[flat.key] {
-                    Text(prefill.tag)
-                        .font(Nocturne.Face.label(11, weight: .medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Nocturne.accent800))
-                        .foregroundStyle(Nocturne.text)
+                    Tag(text: prefill.tag)
                 }
             }
         }
@@ -200,6 +196,11 @@ struct ReviewScreen: View {
                 RoundedRectangle(cornerRadius: Nocturne.Radius.base)
                     .stroke(Nocturne.Paper.border, lineWidth: 1)
             )
+            // The picture is the one opaque thing on the screen, and a cast
+            // shadow is what says so: it sits ABOVE the glass layer rather than
+            // among it. The crop itself is untouched -- see the note at the top
+            // of this file.
+            .shadow(color: .black.opacity(Nocturne.hasGlass ? 0.45 : 0), radius: 16, y: 7)
     }
 
     private func stripWidth(_ image: UIImage) -> CGFloat {
@@ -234,34 +235,56 @@ struct ReviewScreen: View {
         .padding(.top, 12)
     }
 
+    /// The digits roll rather than cut. `numericText` is a per-glyph morph, so
+    /// a 7 becoming a 74 slides one digit in instead of redrawing the number --
+    /// which is what the keypad is actually doing. Short enough (0.14s) that
+    /// the digit is settled before the finger is off the key; the haptic still
+    /// fires first, and nothing waits on this.
     private func entryDisplay(_ flat: FlatCell) -> some View {
         Text(model.entry.isEmpty ? "—" : model.entry)
             .font(Nocturne.Face.numeral(40))
             .foregroundStyle(model.entry.isEmpty ? Nocturne.text(45) : Nocturne.text)
-            .frame(minWidth: 120)
-            .padding(.bottom, 6)
-            .pageMargin()
+            .contentTransition(.numericText())
+            .animation(Nocturne.Motion.entry, value: model.entry)
+            .frame(maxWidth: .infinity, minHeight: 62)
+            // The number sits on its own plate above the keys, the way a
+            // calculator's display does -- one more thing the glass has to
+            // separate, and the reason the digits read at 40pt over the
+            // ambient ground.
+            .controlSurface(
+                RoundedRectangle(cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glass : Nocturne.Radius.base, style: .continuous),
+                interactive: false,
+                stroke: Nocturne.hasGlass ? Nocturne.divider : nil
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
     }
 
+    /// Twelve keys in one glass container, so they are lit and sampled as one
+    /// keypad rather than twelve separate panes. Off the glass path the
+    /// container is nothing at all and the keys are the flat Nocturne surface
+    /// they always were.
     private var keypad: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-            ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "<"], id: \.self) { key in
-                Button {
-                    // Before the model, not after: the felt half of the tap is
-                    // the half that must not wait on anything.
-                    Haptics.tap()
-                    model.press(key)
-                } label: {
-                    Group {
-                        if key == "<" {
-                            Image(systemName: "delete.left").font(.system(size: 20))
-                        } else {
-                            Text(key).font(Nocturne.Face.label(23, weight: .medium))
+        GlassStack(spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "<"], id: \.self) { key in
+                    Button {
+                        // Before the model, not after: the felt half of the tap
+                        // is the half that must not wait on anything.
+                        Haptics.tap()
+                        model.press(key)
+                    } label: {
+                        Group {
+                            if key == "<" {
+                                Image(systemName: "delete.left").font(.system(size: 20))
+                            } else {
+                                Text(key).font(Nocturne.Face.label(23, weight: .medium))
+                            }
                         }
+                        .frame(maxWidth: .infinity, minHeight: 54)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 54)
+                    .buttonStyle(KeypadKeyStyle(clearing: key == "C" || key == "<"))
                 }
-                .buttonStyle(KeypadKeyStyle())
             }
         }
         .padding(.horizontal, 16)
@@ -273,12 +296,18 @@ struct ReviewScreen: View {
             // A true zero. Blank is normal -- volunteers are unpaid and leave
             // things blank -- but a zero somebody looked at and a box nobody
             // reached are not the same fact.
+            // Both styles already stretch, so the row splits evenly.
+            //
+            // "Nothing there" was drawing at zero width. `layoutPriority(1)` on
+            // Next had the HStack offer it the whole remaining row first, and a
+            // child with `maxWidth: .infinity` takes everything it is offered --
+            // so there was nothing left. Neither button needs an outer frame;
+            // the two ButtonStyles stretch on their own.
             Button("Nothing there") {
                 Haptics.advance()
                 model.commit(0)
             }
-                .buttonStyle(SecondaryButtonStyle())
-                .frame(maxWidth: .infinity)
+            .buttonStyle(SecondaryButtonStyle())
 
             Button {
                 Haptics.advance()
@@ -290,8 +319,6 @@ struct ReviewScreen: View {
                 }
             }
             .buttonStyle(PrimaryButtonStyle(minHeight: 50))
-            .frame(maxWidth: .infinity)
-            .layoutPriority(1)
             .disabled(model.entry.isEmpty)
         }
         .padding(.horizontal, 16)
@@ -358,17 +385,41 @@ struct ReviewScreen: View {
 }
 
 /// 54pt, and the pressed state tints from the accent ramp rather than fading.
+///
+/// On glass the tint is the same idea at a strength a lens can carry, and the
+/// lift under the finger is the system's own -- `interactive` glass answers a
+/// press better than anything drawn by hand, and it is the same 54pt target.
 private struct KeypadKeyStyle: ButtonStyle {
+    /// `C` and backspace. They take a value away rather than add one, and a
+    /// keypad worked for an hour is easier to hit blind when the two keys you
+    /// reach for by mistake are not the same colour as the ten you want.
+    var clearing = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(Nocturne.text)
-            .background(
-                RoundedRectangle(cornerRadius: Nocturne.Radius.key)
-                    .fill(configuration.isPressed ? Nocturne.accent.opacity(0.22) : Nocturne.surface)
+            .foregroundStyle(clearing ? Nocturne.accent300 : Nocturne.text)
+            .controlSurface(
+                RoundedRectangle(
+                    cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glassKey : Nocturne.Radius.key,
+                    style: .continuous
+                ),
+                tint: tint(pressed: configuration.isPressed),
+                fill: configuration.isPressed ? Nocturne.accent.opacity(0.22) : Nocturne.surface,
+                stroke: configuration.isPressed ? Nocturne.accent : Nocturne.divider
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: Nocturne.Radius.key)
-                    .stroke(configuration.isPressed ? Nocturne.accent : Nocturne.divider, lineWidth: 1)
-            )
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+
+    /// A key at rest still needs a ground.
+    ///
+    /// Untinted glass over this screen's darkest band is very nearly the ground
+    /// itself: the first pass had twelve digits floating on nothing, which is
+    /// worse than the flat `surface` the design started from. So the digits
+    /// carry a neutral lift -- not accent, which would make ten keys look like
+    /// ten affirmative actions -- and only `C` and backspace are tinted.
+    private func tint(pressed: Bool) -> Color? {
+        if pressed { return Nocturne.accent.opacity(0.45) }
+        return clearing ? Nocturne.accent.opacity(0.20) : Nocturne.text.opacity(0.10)
     }
 }

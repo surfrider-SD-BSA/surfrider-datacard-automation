@@ -94,7 +94,7 @@ struct CaptureScreen: View {
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: Nocturne.safeTop) {
             HStack {
-                Button("Cancel") { dismiss() }.buttonStyle(TextButtonStyle())
+                Button("Cancel") { dismiss() }.buttonStyle(ChromeButtonStyle())
                 Spacer()
                 Text("A scan, front and back, in card order")
                     .font(Nocturne.Face.label(13))
@@ -150,12 +150,7 @@ struct CaptureScreen: View {
                             // underneath. Somebody choosing between two buttons
                             // is entitled to know one of them is unproven at the
                             // moment they choose.
-                            Text("BETA")
-                                .font(Nocturne.Face.label(10, weight: .medium))
-                                .tracking(0.8)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(Nocturne.accent800))
+                            Tag(text: "BETA", size: 10, tracking: 0.8)
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -279,14 +274,18 @@ struct CaptureScreen: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Nocturne.text(72))
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        LinearGradient(
-                            colors: [.clear, Color(hex: 0x0B0C14).opacity(0.92)],
-                            startPoint: .top, endPoint: .bottom
-                        )
+                    .padding(.vertical, 12)
+                    .controlSurface(
+                        RoundedRectangle(cornerRadius: Nocturne.Radius.glass, style: .continuous),
+                        interactive: false,
+                        fill: .clear
                     )
+                    // Clear of the corner brackets. The advice is a card
+                    // floating in the frame, and a card that lands ON the
+                    // brackets reads as covering the very thing it is
+                    // describing.
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 20)
             }
         }
     }

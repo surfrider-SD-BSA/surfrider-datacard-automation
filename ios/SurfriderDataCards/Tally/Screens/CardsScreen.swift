@@ -18,8 +18,7 @@ struct CardsScreen: View {
         ScreenBody {
             NavBar(back: "Checking") { dismiss() } trailing: {
                 Button("Finish") { model.path.append(.finish) }
-                    .buttonStyle(TextButtonStyle(size: 15))
-                    .padding(8)
+                    .buttonStyle(ChromeButtonStyle(size: 15))
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -30,6 +29,8 @@ struct CardsScreen: View {
                 Text("\(model.checkedCount) of \(model.allCells.count) filled in · tap a row to look at the picture again")
                     .font(Nocturne.Face.body(13))
                     .foregroundStyle(Nocturne.text(55))
+                    .contentTransition(.numericText())
+                    .animation(Nocturne.Motion.entry, value: model.checkedCount)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .pageMargin()
@@ -54,13 +55,12 @@ struct CardsScreen: View {
                         .padding(.top, 16)
                 }
             }
-
-            Button("Make the spreadsheet") { model.path.append(.finish) }
-                .buttonStyle(PrimaryButtonStyle())
-                .pageMargin()
-                .padding(.top, 16)
-                .padding(.bottom, Nocturne.safeBottom)
-                .bottomFade()
+            .softScrollEdges()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button("Make the spreadsheet") { model.path.append(.finish) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .pinnedActions()
+            }
         }
         .navigationBarBackButtonHidden()
     }

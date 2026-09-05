@@ -35,28 +35,34 @@ struct CleanupsScreen: View {
                             .padding(.top, 26)
                             .padding(.bottom, 8)
 
-                        ForEach(finished.events) { event in
-                            eventRow(event)
+                        Panel {
+                            VStack(spacing: 0) {
+                                ForEach(finished.events) { event in
+                                    eventRow(event)
+                                }
+                            }
                         }
+                        .pageMargin()
                     }
                 }
             }
-
-            Spacer(minLength: 0)
-
-            Button {
-                model.startNewCleanup()
-            } label: {
-                HStack(spacing: 9) {
-                    Image(systemName: Nocturne.Icon.add)
-                    Text("Start a cleanup")
+            // The action floats over the list rather than sitting under it, so
+            // a long list of finished cleanups scrolls past it instead of
+            // stopping short. On iOS 26 the soft scroll edge is what separates
+            // the two; below it, the ground fade in `pinnedActions` does.
+            .softScrollEdges()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button {
+                    model.startNewCleanup()
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: Nocturne.Icon.add)
+                        Text("Start a cleanup")
+                    }
                 }
+                .buttonStyle(PrimaryButtonStyle())
+                .pinnedActions()
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .pageMargin()
-            .padding(.top, 16)
-            .padding(.bottom, Nocturne.safeBottom)
-            .bottomFade()
         }
     }
 
@@ -125,7 +131,7 @@ struct CleanupsScreen: View {
                     .foregroundStyle(Nocturne.text(40))
             }
             .padding(.vertical, 14)
-            .pageMargin()
+            .padding(.horizontal, 15)
         }
     }
 }

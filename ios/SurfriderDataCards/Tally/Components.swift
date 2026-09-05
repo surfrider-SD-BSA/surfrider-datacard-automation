@@ -49,6 +49,10 @@ enum Haptics {
 // MARK: - Buttons
 
 /// Outlined in the accent. The affirmative action on every screen.
+///
+/// On iOS 26 the outline stays and the inside becomes accent-tinted glass; the
+/// label lightens to `accent300` because accent-on-accent-tint is the one place
+/// the ramp does not carry. See Glass.swift.
 struct PrimaryButtonStyle: ButtonStyle {
     var minHeight: CGFloat = 52
     var size: CGFloat = 16
@@ -57,15 +61,20 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Nocturne.Face.label(size, weight: .medium))
-            .foregroundStyle(Nocturne.accent)
+            .foregroundStyle(Nocturne.hasGlass ? Nocturne.accent300 : Nocturne.accent)
+            // Room inside the outline. Most of these stretch and never notice,
+            // but the one that does not -- "Start fresh", beside a button that
+            // does -- was drawing its label flush against both edges.
+            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: minHeight)
-            .background(
-                RoundedRectangle(cornerRadius: Nocturne.Radius.base)
-                    .fill(Nocturne.accent.opacity(configuration.isPressed ? 0.22 : 0))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Nocturne.Radius.base)
-                    .stroke(Nocturne.accent, lineWidth: 1)
+            .controlSurface(
+                RoundedRectangle(
+                    cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glass : Nocturne.Radius.base,
+                    style: .continuous
+                ),
+                tint: Nocturne.glassTint,
+                fill: Nocturne.accent.opacity(configuration.isPressed ? 0.22 : 0),
+                stroke: Nocturne.hasGlass ? Nocturne.accent.opacity(0.55) : Nocturne.accent
             )
             .opacity(isEnabled ? 1 : 0.45)
     }
@@ -81,14 +90,15 @@ struct SecondaryButtonStyle: ButtonStyle {
         configuration.label
             .font(Nocturne.Face.label(size, weight: .medium))
             .foregroundStyle(Nocturne.text)
+            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: minHeight)
-            .background(
-                RoundedRectangle(cornerRadius: Nocturne.Radius.base)
-                    .fill(Nocturne.text.opacity(configuration.isPressed ? 0.14 : 0))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Nocturne.Radius.base)
-                    .stroke(Nocturne.divider, lineWidth: 1)
+            .controlSurface(
+                RoundedRectangle(
+                    cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glass : Nocturne.Radius.base,
+                    style: .continuous
+                ),
+                fill: Nocturne.text.opacity(configuration.isPressed ? 0.14 : 0),
+                stroke: Nocturne.divider
             )
             .opacity(isEnabled ? 1 : 0.45)
     }
@@ -132,9 +142,8 @@ struct NavBar<Trailing: View>: View {
                         Image(systemName: Nocturne.Icon.back).font(.system(size: 15, weight: .medium))
                         Text(backLabel)
                     }
-                    .padding(8)
                 }
-                .buttonStyle(TextButtonStyle())
+                .buttonStyle(ChromeButtonStyle())
             }
             Spacer(minLength: 0)
             trailing
@@ -183,7 +192,16 @@ struct ProgressLine: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Nocturne.track)
                 Capsule()
-                    .fill(Nocturne.accent)
+                    .fill(
+                        LinearGradient(
+                            colors: [Nocturne.accent700, Nocturne.accent, Nocturne.accent300],
+                            startPoint: .leading, endPoint: .trailing
+                        )
+                    )
+                    // The travelled part carries a little of its own light, so
+                    // the bar is legible against the ambient ground rather than
+                    // competing with it.
+                    .shadow(color: Nocturne.accent.opacity(Nocturne.hasGlass ? 0.6 : 0), radius: 7)
                     .frame(width: max(0, min(1, fraction)) * geo.size.width)
             }
         }
@@ -218,6 +236,10 @@ struct Field<Content: View>: View {
     var optional: Bool = false
     @ViewBuilder var content: Content
 
+    private var fieldRadius: CGFloat {
+        Nocturne.hasGlass ? Nocturne.Radius.glass : Nocturne.Radius.base
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
@@ -232,11 +254,17 @@ struct Field<Content: View>: View {
                 .tint(Nocturne.accent)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 46)
+                // NOT GLASS, on either path. A field is something to read and
+                // type into, and a lens over the ground is the wrong answer to
+                // "where does the text sit" -- it is the flat surface the
+                // design specifies. Only the corner follows the glass world, so
+                // a form and the button under it are the same family.
                 .background(
-                    RoundedRectangle(cornerRadius: Nocturne.Radius.base).fill(Nocturne.surface)
+                    RoundedRectangle(cornerRadius: fieldRadius, style: .continuous)
+                        .fill(Nocturne.surface)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: Nocturne.Radius.base)
+                    RoundedRectangle(cornerRadius: fieldRadius, style: .continuous)
                         .stroke(Nocturne.divider, lineWidth: 1)
                 )
         }
@@ -251,8 +279,17 @@ struct TintedPanel<Content: View>: View {
 
     var body: some View {
         content
-            .background(RoundedRectangle(cornerRadius: radius).fill(Nocturne.accent900))
-            .overlay(RoundedRectangle(cornerRadius: radius).stroke(Nocturne.accent700, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: shape, style: .continuous).fill(Nocturne.accent900))
+            .overlay(RoundedRectangle(cornerRadius: shape, style: .continuous).stroke(Nocturne.accent700, lineWidth: 1))
+    }
+
+    /// NOT GLASS. This panel is the one thing on screen that holds buttons of
+    /// its own, and glass inside glass is mud -- the draft card came out a flat
+    /// lavender block with two paler blocks sitting in it. It is also the place
+    /// the design is most explicit that the accent FRAMES rather than floods.
+    /// So the fill stays flat and the buttons in it keep the depth.
+    private var shape: CGFloat {
+        Nocturne.hasGlass ? max(radius, Nocturne.Radius.glass) : radius
     }
 }
 
@@ -312,6 +349,29 @@ struct ScreenBody<Content: View>: View {
         VStack(spacing: 0) { content }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.top, topPadding)
-            .background(ground.ignoresSafeArea())
+            .nocturneGround(ground)
+    }
+}
+
+// MARK: - Tags
+
+/// The small claim a control makes about itself: which reader filled a box in,
+/// or that a path is unproven.
+struct Tag: View {
+    let text: String
+    var size: CGFloat = 11
+    var tracking: CGFloat = 0
+
+    var body: some View {
+        Text(text)
+            .font(Nocturne.Face.label(size, weight: .medium))
+            .tracking(tracking)
+            .foregroundStyle(Nocturne.text)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            // Flat on both paths: a tag is always inside something -- a line of
+            // body text, or a button's label -- and never on the bare ground,
+            // so there is nothing behind it for a lens to find.
+            .background(Capsule().fill(Nocturne.accent800))
     }
 }

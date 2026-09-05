@@ -45,7 +45,9 @@ struct ReadingScreen: View {
                         HStack(alignment: .firstTextBaseline, spacing: 11) {
                             Group {
                                 if step.done {
-                                    Image(systemName: Nocturne.Icon.check).font(.system(size: 11, weight: .semibold))
+                                    Image(systemName: Nocturne.Icon.check)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .landing(on: step.done)
                                 } else {
                                     Text("·")
                                 }
@@ -65,7 +67,17 @@ struct ReadingScreen: View {
                         }
                     }
                 }
-                .padding(.top, 34)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .controlSurface(
+                    RoundedRectangle(
+                        cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glass : Nocturne.Radius.base,
+                        style: .continuous
+                    ),
+                    interactive: false,
+                    stroke: Nocturne.divider
+                )
+                .padding(.top, 28)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .pageMargin()

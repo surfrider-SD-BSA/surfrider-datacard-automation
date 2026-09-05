@@ -16,6 +16,10 @@ struct FinishScreen: View {
     @State private var working = false
     @State private var sharing = false
 
+    /// The badge lands rather than appears. One spring, once, on the one screen
+    /// that is telling somebody an hour of work is finished.
+    @State private var landed = false
+
     var body: some View {
         ScreenBody {
             NavBar(back: "Cards") { dismiss() }
@@ -67,11 +71,15 @@ struct FinishScreen: View {
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: 0)
                         }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 13)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Nocturne.Radius.base)
-                                .stroke(Nocturne.divider, lineWidth: 1)
+                        .padding(.vertical, 13)
+                        .padding(.horizontal, 14)
+                        .controlSurface(
+                            RoundedRectangle(
+                                cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glass : Nocturne.Radius.base,
+                                style: .continuous
+                            ),
+                            interactive: false,
+                            stroke: Nocturne.divider
                         )
                     }
 
@@ -84,30 +92,55 @@ struct FinishScreen: View {
                 }
                 .pageMargin()
             }
-
-            Spacer(minLength: 0)
-
-            Button {
-                working = true
-                Task {
-                    await model.makeSpreadsheet()
-                    working = false
-                }
-            } label: {
-                HStack(spacing: 9) {
-                    if working {
-                        ProgressView().tint(Nocturne.accent)
-                    } else {
-                        Image(systemName: Nocturne.Icon.spreadsheet)
+            .softScrollEdges()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button {
+                    working = true
+                    Task {
+                        await model.makeSpreadsheet()
+                        working = false
                     }
-                    Text("Make the spreadsheet")
+                } label: {
+                    HStack(spacing: 9) {
+                        if working {
+                            ProgressView().tint(Nocturne.accent)
+                        } else {
+                            Image(systemName: Nocturne.Icon.spreadsheet)
+                        }
+                        Text("Make the spreadsheet")
+                    }
                 }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(working || model.values.isEmpty || !model.event.isComplete)
+                .pinnedActions()
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .disabled(working || model.values.isEmpty || !model.event.isComplete)
-            .pageMargin()
-            .padding(.top, 16)
-            .padding(.bottom, Nocturne.safeBottom)
+        }
+    }
+
+    /// The mark of a finished export: a lit halo, and the check on glass where
+    /// the system has it.
+    private var badge: some View {
+        ZStack {
+            // A halo rather than a second ring: a hard-edged disc behind a
+            // 64pt circle reads as a grey band around it, which is what the
+            // first pass drew.
+            Circle()
+                .fill(Nocturne.accent.opacity(0.16))
+                .frame(width: 78, height: 78)
+                .blur(radius: 18)
+
+            Image(systemName: Nocturne.Icon.check)
+                .font(.system(size: 26, weight: .medium))
+                .foregroundStyle(Nocturne.hasGlass ? Nocturne.accent300 : Nocturne.accent)
+                .landing(on: landed)
+                .frame(width: 64, height: 64)
+                .controlSurface(Circle(), tint: Nocturne.glassTint, interactive: false, stroke: Nocturne.accent)
+        }
+        .frame(width: 64, height: 64)
+        .scaleEffect(landed ? 1 : 0.82)
+        .opacity(landed ? 1 : 0)
+        .onAppear {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.68)) { landed = true }
         }
     }
 
@@ -115,15 +148,7 @@ struct FinishScreen: View {
         VStack(spacing: 0) {
             Spacer()
 
-            ZStack {
-                Circle()
-                    .stroke(Nocturne.accent, lineWidth: 1)
-                    .background(Circle().fill(Nocturne.accent.opacity(0.09)).scaleEffect(1.31))
-                Image(systemName: Nocturne.Icon.check)
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(Nocturne.accent)
-            }
-            .frame(width: 64, height: 64)
+            badge
 
             Text("Ready to send")
                 .font(Nocturne.Face.title(26))
