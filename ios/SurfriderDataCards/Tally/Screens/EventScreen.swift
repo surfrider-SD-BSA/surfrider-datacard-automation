@@ -65,31 +65,29 @@ struct EventScreen: View {
                 .pageMargin()
             }
             .scrollDismissesKeyboard(.interactively)
-
-            Spacer(minLength: 0)
-
-            VStack(spacing: 10) {
-                Button {
-                    model.path.append(.capture)
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: Nocturne.Icon.capture)
-                        Text("Scan the cards")
+            .softScrollEdges()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 10) {
+                    Button {
+                        model.path.append(.capture)
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: Nocturne.Icon.capture)
+                            Text("Scan the cards")
+                        }
                     }
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!model.event.isComplete)
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(!model.event.isComplete)
 
-                // Name what is actually missing. "A date and a beach" is no
-                // help when one of the two is already filled in and the
-                // disabled button will not say which.
-                Text(gateCaption)
-                    .font(Nocturne.Face.label(12))
-                    .foregroundStyle(Nocturne.text(45))
+                    // Name what is actually missing. "A date and a beach" is no
+                    // help when one of the two is already filled in and the
+                    // disabled button will not say which.
+                    Text(gateCaption)
+                        .font(Nocturne.Face.label(12))
+                        .foregroundStyle(Nocturne.text(45))
+                }
+                .pinnedActions()
             }
-            .pageMargin()
-            .padding(.top, 16)
-            .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
     }

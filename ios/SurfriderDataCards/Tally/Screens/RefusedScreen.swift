@@ -49,45 +49,47 @@ struct RefusedScreen: View {
                 .padding(.top, 6)
                 .pageMargin()
             }
-
-            Spacer(minLength: 0)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Button {
-                    // Back to the picker. A better scan of the same cards is
-                    // the only fix available until capture is switched on.
-                    model.path.removeAll { $0 == .reading || $0 == .refused }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: Nocturne.Icon.scan)
-                        Text("Try a better scan")
-                    }
-                }
-                .buttonStyle(PrimaryButtonStyle(minHeight: 50, size: 15))
-
-                Button("Leave it out and carry on") {
-                    model.index = 0
-                    model.syncEntryToCurrentCell()
-                    model.path.append(.review)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(model.cells.isEmpty)
-
-                Text(footnote)
-                    .font(Nocturne.Face.label(12))
-                    .lineSpacing(2)
-                    .foregroundStyle(Nocturne.text(42))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 6)
+            .softScrollEdges()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                actions
             }
-            .pageMargin()
-            .padding(.top, 16)
-            .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
     }
 
     // MARK: -
+
+    private var actions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                // Back to the picker. A better scan of the same cards is
+                // the only fix available until capture is switched on.
+                model.path.removeAll { $0 == .reading || $0 == .refused }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: Nocturne.Icon.scan)
+                    Text("Try a better scan")
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle(minHeight: 50, size: 15))
+
+            Button("Leave it out and carry on") {
+                model.index = 0
+                model.syncEntryToCurrentCell()
+                model.path.append(.review)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(model.cells.isEmpty)
+
+            Text(footnote)
+                .font(Nocturne.Face.label(12))
+                .lineSpacing(2)
+                .foregroundStyle(Nocturne.text(42))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+        }
+        .pinnedActions()
+    }
 
     private var refusedLabel: String {
         let n = model.refusedPages.count
