@@ -205,6 +205,48 @@ hand-off, without going near the share sheet. `pluginkit -m -p
 com.apple.share-services` inside `simctl spawn booted` is how to check the
 extension registered at all.
 
+## Choosing a scan out of Drive
+
+**Choose from Drive**, under the PDF picker on screen 3. Google's consent screen,
+the picker on the chapter's shared folder, then a download with a progress bar
+into the same `read(pdf:)` the document picker feeds. It is **off unless the
+build was configured**, and a build without a Google project makes no network
+call at all — which is the default, and is what the App Store encryption note in
+`Info.plist` now turns on.
+
+Three pieces, and the middle one is the surprising one:
+
+- **Sign-in is native.** PKCE through `ASWebAuthenticationSession`, against an
+  iOS OAuth client — which has no client secret, because a secret shipped in an
+  app is not a secret. No refresh token is asked for, and the access token lives
+  in memory until the app quits: no Keychain, no file. `Drive/DriveAuth.swift`.
+- **The picker is a web page.** `drive.file` grants access to files a person
+  picks *in Google's Picker*; the Picker is JavaScript with no native iOS
+  counterpart and runs only on an origin registered with Google, which a web
+  view's own origin cannot be. So `docs/ios-picker.html` is served from this
+  project's GitHub Pages site and loaded into a `WKWebView`. A token goes in
+  through the URL fragment — never a query string, which would put it in an
+  access log — and a file id comes back through one message handler with a
+  three-word vocabulary. The page never sees a card. `Drive/DrivePicker.swift`.
+- **The download is native.** Streamed by `URLSession` to a temp file, so a
+  300-page scan on cellular shows a bar that moves. `Drive/DriveDownload.swift`.
+
+**Why not `drive.readonly`.** It would have made the picker unnecessary — the app
+could list the folder itself with a native view and no web page anywhere. It
+would also mean asking a volunteer at a beach cleanup to grant a transcription
+tool read access to their entire Drive. `src/lib/drive.ts` refuses that trade for
+the browser; this refuses it for the same reason, and the web page is what that
+refusal costs.
+
+**Why not the Files app.** `UIDocumentPickerViewController` already reaches Drive
+when the Drive app is installed, and *Choose a scanned PDF* has always been able
+to open a scan that way. It is a good path and it is not this one: it needs the
+Drive app on the phone, it opens Apple's browser rather than the chapter's
+folder, and it cannot be pointed at the shared folder. Both are offered.
+
+Setup — the iOS OAuth client, the API key, and how the settings get into a build
+without being committed — is `docs/google-drive-ios.md`.
+
 ## Building it
 
 ```sh

@@ -1,0 +1,159 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Choose a scan</title>
+
+<!--
+  Google's file picker, for the iOS app to show inside a web view.
+
+  WHY THIS PAGE EXISTS AT ALL. The app asks Google for the `drive.file` scope,
+  which grants access to the individual files a person picks and to nothing else
+  in their Drive -- it cannot list a folder or open a file nobody chose. The
+  thing that does the picking under that scope is Google's Picker, and the
+  Picker is a JavaScript library with no native iOS counterpart. So the choice
+  was this page, or asking volunteers for `drive.readonly` and the run of their
+  entire Drive. src/lib/drive.ts refuses that trade for the browser and the app
+  refuses it here.
+
+  It is served from GitHub Pages because the Picker only runs on an origin
+  registered with Google, and a WKWebView's own origin cannot be registered.
+  This is the whole reason the app touches the network for anything other than
+  Drive itself.
+
+  WHAT CROSSES THE BOUNDARY. An access token in, a file id and name out. The
+  page does not download anything, does not see a card, and has no storage: the
+  app does the downloading natively, with the same token, straight to disk.
+
+  THE TOKEN ARRIVES IN THE FRAGMENT, NEVER THE QUERY STRING. Everything after
+  the `#` stays in the browser -- it is not sent with the request for this page,
+  so it reaches no server and appears in no access log. In a query string it
+  would be in GitHub's logs the moment the page loaded. If you edit this file,
+  keep it that way.
+
+  Setup, and what a chapter has to create in Google Cloud, is in
+  docs/google-drive-ios.md.
+-->
+
+<style>
+  /* The app's ground colour, so opening this does not flash white inside a
+     dark app. Nocturne `--color-ground`, transcribed. */
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #161826;
+    color: #e9e9ed;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  #status {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 32px;
+    text-align: center;
+    color: rgba(233, 233, 237, 0.6);
+  }
+  /* The Picker draws itself into a fixed overlay; let it own the page. */
+  .picker-dialog-bg { background-color: #161826 !important; }
+</style>
+
+<div id="status">Opening your Drive…</div>
+
+<script>
+  "use strict";
+
+  // Anything that happens to this page -- picked, cancelled, failed -- goes
+  // back to Swift through here and nowhere else. `DrivePicker` in the app is
+  // the other end.
+  function send(message) {
+    const bridge = window.webkit && window.webkit.messageHandlers
+      && window.webkit.messageHandlers.picker;
+    if (bridge) bridge.postMessage(message);
+  }
+
+  function fail(message) {
+    document.getElementById("status").textContent = message;
+    send({ type: "error", message: message });
+  }
+
+  const options = new URLSearchParams(location.hash.slice(1));
+  const token = options.get("token");
+  const apiKey = options.get("apiKey");
+
+  if (!token || !apiKey) {
+    // Someone has opened this page directly. It is not a tool on its own and
+    // says so rather than looking broken.
+    fail("This page is opened by the Data Cards app. There is nothing to do here on its own.");
+  } else {
+    const script = document.createElement("script");
+    script.src = "https://apis.google.com/js/api.js";
+    script.onerror = () => fail("Google's picker could not be loaded. Check the connection and try again.");
+    script.onload = () => gapi.load("picker", { callback: open, onerror: () => fail("Google's picker could not be loaded.") });
+    document.head.appendChild(script);
+  }
+
+  function open() {
+    try {
+      // PDFs only, and the scans are PDFs. A view that offered every file in
+      // the Drive would let somebody pick a photo and find out on the next
+      // screen; the reading wants one PDF, front and back, in card order.
+      const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+        .setMimeTypes("application/pdf")
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false);
+
+      const folderId = options.get("folderId");
+      if (folderId) {
+        // A convenience and not a boundary: the picker will let somebody
+        // navigate out of this folder, and what they can reach is what Drive
+        // has shared with them. Same note as the web tool's config.
+        view.setParent(folderId);
+      }
+      if (options.get("sharedDrives") === "true") {
+        view.setEnableDrives(true);
+      }
+
+      const builder = new google.picker.PickerBuilder()
+        .addView(view)
+        .setOAuthToken(token)
+        .setDeveloperKey(apiKey)
+        .setCallback(onPicked)
+        .setSize(window.innerWidth, window.innerHeight);
+
+      const appId = options.get("appId");
+      if (appId) builder.setAppId(appId);
+      if (options.get("sharedDrives") === "true") {
+        builder.enableFeature(google.picker.Feature.SUPPORT_DRIVES);
+      }
+
+      builder.build().setVisible(true);
+      document.getElementById("status").textContent = "";
+    } catch (err) {
+      fail("The picker could not be opened: " + (err && err.message ? err.message : String(err)));
+    }
+  }
+
+  function onPicked(data) {
+    const action = data[google.picker.Response.ACTION];
+
+    if (action === google.picker.Action.CANCEL) {
+      // Backing out is an ordinary thing to do, not an error.
+      send({ type: "cancelled" });
+      return;
+    }
+    if (action !== google.picker.Action.PICKED) return;
+
+    const doc = data[google.picker.Response.DOCUMENTS][0];
+    if (!doc) { send({ type: "cancelled" }); return; }
+
+    send({
+      type: "picked",
+      id: doc[google.picker.Document.ID],
+      name: doc[google.picker.Document.NAME] || "scan.pdf",
+      // Used only for the progress bar, and absent often enough that the app
+      // treats it as optional.
+      size: Number(doc.sizeBytes || 0),
+    });
+  }
+</script>

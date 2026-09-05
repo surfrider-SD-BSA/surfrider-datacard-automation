@@ -88,6 +88,7 @@ struct CaptureScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
     @State private var picking = false
+    @StateObject private var drive = DriveFlow()
     @State private var scanning = false
     @State private var problem: String?
 
@@ -179,7 +180,41 @@ struct CaptureScreen: View {
                     .ignoresSafeArea()
                 }
 
-                if let problem {
+                // Under the picker, and always secondary to it. The scanner's
+                // PDF is the input every figure in HANDOFF.md was measured on
+                // whichever way it reaches the phone; this is a shortcut to the
+                // same file, not a second kind of scan. Absent entirely unless
+                // the build was configured with a Google project -- see
+                // DriveConfig, where that default is argued for.
+                if drive.isAvailable {
+                    Button {
+                        Task { await drive.begin() }
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: Nocturne.Icon.drive)
+                            Text(drive.stage == .authorizing ? "Waiting for Google…" : "Choose from Drive")
+                        }
+                    }
+                    .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
+                    .disabled(drive.isBusy)
+                }
+
+                if case .downloading(let fraction, let name) = drive.stage {
+                    // Downloading is not reading: the reading screen has its own
+                    // progress and its own language, and showing that here would
+                    // claim the scan was being read when it is still arriving.
+                    VStack(spacing: 6) {
+                        ProgressView(value: fraction)
+                            .tint(Nocturne.accent)
+                        Text("Downloading \(name) — \(Int(fraction * 100))%")
+                            .font(Nocturne.Face.label(12))
+                            .foregroundStyle(Nocturne.text(60))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+
+                if let problem = drive.problem ?? problem {
                     Text(problem)
                         .font(Nocturne.Face.label(12))
                         .multilineTextAlignment(.center)
@@ -199,6 +234,26 @@ struct CaptureScreen: View {
             .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
+        .sheet(isPresented: Binding(
+            get: { if case .picking = drive.stage { return true } else { return false } },
+            set: { if !$0 { drive.cancel() } }
+        )) {
+            if case .picking(let url) = drive.stage {
+                DrivePicker(url: url) { message in
+                    switch message {
+                    case .picked(let file):
+                        drive.cancel()
+                        Task { await drive.download(file, into: model) }
+                    case .cancelled:
+                        drive.cancel()
+                    case .failed(let message):
+                        drive.cancel()
+                        drive.problem = message
+                    }
+                }
+                .ignoresSafeArea()
+            }
+        }
         .fullScreenCover(isPresented: $scanning) {
             DocumentScanner { pages in
                 scanning = false
