@@ -90,6 +90,34 @@ h3 { font-size: 15px; margin: 0; }
 #drop.over { border-color: var(--accent); background: #1d2733; }
 #drop strong { display: block; font-size: 18px; margin-bottom: 6px; }
 
+/* ---------- Google Drive picker ---------- */
+
+/*
+ * Sits above the drop zone and is deliberately quieter than it. Dropping a
+ * file is the path with no third party in it, and it should not look like the
+ * fallback for people who could not manage the sign-in.
+ */
+.panel.drive { padding: 16px 18px; }
+
+.drive-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.drive-row .hint { margin: 0; }
+
+/* An inline failure -- a closed sign-in window, a file Drive would not hand
+   over -- said next to the button rather than by replacing the screen. */
+.bad-text { color: var(--bad); }
+
+.drive-fineprint {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
 /* ---------- progress ---------- */
 
 .bar {

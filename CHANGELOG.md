@@ -11,6 +11,24 @@ count as breaking.
 
 ### Added
 
+- **Pick a scan out of the chapter's shared Google Drive folder.** The scans are
+  already in Drive, so the data-entry volunteer was downloading one to their
+  laptop purely in order to drag it back into the page. The button skips that:
+  the picker opens on the shared folder and the bytes go straight into the tab.
+  This is the only path through the web tool with a third party in it, so the
+  boundaries are drawn tightly and stated in the interface. The scan is not
+  uploaded — it is *downloaded*, from a folder that already holds it, and read
+  in the browser like a dragged-in file; there is still no server. The scope is
+  `drive.file`, which reaches the files somebody picks and nothing else in their
+  Drive, rather than `drive.readonly`, which would have been fewer lines and
+  would mean asking a volunteer to let a transcription tool read their whole
+  Drive. The token lives in memory for the tab, never in storage, and there is a
+  **Sign out of Google** button on the review screen for shared laptops. The
+  whole feature is off unless a build is configured with a client ID: with none,
+  no button is drawn and nothing is fetched from Google at all, not even the
+  scripts. Setup is in [docs/google-drive.md](docs/google-drive.md); the file a
+  volunteer picks arrives at `processFile` as an ordinary `File`, so from that
+  point there is one reading path and it is the measured one.
 - **Data Cards is a destination in the iOS share sheet.** Share a scan from
   Files, Mail, Drive or a scanner app and the app is in the row of icons rather
   than in the list under it; the PDF is waiting on the capture screen the next

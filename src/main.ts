@@ -57,6 +57,13 @@ import {
 } from "./lib/draft";
 import { downloadWorkbook, fillTemplate, suggestFilename } from "./lib/xlsx";
 import type { ExtractedCard as ExportCard } from "./lib/xlsx";
+import {
+  chooseFileFromDrive,
+  driveConfig,
+  isSignedInToDrive,
+  prepareDrive,
+  signOutOfDrive,
+} from "./lib/drive";
 
 const app = document.getElementById("app")!;
 const statusEl = document.getElementById("status")!;
@@ -73,9 +80,26 @@ interface EventForm {
 
 const drafts = createDraftStore();
 
+/**
+ * The chapter's shared Drive folder, or null in a build that was not given
+ * one. Read once: it is compiled-in configuration and cannot change while the
+ * page is open, and reading it in one place is what keeps every `if (drive)`
+ * below meaning the same thing.
+ */
+const drive = driveConfig();
+
 const state = {
   fileName: "",
   fileSize: 0,
+  /**
+   * Whether this scan came out of Drive rather than off the disk.
+   *
+   * Only the footer wording depends on it, and that is the point of tracking
+   * it: "nothing has been uploaded anywhere" is true of both paths, but a
+   * person who just signed into Google deserves to be told what did happen
+   * rather than left to match a reassuring sentence against what they saw.
+   */
+  fromDrive: false,
   cards: [] as ExtractedCard[],
   problems: [] as PairingProblem[],
   /** cardNumber -> taxonomy row -> typed value */
@@ -169,9 +193,10 @@ function loadReferences() {
 // Processing
 // ---------------------------------------------------------------------------
 
-async function processFile(file: File) {
+async function processFile(file: File, opts: { fromDrive?: boolean } = {}) {
   state.fileName = file.name;
   state.fileSize = file.size;
+  state.fromDrive = opts.fromDrive ?? false;
   renderProgress("Reading the PDF…", 0);
 
   try {
@@ -480,6 +505,7 @@ function seedEventFromFilename(name: string) {
 
 function renderUpload() {
   app.innerHTML = `
+    ${drive ? renderDrivePicker() : ""}
     <div id="drop">
       <strong>Drop a scanned PDF here</strong>
       <span class="hint">or click to choose a file</span>
@@ -507,6 +533,86 @@ function renderUpload() {
     drop.classList.remove("over");
     const file = e.dataTransfer?.files?.[0];
     if (file) void processFile(file);
+  });
+
+  if (drive) wireDrivePicker();
+  setStatus("");
+}
+
+/**
+ * The Drive button, above the drop zone rather than instead of it.
+ *
+ * Dropping a file keeps working and keeps working the same way, which is not
+ * only politeness to the person who already has the PDF on their desktop: it
+ * is the path with no third party in it, so it has to stay reachable without
+ * signing into anything. The Drive button is the shortcut for the common case,
+ * not the way in.
+ */
+function renderDrivePicker() {
+  return `
+    <div class="panel drive">
+      <div class="drive-row">
+        <button id="drive-pick">Choose from Google Drive</button>
+        <span class="hint" id="drive-note">
+          ${drive!.folderId
+            ? "Opens the chapter's shared folder of scans."
+            : "Opens your Google Drive."}
+        </span>
+      </div>
+      <p class="hint drive-fineprint">
+        Google asks permission for the one file you pick and nothing else in
+        your Drive. The scan is downloaded into this page and read here, the
+        same as a file you drag in — it is not sent anywhere, and the access
+        ends when you close the tab.
+      </p>
+    </div>`;
+}
+
+function wireDrivePicker() {
+  const button = document.getElementById("drive-pick") as HTMLButtonElement;
+  const note = document.getElementById("drive-note")!;
+
+  // Fetch Google's two scripts now, while somebody is reading the page, so
+  // that pressing the button leads to the consent popup with no network wait
+  // in between. A popup that opens seconds after the click that asked for it
+  // is what a browser's blocker is built to stop.
+  void prepareDrive().catch(() => {
+    // Nothing to say yet. If the scripts really are unreachable the click will
+    // fail with a message, and that is a better moment to say so than greying
+    // out a button somebody has not tried to use.
+  });
+
+  button.addEventListener("click", () => {
+    button.disabled = true;
+    note.classList.remove("bad-text");
+    note.textContent = "Waiting for Google…";
+
+    void chooseFileFromDrive(drive!, (fraction) => {
+      note.textContent = `Downloading… ${Math.round(fraction * 100)}%`;
+    })
+      .then((file) => {
+        if (!file) {
+          // Closed the picker without choosing. Not an error; put the screen
+          // back the way it was.
+          button.disabled = false;
+          note.textContent = drive!.folderId
+            ? "Opens the chapter's shared folder of scans."
+            : "Opens your Google Drive.";
+          return;
+        }
+        return processFile(file, { fromDrive: true });
+      })
+      .catch((err: unknown) => {
+        // Inline, rather than replacing the screen with the error view. Every
+        // way this fails -- a closed sign-in window, a blocked popup, a file
+        // that is not shared with this account -- leaves dropping a PDF
+        // working perfectly, and taking the drop zone away to report that
+        // Google did not cooperate would be the wrong thing to do to somebody
+        // who has the file on their desktop anyway.
+        button.disabled = false;
+        note.classList.add("bad-text");
+        note.textContent = err instanceof Error ? err.message : String(err);
+      });
   });
 }
 
@@ -578,6 +684,7 @@ function renderReview() {
       <div class="actions">
         <button id="export">Download spreadsheet</button>
         <button class="secondary" id="restart">Start over</button>
+        ${isSignedInToDrive() ? `<button class="secondary" id="drive-out">Sign out of Google</button>` : ""}
         <span class="hint" id="gate"></span>
       </div>
     </div>`;
@@ -604,10 +711,22 @@ function renderReview() {
     renderUpload();
   });
 
+  // Ending the Google grant is offered here rather than only on the way out,
+  // because the moment somebody has their spreadsheet is the moment they are
+  // done with the folder, and a chapter laptop is a shared one. The typed
+  // values are untouched by it -- the scan has already been read.
+  document.getElementById("drive-out")?.addEventListener("click", (e) => {
+    signOutOfDrive();
+    (e.currentTarget as HTMLButtonElement).remove();
+    setStatus(`${state.fileName} — signed out of Google. Your typed values are still here.`);
+  });
+
   assertTypedValues();
   updateGate();
   setStatus(
-    `${state.fileName} — nothing has been uploaded anywhere.` +
+    (state.fromDrive
+      ? `${state.fileName} — downloaded from Drive and read here; nothing was uploaded anywhere.`
+      : `${state.fileName} — nothing has been uploaded anywhere.`) +
       // If the browser will not store anything, say so rather than letting
       // someone type for an hour believing it is being kept.
       (drafts.available ? "" : " This browser will not save your work — do not close the tab."),
