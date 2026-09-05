@@ -53,6 +53,16 @@ count as breaking.
 
 ### Changed
 
+- **The app's chrome is Liquid Glass on iOS 26.** The layer that floats above
+  the content — the pinned actions, the nav buttons, the keypad and its display,
+  the finish badge, and the small grouping panels — is drawn in glass on iOS 26
+  and is exactly what it was on everything older; every call is behind an
+  availability check with the previous control as its fallback. The content
+  itself is deliberately not glass, and the cell crops least of all: a
+  photograph of pencil on paper is what the reviewer types from, and it must not
+  be refracted or dimmed. Nothing about reading, prefilling or exporting
+  changes.
+
 - **Every box now arrives with a number in it, including the ones nothing was
   read in.** On the chapter owner's instruction, third time asked: where both
   readers decline, `prefillFor` puts in a placeholder of 1 at confidence 0,
