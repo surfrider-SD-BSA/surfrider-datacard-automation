@@ -93,8 +93,14 @@ export GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
 export GOOGLE_API_KEY=AIza...
 export GOOGLE_DRIVE_FOLDER_ID='https://drive.google.com/drive/folders/1a2B3c...'
 # Only if the scans are on a shared drive rather than in someone's My Drive:
-# export GOOGLE_APP_ID=<cloud project NUMBER>
 # export GOOGLE_SHARED_DRIVES=true
+#
+# GOOGLE_APP_ID is NOT in this list on purpose. The picker has to name the app
+# when it hands a file over -- that naming is what makes `drive.file` cover the
+# file somebody picked -- and the id it names is the Cloud project number, which
+# is already the first part of GOOGLE_CLIENT_ID. The app reads it from there.
+# Set GOOGLE_APP_ID only for a project whose client ID does not start with its
+# project number.
 
 TEAM_ID=... ASC_KEY_ID=... ASC_ISSUER_ID=... ./ios/testflight.sh
 ```
@@ -134,4 +140,4 @@ Known failures and what they mean:
 | The picker sheet is blank, or "picker page could not be loaded" | The page is not published, or `GOOGLE_PICKER_URL` points somewhere that is not (step 3). |
 | The picker loads but shows an error about a developer key | The API key is missing, or its **Websites** restriction does not list the page's origin (step 2). |
 | Picker opens somewhere other than the shared folder | The folder ID did not parse, or the folder is not shared with this account. |
-| "Drive would not hand over that file" | The file is not shared with the signed-in account. On a shared drive, check `GOOGLE_APP_ID` and `GOOGLE_SHARED_DRIVES`. |
+| "Drive would not hand over that file" | Usually **not** what it says. Drive answers 403 for a picked file when the picker did not name the app, so `drive.file` never covered it -- check that the app id reached the picker (it is derived from the client ID; see `DriveConfig.projectNumber`). Genuine sharing problems look the same, so rule the app id out first. On a shared drive also check `GOOGLE_SHARED_DRIVES`. |
