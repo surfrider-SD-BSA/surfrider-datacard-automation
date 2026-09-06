@@ -19,7 +19,7 @@ struct FinishScreen: View {
     /// The badge lands rather than appears. One spring, once, on the one screen
     /// that is telling somebody an hour of work is finished.
     @State private var landed = false
-    @StateObject private var drive = DriveFlow()
+    @ObservedObject private var drive = DriveFlow.shared
 
     var body: some View {
         ScreenBody {
@@ -40,20 +40,8 @@ struct FinishScreen: View {
             set: { if !$0 { drive.cancel() } }
         )) {
             if case .choosingFolder(let url) = drive.stage {
-                DrivePicker(url: url) { message in
-                    switch message {
-                    case .picked(let folder):
-                        drive.cancel()
-                        guard let file = model.exportedFile else { return }
-                        Task { await drive.save(file, toFolder: folder.id) }
-                    case .cancelled:
-                        drive.cancel()
-                    case .failed(let message):
-                        drive.cancel()
-                        drive.problem = message
-                    }
-                }
-                .ignoresSafeArea()
+                DrivePicker(url: url)
+                    .ignoresSafeArea()
             }
         }
     }

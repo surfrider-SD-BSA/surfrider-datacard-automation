@@ -60,6 +60,12 @@ struct RootView: View {
                 // A PDF sent to the app from Files, Mail, Messages or AirDrop.
                 // The other way in besides the two buttons on screen 3.
                 model.openExternal(url)
+            } else if url.host == "picker" {
+                // Google's picker, answering. It runs in Safari -- which is the
+                // only place it can, because that is where the sign-in session
+                // is -- and a page in Safari has no way back into an app except
+                // a URL. Ids and names only; the token never travels here.
+                DriveFlow.shared.handleCallback(url, model: model)
             } else {
                 // `datacards://inbox`, from the share extension. It carries no
                 // file and does not need to -- the PDF is already in the App

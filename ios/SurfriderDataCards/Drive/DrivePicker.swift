@@ -15,8 +15,8 @@
 //  web view has no access to the model, the scan or the values.
 //
 
+import SafariServices
 import SwiftUI
-import WebKit
 
 // MARK: - The flow
 
@@ -39,6 +39,14 @@ final class DriveFlow: ObservableObject {
         /// not happen.
         case saved(name: String)
     }
+
+    /// One instance for the app.
+    ///
+    /// The picker's answer comes back as a `datacards://picker?…` URL, which
+    /// lands on `RootView.onOpenURL` rather than on whichever screen opened the
+    /// picker. Two `@StateObject`s -- one per screen -- had no way to receive
+    /// that, so there is one flow and both screens observe it.
+    static let shared = DriveFlow()
 
     @Published private(set) var stage: Stage = .idle
     @Published var problem: String?
@@ -110,6 +118,44 @@ final class DriveFlow: ObservableObject {
         } catch {
             stage = .idle
             report(error)
+        }
+    }
+
+    /// A `datacards://picker?…` URL, handed over by RootView.
+    ///
+    /// What to do with a pick depends on what was being picked, and the stage
+    /// is the record of that -- a file id means download and read, a folder id
+    /// means upload the spreadsheet into it.
+    func handleCallback(_ url: URL, model: TallyModel) {
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
+
+        switch value("type") {
+        case "cancelled":
+            cancel()
+        case "error":
+            let message = value("message") ?? "The picker could not be opened."
+            cancel()
+            problem = message
+        case "picked":
+            guard let id = value("id"), !id.isEmpty else { cancel(); return }
+            let name = value("name") ?? "scan.pdf"
+            let size = Int64(value("size") ?? "") ?? 0
+
+            switch stage {
+            case .picking:
+                cancel()
+                Task { await download(DriveMessage.Picked(id: id, name: name, size: size), into: model) }
+            case .choosingFolder:
+                cancel()
+                guard let file = model.exportedFile else { return }
+                Task { await save(file, toFolder: id) }
+            default:
+                // A stale redirect arriving after the sheet was dismissed.
+                cancel()
+            }
+        default:
+            cancel()
         }
     }
 
@@ -241,65 +287,33 @@ enum DriveMessage {
 
 // MARK: - The web view
 
-struct DrivePicker: UIViewRepresentable {
+/// Google's picker, in Safari.
+///
+/// `SFSafariViewController` and not `WKWebView`, and the difference is the
+/// whole reason the picker works at all: Safari's cookies are shared with this
+/// controller, so the picker opens already signed in as the person who just
+/// came through the consent screen. A web view has its own cookie store, which
+/// Google's session never reaches -- that produced "Can't access your Google
+/// Account", with the fix suggested in the message being one nobody could act
+/// on from inside an app.
+///
+/// It answers through `datacards://picker?…`, caught by RootView, because a
+/// page in Safari cannot call back into the app any other way.
+struct DrivePicker: UIViewControllerRepresentable {
 
     let url: URL
-    let onMessage: (DriveMessage) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onMessage: onMessage) }
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let configuration = SFSafariViewController.Configuration()
+        configuration.entersReaderIfAvailable = false
+        configuration.barCollapsingEnabled = false
 
-    func makeUIView(context: Context) -> WKWebView {
-        let controller = WKUserContentController()
-        controller.add(context.coordinator, name: "picker")
-
-        let configuration = WKWebViewConfiguration()
-        configuration.userContentController = controller
-        // Nothing is kept. The page has no storage to speak of, and a token
-        // that outlived the sheet would be the one thing DriveAuth exists to
-        // prevent.
-        configuration.websiteDataStore = .nonPersistent()
-
-        let view = WKWebView(frame: .zero, configuration: configuration)
-        view.navigationDelegate = context.coordinator
-        view.isOpaque = false
-        view.backgroundColor = UIColor(Nocturne.ground)
-        view.scrollView.backgroundColor = UIColor(Nocturne.ground)
-        view.load(URLRequest(url: url))
-        return view
+        let controller = SFSafariViewController(url: url, configuration: configuration)
+        controller.preferredBarTintColor = UIColor(Nocturne.ground)
+        controller.preferredControlTintColor = UIColor(Nocturne.accent)
+        controller.dismissButtonStyle = .cancel
+        return controller
     }
 
-    func updateUIView(_ view: WKWebView, context: Context) {}
-
-    static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
-        // The handler holds the coordinator, which holds the callback, which
-        // holds the screen. Left attached, the whole chain outlives the sheet.
-        view.configuration.userContentController.removeScriptMessageHandler(forName: "picker")
-    }
-
-    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
-        private let onMessage: (DriveMessage) -> Void
-
-        init(onMessage: @escaping (DriveMessage) -> Void) {
-            self.onMessage = onMessage
-        }
-
-        func userContentController(
-            _ controller: WKUserContentController,
-            didReceive message: WKScriptMessage
-        ) {
-            guard let decoded = DriveMessage(body: message.body) else { return }
-            onMessage(decoded)
-        }
-
-        /// A page that will not load at all -- aeroplane mode, GitHub Pages
-        /// down, a fork that never published its copy -- otherwise shows an
-        /// empty sheet with no explanation.
-        func webView(
-            _ webView: WKWebView,
-            didFailProvisionalNavigation navigation: WKNavigation!,
-            withError error: Error
-        ) {
-            onMessage(.failed("The picker page could not be loaded: \(error.localizedDescription)"))
-        }
-    }
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }

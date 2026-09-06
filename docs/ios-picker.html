@@ -74,9 +74,33 @@
   // back to Swift through here and nowhere else. `DrivePicker` in the app is
   // the other end.
   function send(message) {
+    // Safari, not a web view -- and that is the whole point.
+    //
+    // This page used to be loaded into a WKWebView and answer through
+    // `webkit.messageHandlers`. That could not work, and the symptom was
+    // Google's own "Can't access your Google Account -- try signing into your
+    // Google account or allowing cookie access". The sign-in happens in
+    // ASWebAuthenticationSession, which is Safari; a WKWebView has an
+    // app-private cookie store that Safari's session never reaches. So the
+    // volunteer was signed in on one side of a wall and the picker was looking
+    // for that session on the other.
+    //
+    // SFSafariViewController shares Safari's cookies, so the picker opens
+    // already signed in as the same person who just consented. The cost is
+    // that a page in Safari cannot call back into the app directly, so the
+    // result goes through the app's URL scheme instead. Only ids and names
+    // travel that way -- never the token, which the app already has.
     const bridge = window.webkit && window.webkit.messageHandlers
       && window.webkit.messageHandlers.picker;
-    if (bridge) bridge.postMessage(message);
+    if (bridge) { bridge.postMessage(message); return; }
+
+    const params = new URLSearchParams();
+    Object.keys(message).forEach(function (key) {
+      if (message[key] !== undefined && message[key] !== null) {
+        params.set(key, String(message[key]));
+      }
+    });
+    location.href = "datacards://picker?" + params.toString();
   }
 
   function fail(message) {
