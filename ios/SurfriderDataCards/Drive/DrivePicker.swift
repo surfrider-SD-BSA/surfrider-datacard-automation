@@ -254,10 +254,20 @@ struct DrivePicker: UIViewRepresentable {
 
         let configuration = WKWebViewConfiguration()
         configuration.userContentController = controller
-        // Nothing is kept. The page has no storage to speak of, and a token
-        // that outlived the sheet would be the one thing DriveAuth exists to
-        // prevent.
-        configuration.websiteDataStore = .nonPersistent()
+        // A PERSISTENT STORE, AND IT HAS TO BE ONE.
+        //
+        // This was `.nonPersistent()` on the reasoning that nothing here is
+        // worth keeping. That was wrong, and it broke the picker: Google's
+        // picker signs itself in with cookies, and a store created empty on
+        // every presentation has none -- so the picker came up complaining
+        // about cookies being disabled instead of showing the folder.
+        //
+        // What is actually worth not keeping is the ACCESS TOKEN, and that has
+        // never been in here: DriveAuth holds it in memory and the page is
+        // handed it through the URL fragment. The cookies this keeps are the
+        // volunteer's own Google session, the same thing Safari would hold, and
+        // keeping them is also why a second scan does not sign in again.
+        configuration.websiteDataStore = .default()
 
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
