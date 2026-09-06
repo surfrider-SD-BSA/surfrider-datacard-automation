@@ -38,7 +38,7 @@ set -eu
 : "${TEAM_ID:?set TEAM_ID to your Apple Developer team identifier}"
 : "${ASC_KEY_ID:?set ASC_KEY_ID to your App Store Connect API key id}"
 : "${ASC_ISSUER_ID:?set ASC_ISSUER_ID to your App Store Connect issuer id}"
-BUNDLE_ID="${BUNDLE_ID:-org.surfrider.sd.datacards}"
+BUNDLE_ID="${BUNDLE_ID:-com.mateobesse.surfriderdatacards}"
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"

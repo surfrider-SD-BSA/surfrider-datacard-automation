@@ -195,7 +195,7 @@ xcodebuild -project ios/SurfriderDataCards.xcodeproj -scheme "Data Cards" \
   -sdk iphonesimulator -derivedDataPath ios/build-adhoc \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" build
 xcrun simctl install booted "ios/build-adhoc/Build/Products/Debug-iphonesimulator/Data Cards.app"
-xcrun simctl get_app_container booted com.mateobesse.datacards group.com.mateobesse.datacards
+xcrun simctl get_app_container booted com.mateobesse.surfriderdatacards group.com.mateobesse.surfriderdatacards
 ```
 
 The last line prints the drawer. Dropping a file into its `Inbox/` named
@@ -285,7 +285,7 @@ fine for looking at it and useless for a volunteer at a cleanup.
 Open `ios/SurfriderDataCards.xcodeproj`, select the target, Signing &
 Capabilities, add your Apple ID under Team, plug in the phone and press Run.
 
-This has been done: a personal team signs `com.mateobesse.datacards`, and the app
+This has been done: a personal team signs `com.mateobesse.surfriderdatacards`, and the app
 installs and launches on a physical iPhone. The same thing from the command line,
 with the phone plugged in, unlocked and trusted:
 
@@ -318,7 +318,7 @@ What you have to do once:
 1. **Apple Developer Program membership**, $99/year. TestFlight is not available
    on a free account.
 2. **Pick a bundle identifier you own** and register an App ID for it. The
-   project currently uses `com.mateobesse.datacards`, which is personal -- for a
+   project currently uses `com.mateobesse.surfriderdatacards`, which is personal -- for a
    chapter build it should sit under a domain the chapter controls.
 3. **Create the app record** in App Store Connect with that bundle ID.
 4. **Generate an App Store Connect API key** with the App Manager role, and put
@@ -360,7 +360,7 @@ Review first, which is a day or so and does look at the app.
   handoff's measurements rather than checked against a running app, so expect
   to nudge spacing. The values to nudge are all in `Tally/Theme.swift`.
 - **Development signing only.** A free personal team signs
-  `com.mateobesse.datacards`, and Xcode issues a provisioning profile that
+  `com.mateobesse.surfriderdatacards`, and Xcode issues a provisioning profile that
   expires seven days after it is created, so the app stops launching a week after
   each install. There is no paid membership, no distribution certificate and no
   identifier the chapter owns, so TestFlight is still out of reach.
