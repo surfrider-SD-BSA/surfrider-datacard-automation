@@ -50,8 +50,18 @@ struct DriveConfig {
     /// a file ID out.
     let pickerURL: URL
 
-    /// Cloud project NUMBER, if the scans live on a shared drive. Harmless
-    /// otherwise, so the setup doc just says to set it.
+    /// Cloud project NUMBER, and it is REQUIRED -- not, as this once said,
+    /// something that only matters for shared drives.
+    ///
+    /// `drive.file` grants access to the files somebody picks, and what makes a
+    /// picked file *count* as picked by THIS app is the picker naming the app
+    /// when it hands the file over. Without the app id the picker still returns
+    /// a file id, the download still runs, and Drive answers 403 -- which
+    /// surfaces as "Drive would not hand over that file. It may not be shared
+    /// with this Google account", a sentence that sends somebody to check
+    /// sharing settings that were never the problem.
+    ///
+    /// Never nil in practice: see `projectNumber(from:)`.
     let appId: String?
 
     /// Whether to offer shared drives in the picker.
@@ -111,7 +121,8 @@ struct DriveConfig {
             clientId: clientId,
             apiKey: apiKey,
             pickerURL: pickerURL,
-            appId: string(bundle, "GoogleAppID"),
+            // Explicit if a build set one, otherwise taken off the client ID.
+            appId: string(bundle, "GoogleAppID") ?? projectNumber(from: clientId),
             enableSharedDrives: (bundle.object(forInfoDictionaryKey: "GoogleSharedDrives") as? String) == "true",
             folderId: parseFolderId(string(bundle, "GoogleDriveFolderID"))
         )
@@ -126,6 +137,18 @@ struct DriveConfig {
     /// this one is a fork whose picker will not load.
     private static let defaultPickerURL =
         "https://surfrider-sd-bsa.github.io/surfrider-datacard-automation/ios-picker.html"
+
+    /// The Cloud project number, read off the front of the client ID.
+    ///
+    /// A Google client ID is `<project number>-<random>.apps.googleusercontent.com`,
+    /// so the number is already in the build and asking anybody to paste it a
+    /// second time is asking for two settings that must agree and one day will
+    /// not. `GoogleAppID` still overrides this, for a project whose ids do not
+    /// follow that shape.
+    private static func projectNumber(from clientId: String) -> String? {
+        let digits = clientId.prefix { $0.isNumber }
+        return digits.isEmpty ? nil : String(digits)
+    }
 
     /// An Info.plist string that is actually set.
     ///
