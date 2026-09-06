@@ -11,6 +11,15 @@ count as breaking.
 
 ### Added
 
+- **Send the finished spreadsheet back to the same Drive folder.** *Save to
+  Drive* on the finish screen, beside *Send it on*. The other direction of the
+  capture screen's button and it costs nothing extra in consent: `drive.file` is
+  the scope for files an app creates as much as for files somebody picks, so the
+  volunteer sees the same one line on the same screen. The destination folder has
+  to be chosen in the picker rather than taken from the configured folder id —
+  under `drive.file` knowing a folder's id is not access to it, and only the
+  picker can grant that. Off unless the build was configured, like the rest of it.
+
 - **The same Drive folder, from the iOS app.** *Choose from Drive* on the capture
   screen, under the PDF picker. Google's consent screen, then the picker on the
   chapter's folder, then the scan downloads with a progress bar and goes into the

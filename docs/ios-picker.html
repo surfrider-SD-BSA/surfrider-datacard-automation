@@ -20,9 +20,16 @@
   This is the whole reason the app touches the network for anything other than
   Drive itself.
 
-  WHAT CROSSES THE BOUNDARY. An access token in, a file id and name out. The
-  page does not download anything, does not see a card, and has no storage: the
-  app does the downloading natively, with the same token, straight to disk.
+  IT RUNS IN TWO MODES, and the second is why it also handles folders. Opening a
+  scan picks a FILE; saving the finished spreadsheet picks a FOLDER, because
+  under `drive.file` an app may only write into a folder that came back from
+  this picker. Knowing a folder's id is not access to it, so the configured
+  folder cannot be a silent default -- somebody has to choose it. `#mode=folder`
+  is what switches the view.
+
+  WHAT CROSSES THE BOUNDARY. An access token in, an id and a name out. The page
+  does not download anything, does not upload anything, does not see a card, and
+  has no storage: the app does both transfers natively, with the same token.
 
   THE TOKEN ARRIVES IN THE FRAGMENT, NEVER THE QUERY STRING. Everything after
   the `#` stays in the browser -- it is not sent with the request for this page,
@@ -95,13 +102,23 @@
 
   function open() {
     try {
-      // PDFs only, and the scans are PDFs. A view that offered every file in
-      // the Drive would let somebody pick a photo and find out on the next
-      // screen; the reading wants one PDF, front and back, in card order.
-      const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
-        .setMimeTypes("application/pdf")
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(false);
+      const pickingFolder = options.get("mode") === "folder";
+
+      // Opening a scan: PDFs only, because the scans are PDFs and a view of
+      // every file in the Drive would let somebody pick a photo and find out on
+      // the next screen.
+      //
+      // Saving the spreadsheet: folders only, and one has to be chosen -- see
+      // the note at the top about why the configured folder cannot stand in.
+      const view = pickingFolder
+        ? new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(true)
+            .setMimeTypes("application/vnd.google-apps.folder")
+        : new google.picker.DocsView(google.picker.ViewId.DOCS)
+            .setMimeTypes("application/pdf")
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(false);
 
       const folderId = options.get("folderId");
       if (folderId) {
@@ -150,7 +167,8 @@
     send({
       type: "picked",
       id: doc[google.picker.Document.ID],
-      name: doc[google.picker.Document.NAME] || "scan.pdf",
+      name: doc[google.picker.Document.NAME]
+        || (options.get("mode") === "folder" ? "that folder" : "scan.pdf"),
       // Used only for the progress bar, and absent often enough that the app
       // treats it as optional.
       size: Number(doc.sizeBytes || 0),

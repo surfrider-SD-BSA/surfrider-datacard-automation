@@ -19,6 +19,7 @@ struct FinishScreen: View {
     /// The badge lands rather than appears. One spring, once, on the one screen
     /// that is telling somebody an hour of work is finished.
     @State private var landed = false
+    @StateObject private var drive = DriveFlow()
 
     var body: some View {
         ScreenBody {
@@ -33,6 +34,41 @@ struct FinishScreen: View {
         .navigationBarBackButtonHidden()
         .sheet(isPresented: $sharing) {
             if let file = model.exportedFile { ShareSheet(items: [file]) }
+        }
+        .sheet(isPresented: Binding(
+            get: { if case .choosingFolder = drive.stage { return true } else { return false } },
+            set: { if !$0 { drive.cancel() } }
+        )) {
+            if case .choosingFolder(let url) = drive.stage {
+                DrivePicker(url: url) { message in
+                    switch message {
+                    case .picked(let folder):
+                        drive.cancel()
+                        guard let file = model.exportedFile else { return }
+                        Task { await drive.save(file, toFolder: folder.id) }
+                    case .cancelled:
+                        drive.cancel()
+                    case .failed(let message):
+                        drive.cancel()
+                        drive.problem = message
+                    }
+                }
+                .ignoresSafeArea()
+            }
+        }
+    }
+
+    private var driveIcon: String {
+        if case .saved = drive.stage { return Nocturne.Icon.pass }
+        return Nocturne.Icon.drive
+    }
+
+    private var driveLabel: String {
+        switch drive.stage {
+        case .authorizing: return "Waiting for Google…"
+        case .uploading: return "Saving to Drive…"
+        case .saved: return "Saved to Drive"
+        default: return "Save to Drive"
         }
     }
 
@@ -179,10 +215,41 @@ struct FinishScreen: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
 
+                // The other direction of the capture screen's button, and the
+                // same folder: the scans arrive from Drive and the spreadsheet
+                // goes back beside them. Absent unless the build was
+                // configured, exactly as the picker is.
+                if drive.isAvailable, model.exportedFile != nil {
+                    Button {
+                        Task { await drive.beginSave() }
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: driveIcon)
+                            Text(driveLabel)
+                        }
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(drive.isBusy)
+                }
+
                 Button("Back to cleanups") { model.backToCleanups() }
                     .buttonStyle(SecondaryButtonStyle())
             }
             .padding(.top, 30)
+
+            // A refusal from Google or from Drive, said here rather than in an
+            // alert: the button that caused it is right above, and an hour of
+            // work is not lost either way -- the file is still on the phone and
+            // "Send it on" still works.
+            if let problem = drive.problem {
+                Text(problem)
+                    .font(Nocturne.Face.label(12))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Nocturne.accent400)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 14)
+                    .pageMargin()
+            }
 
             // The last thing said before the file leaves, because it is the
             // one promise the whole tool is built on.
