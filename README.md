@@ -22,15 +22,25 @@ That was the chapter's call, made against the measurement rather than around it:
 cells on a 58-card event hold a handwritten number, and nothing but the recognizer can ever reach
 them. To turn it off, set `digitsAlone` to false in `src/lib/reading.ts`.
 
-**As of 22 August 2026 most cells are not shown to anyone.** On the chapter owner's instruction,
-a reading the tool is 75% or more confident of is taken as the answer and its cell is dropped
-from the review list — 158 of 453, 379 of 632 and 296 of 450 cells on the three scans this was
-measured over. Almost all of them are the digit reader working alone, which is right about 86% of
-the time at its most confident, so roughly one hidden value in six is wrong and no one sees the
-handwriting first. They are still exported as machine-read with their confidence, so the
-chapter's audit column can find them afterwards. The threshold is `AUTO_ACCEPT` in
-`src/lib/prefill.ts`; set it above 1 to put every cell back in front of a person, and use
-`scripts/autoaccept-coverage.mjs` to measure any other setting before moving it.
+**As of 5 September 2026 most cells are not shown to anyone, and the threshold that decides
+which is set lower than anything this project has measured.** On the owner's instruction, a
+reading the tool is 45% or more confident of is taken as the answer and its cell is dropped from
+the review list — 219 of 453, 410 of 632 and 331 of 450 cells on the three scans this was
+measured over, against 162, 378 and 297 at the 0.75 this replaced on 22 August. Almost all of
+them are the digit reader working alone.
+
+What is different about 0.45 is that most of what it now hides sits **below the bands that reader
+was measured in**. At its most confident it is right 86% of the time and 84% in the band just
+below, which put roughly one hidden value in six wrong; how often it is right between 0.45 and
+0.75 has never been counted. So the number of wrong values reaching a spreadsheet unseen is
+higher than one in six by an amount nobody here can currently state. They are still exported as
+machine-read with their confidence, so the chapter's audit column can find them afterwards, and
+`scripts/audit-prefills.mjs` renders them to be counted by eye — which is the measurement to make
+before filing a real cleanup from this setting.
+
+The threshold is `AUTO_ACCEPT` in `src/lib/prefill.ts`; set it to 0.75 for the August behaviour,
+above 1 to put every cell back in front of a person, and use `scripts/autoaccept-coverage.mjs` to
+measure any other setting before moving it.
 
 ## The problem
 
