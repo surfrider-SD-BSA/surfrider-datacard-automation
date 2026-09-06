@@ -13,15 +13,23 @@
 //  the verifier itself is only revealed when the code is exchanged. A code
 //  intercepted on the way back is worth nothing without it.
 //
-//  NO REFRESH TOKEN. `access_type=offline` is not asked for, so what comes back
-//  expires in about an hour and cannot be renewed behind the volunteer's back.
-//  A refresh token is standing access to somebody's Drive sitting on a phone
-//  that goes to a beach.
+//  A REFRESH TOKEN, IN THE KEYCHAIN, AND THAT IS A REVERSAL. This asked for no
+//  refresh token at first, on the argument that one is "standing access to
+//  somebody's Drive sitting on a phone that goes to a beach". The argument was
+//  not wrong, it was answering the wrong question: the web tool it was copied
+//  from runs on a chapter laptop that several volunteers share, and this runs
+//  on one person's phone, behind that person's own passcode. Making them sign
+//  into Google at every cleanup bought nothing on a personal device and cost a
+//  passkey prompt each time, so it was asked for and it is here.
 //
-//  NO KEYCHAIN, NO FILE. The token lives in a property on this object for as
-//  long as the process does. Quitting the app ends the grant. This mirrors the
-//  web tool holding it in a module variable for the life of the tab, and for
-//  the same reason: a token in storage outlives the reason it was granted.
+//  What that costs, stated rather than glossed: this app can now reach the
+//  files it was given until the grant is revoked, without anybody present.
+//  Three things bound it. The scope is still `drive.file`, so "the files it was
+//  given" means the ones somebody picked and nothing else. The refresh token is
+//  in the Keychain with `WhenUnlockedThisDeviceOnly`, so it is not in a backup
+//  and does not travel to another device. And **Sign out of Google** deletes
+//  it, which is the control that has to exist for a reversal like this to be
+//  fair -- the access token was always memory-only and still is.
 //
 //  ASWebAuthenticationSession rather than a WKWebView is not a style preference
 //  -- Google refuses OAuth in an embedded web view (its "disallowed_useragent"
@@ -66,8 +74,21 @@ final class DriveAuth: NSObject, ObservableObject {
             return token.value
         }
         self.token = nil
-        isSignedIn = false
 
+        // The quiet path, and the reason signing in once is enough: a stored
+        // refresh token mints a new access token with nothing on screen. A
+        // refusal here is not an error to show -- a revoked or expired grant
+        // just means asking properly again -- so it falls through.
+        if let refresh = Keychain.read(Self.refreshKey) {
+            if let granted = try? await exchangeRefresh(refresh, config: config) {
+                token = granted
+                isSignedIn = true
+                return granted.value
+            }
+            Keychain.delete(Self.refreshKey)
+        }
+
+        isSignedIn = false
         let verifier = Self.codeVerifier()
         let code = try await authorize(config: config, verifier: verifier)
         let granted = try await exchange(code: code, verifier: verifier, config: config)
@@ -77,10 +98,19 @@ final class DriveAuth: NSObject, ObservableObject {
         return granted.value
     }
 
+    /// Whether a grant is stored, so the button can say "Sign out of Google"
+    /// before anything has been opened this run.
+    var hasStoredGrant: Bool { Keychain.read(Self.refreshKey) != nil }
+
     func signOut() {
         token = nil
         isSignedIn = false
+        // The whole grant, not just this run's token. Anything less would make
+        // the button a lie.
+        Keychain.delete(Self.refreshKey)
     }
+
+    private static let refreshKey = "drive.refresh-token"
 
     // MARK: - The consent screen
 
@@ -95,6 +125,13 @@ final class DriveAuth: NSObject, ObservableObject {
             .init(name: "code_challenge", value: Self.challenge(for: verifier)),
             .init(name: "code_challenge_method", value: "S256"),
             .init(name: "state", value: state),
+            // Offline access is what makes the grant outlive the process. The
+            // consent prompt is forced with it, because Google returns a
+            // refresh token only on a consent the person actually saw -- a
+            // silent re-approval yields none, and the app would then ask again
+            // at every launch while looking like it should not have to.
+            .init(name: "access_type", value: "offline"),
+            .init(name: "prompt", value: "consent"),
         ]
         guard let url = components.url else { throw DriveError.malformedRequest }
 
@@ -179,6 +216,42 @@ final class DriveAuth: NSObject, ObservableObject {
         struct Granted: Decodable {
             let access_token: String
             let expires_in: Double
+            let refresh_token: String?
+        }
+        guard let granted = try? JSONDecoder().decode(Granted.self, from: data) else {
+            throw DriveError.tokenExchangeFailed(nil)
+        }
+        if let refresh = granted.refresh_token {
+            Keychain.write(refresh, key: Self.refreshKey)
+        }
+        return (granted.access_token, Date().addingTimeInterval(granted.expires_in))
+    }
+
+    /// Trade the stored grant for a new access token, with nothing on screen.
+    private func exchangeRefresh(
+        _ refresh: String,
+        config: DriveConfig
+    ) async throws -> (value: String, expiresAt: Date) {
+        var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        var form = URLComponents()
+        form.queryItems = [
+            .init(name: "client_id", value: config.clientId),
+            .init(name: "refresh_token", value: refresh),
+            .init(name: "grant_type", value: "refresh_token"),
+        ]
+        request.httpBody = form.percentEncodedQuery?.data(using: .utf8)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw DriveError.tokenExchangeFailed(Self.googleError(in: data))
+        }
+
+        struct Granted: Decodable {
+            let access_token: String
+            let expires_in: Double
         }
         guard let granted = try? JSONDecoder().decode(Granted.self, from: data) else {
             throw DriveError.tokenExchangeFailed(nil)
@@ -232,5 +305,51 @@ extension DriveAuth: ASWebAuthenticationPresentationContextProviding {
                 .keyWindow ?? scenes.first?.keyWindow
             return window ?? ASPresentationAnchor()
         }
+    }
+}
+
+
+// MARK: -
+
+/// The smallest Keychain that will hold one string.
+///
+/// `ThisDeviceOnly` on purpose: the grant this protects is for one phone and
+/// has no business restoring onto a new one out of a backup. `WhenUnlocked`
+/// because nothing here runs in the background.
+private enum Keychain {
+
+    static func read(_ key: String) -> String? {
+        var query = base(key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data
+        else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func write(_ value: String, key: String) {
+        // Deleted first rather than updated: an add over an existing item fails
+        // with a duplicate, and the update path is a second set of attributes
+        // to keep in step for no benefit.
+        delete(key)
+        var query = base(key)
+        query[kSecValueData as String] = Data(value.utf8)
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        SecItemAdd(query as CFDictionary, nil)
+    }
+
+    static func delete(_ key: String) {
+        SecItemDelete(base(key) as CFDictionary)
+    }
+
+    private static func base(_ key: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "datacards",
+            kSecAttrAccount as String: key,
+        ]
     }
 }

@@ -88,7 +88,7 @@ struct CaptureScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
     @State private var picking = false
-    @StateObject private var drive = DriveFlow()
+    @ObservedObject private var drive = DriveFlow.shared
     @State private var scanning = false
     @State private var problem: String?
 
@@ -239,19 +239,10 @@ struct CaptureScreen: View {
             set: { if !$0 { drive.cancel() } }
         )) {
             if case .picking(let url) = drive.stage {
-                DrivePicker(url: url) { message in
-                    switch message {
-                    case .picked(let file):
-                        drive.cancel()
-                        Task { await drive.download(file, into: model) }
-                    case .cancelled:
-                        drive.cancel()
-                    case .failed(let message):
-                        drive.cancel()
-                        drive.problem = message
-                    }
-                }
-                .ignoresSafeArea()
+                // The result comes back as `datacards://picker?…` on
+                // RootView, not through this view -- see DrivePicker.
+                DrivePicker(url: url)
+                    .ignoresSafeArea()
             }
         }
         .fullScreenCover(isPresented: $scanning) {
