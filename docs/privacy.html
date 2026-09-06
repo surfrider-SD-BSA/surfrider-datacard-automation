@@ -30,17 +30,19 @@
 <body>
 
 <h1>Privacy Policy</h1>
-<p class="date">Data Cards (Tally) for iOS · Effective 1 September 2026</p>
+<p class="date">Data Cards (Tally) for iOS · Effective 6 September 2026</p>
 
-<p><strong>This app collects no data about you. It makes no network requests of any kind.</strong> Everything it does happens on your device, offline, and nothing is sent anywhere.</p>
+<p><strong>This app collects no data about you, and sends nothing about your cleanup data to us or to anyone else.</strong> The reading happens on your device, offline. We run no server, and there is nowhere for your data to be sent.</p>
 
-<p>That is the whole policy. The rest of this page explains what it means in practice, because a claim this broad deserves detail.</p>
+<p>There is one place the app talks to a third party, and only if your chapter has set it up: it can open a scan out of your chapter’s shared Google Drive folder, which means signing in to Google. That is described in full under <a href="#google-drive">Signing in to Google Drive</a> below. A build made without a Google project configured has no Drive button and makes no network request of any kind.</p>
+
+<p>The rest of this page explains what all of that means in practice, because claims this broad deserve detail.</p>
 
 <h2>What the app does with your cleanup data</h2>
 
 <p>Data Cards reads scanned beach cleanup data cards and turns them into a spreadsheet. The scans you open, the readings the app produces, the corrections you type, and the drafts it saves between sessions are all stored in the app's own private storage on your iPhone.</p>
 
-<p>They are not uploaded, backed up to us, analyzed, or shared. There is no server to send them to — the app has no account system, no login, and no remote component whatsoever. The reading and recognition run entirely on your phone.</p>
+<p>They are not uploaded, backed up to us, analyzed, or shared. There is no server of ours to send them to — the app has no account with us and no remote component we operate. The reading and recognition run entirely on your phone.</p>
 
 <h2>What we collect</h2>
 
@@ -65,6 +67,57 @@
 <p><strong>Camera.</strong> This version of the app does not use the camera and will not ask for camera access. The app declares a camera usage description because photographing cards is a feature under development, disabled in this release.</p>
 
 <p><strong>Photo library.</strong> The app never requests access to your photos, and cannot read from or write to your photo library.</p>
+
+<h2 id="google-drive">Signing in to Google Drive</h2>
+
+<p>Chapters keep their scans in a shared Google Drive folder. If your chapter has configured the app
+for that folder, the capture screen offers <strong>Choose from Drive</strong>, and pressing it signs
+you in to your own Google account so you can pick a scan without downloading it by hand first.</p>
+
+<p><strong>This is optional and off unless configured.</strong> A build made without a Google project
+has no such button and makes no network request at all. If you never press it, nothing in this
+section applies to you.</p>
+
+<p>What the sign-in grants:</p>
+
+<ul>
+  <li>The app asks for exactly one scope, <code>https://www.googleapis.com/auth/drive.file</code>.
+      That grants access to the individual files you pick in Google&rsquo;s own file picker, and to
+      <strong>nothing else in your Drive</strong>. The app cannot list your folders and cannot open a
+      file you did not choose.</li>
+  <li>The broader <code>drive.readonly</code> scope is deliberately not used. It would mean asking a
+      beach cleanup volunteer to grant a transcription tool the run of their entire Drive.</li>
+</ul>
+
+<p>What moves, and where:</p>
+
+<ul>
+  <li>The scan is <strong>downloaded</strong> onto your phone from a folder that already holds it,
+      and then read by the same code that reads a file you picked from Files. Nothing about a card
+      is uploaded to Google.</li>
+  <li>If you choose to send a finished spreadsheet back, it is written to the same Drive folder the
+      scan came from, and only when you ask for that.</li>
+  <li>Nothing goes to us at either step. We have no server, no copy of your file, and no way to see
+      that any of this happened.</li>
+</ul>
+
+<p>What Google learns: that your account opened that file, which it would have learned from you
+downloading the same file by hand.</p>
+
+<p>The sign-in itself runs in a real browser view showing the address bar, so you can see you are
+typing your password into <code>accounts.google.com</code> and not into this app. The app never sees
+your Google password. The resulting access token is held in memory for as long as the app is
+running, is written to no file and to no Keychain, and is gone when you quit. No refresh token is
+requested, so the grant expires on its own in about an hour and cannot be renewed silently.</p>
+
+<p>Google&rsquo;s file picker is a web component with no native version, so it is loaded from this
+project&rsquo;s public GitHub Pages site. It receives an access token and returns a file
+identifier; it downloads nothing and never sees a card. Your use of Google Drive is also governed by
+<a href="https://policies.google.com/privacy">Google&rsquo;s own privacy policy</a>.</p>
+
+<p>To revoke the app&rsquo;s access at any time, visit
+<a href="https://myaccount.google.com/permissions">your Google account&rsquo;s third-party access
+page</a> and remove it.</p>
 
 <h2>When you share a spreadsheet</h2>
 

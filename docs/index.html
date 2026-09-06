@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Surfrider Data Cards</title>
+<meta name="description" content="Surfrider Data Cards turns scanned beach cleanup data cards into the chapter's spreadsheet. Built for Surfrider Foundation volunteer chapters by the San Diego Chapter.">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 5rem;
+    color: #14202e;
+    background: #fbfaf7;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e8eef5; background: #0f1722; }
+    h1, h2 { color: #fff; }
+    code { background: #1b2c3e; }
+    .card { background: #16202c; border-color: #24384d; }
+    a { color: #7fb8ff; }
+  }
+  h1 { font-size: 1.8rem; line-height: 1.2; margin: 0 0 .35rem; }
+  h2 { font-size: 1.15rem; margin: 2.25rem 0 .5rem; }
+  .sub { color: #6b7a89; margin: 0 0 2rem; font-size: .95rem; }
+  code { background: #e9e5db; padding: .1em .35em; border-radius: 3px; font-size: .9em; }
+  ul { padding-left: 1.25rem; }
+  li { margin-bottom: .4rem; }
+  .card {
+    background: #fff;
+    border: 1px solid #e4dfd4;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+  }
+  .card h2 { margin-top: 0; }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #d9d3c7;
+    font-size: .9rem;
+    color: #6b7a89;
+  }
+  @media (prefers-color-scheme: dark) { footer { border-color: #24384d; } }
+</style>
+</head>
+<body>
+
+<h1>Surfrider Data Cards</h1>
+<p class="sub">Paper beach cleanup data cards, turned into the chapter's spreadsheet.</p>
+
+<p>Volunteers record debris counts on paper data cards during a beach cleanup. Afterwards somebody
+has to type every value into a spreadsheet by hand — several hours of transcription for a large
+event, with errors that are hard to catch later.</p>
+
+<p><strong>Surfrider Data Cards reads the cards instead.</strong> You give it a scanned PDF of the
+stack. It finds each card, counts the tally marks, reads the handwritten numbers, shows you a
+cropped picture of every value it is unsure about so you can correct it, and hands back a finished
+spreadsheet in the standard Surfrider data entry format.</p>
+
+<p>It is built for <a href="https://www.surfrider.org/">Surfrider Foundation</a> volunteer chapters,
+and was developed and tested by the San Diego Chapter (CH54).</p>
+
+<h2>Where it runs</h2>
+
+<ul>
+  <li><strong>In a browser.</strong> The web tool reads the scan on your own computer. The scan is
+      not uploaded — there is no server of ours for it to be uploaded to.</li>
+  <li><strong>On an iPhone.</strong> The iOS app does the same reading on the device, offline.</li>
+</ul>
+
+<div class="card">
+<h2>Why the app asks to sign in to Google</h2>
+
+<p>Chapters keep their scans in a shared Google Drive folder. Rather than making a volunteer
+download a scan to their laptop and drag it in, the app can open it straight out of that folder —
+you press <strong>Choose from Google Drive</strong>, sign in with your own Google account, and pick
+the scan.</p>
+
+<p>What that sign-in grants, exactly:</p>
+
+<ul>
+  <li>The app requests one scope, <code>https://www.googleapis.com/auth/drive.file</code>. That
+      grants access to the individual files <em>you pick in Google's own file picker</em> and to
+      nothing else in your Drive. It cannot list your folders, and it cannot open a file you did
+      not choose.</li>
+  <li>The scan is <strong>downloaded</strong> from a folder that already holds it. Nothing about a
+      card is uploaded to Google, and nothing is sent to us — we run no server.</li>
+  <li>When the app writes the finished spreadsheet back, it writes it to the same Drive folder the
+      scan came from, and only because you asked it to.</li>
+  <li>The access token is held in memory while the app is open and is written to no file. Quitting
+      the app ends the session.</li>
+</ul>
+
+<p>The broader <code>drive.readonly</code> scope would have been simpler to build against and is
+deliberately not used: it would mean asking a beach cleanup volunteer to grant a transcription tool
+the run of their entire Drive.</p>
+
+<p>This feature is <strong>off unless a chapter configures it</strong>. A build made without a
+Google project has no Drive button and makes no network request of any kind.</p>
+</div>
+
+<h2>What it is honest about</h2>
+
+<p>Deciding <em>whether</em> a box has writing in it is reliable. Reading <em>what it says</em> is
+not. The tool treats those differently: locating the writing is what it is built on, and the
+handwriting reading is offered as a first guess to check, with a picture of the original beside it.
+The measurements behind that — including how often the reader is wrong — are published in the
+repository rather than summarised away.</p>
+
+<h2>Privacy, source, and contact</h2>
+
+<ul>
+  <li><a href="privacy.html">Privacy policy</a></li>
+  <li><a href="https://github.com/surfrider-SD-BSA/surfrider-datacard-automation">Source code on GitHub</a>
+      — the whole tool is open source under the GPL.</li>
+  <li>Questions, problems, or a chapter wanting to use it:
+      <a href="https://github.com/surfrider-SD-BSA/surfrider-datacard-automation/issues">open an issue</a>,
+      or email <a href="mailto:mateocbesse@gmail.com">mateocbesse@gmail.com</a>.</li>
+</ul>
+
+<footer>
+Surfrider Data Cards is a volunteer project of the Surfrider Foundation San Diego Chapter.
+</footer>
+
+</body>
+</html>
