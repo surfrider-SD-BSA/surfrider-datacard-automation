@@ -24,7 +24,8 @@
   }
   h1 { font-size: 1.8rem; line-height: 1.2; margin: 0 0 .35rem; }
   h2 { font-size: 1.15rem; margin: 2.25rem 0 .5rem; }
-  .sub { color: #6b7a89; margin: 0 0 2rem; font-size: .95rem; }
+  .sub { color: #6b7a89; margin: 0 0 .75rem; font-size: .95rem; }
+  .policy { margin: 0 0 2rem; font-size: .95rem; }
   code { background: #e9e5db; padding: .1em .35em; border-radius: 3px; font-size: .9em; }
   ul { padding-left: 1.25rem; }
   li { margin-bottom: .4rem; }
@@ -49,7 +50,9 @@
 <body>
 
 <h1>Surfrider Data Cards</h1>
-<p class="sub">Paper beach cleanup data cards, turned into the chapter's spreadsheet.</p>
+<p class="sub">Paper beach cleanup data cards, turned into the chapter&rsquo;s spreadsheet.</p>
+
+<p class="policy"><a href="https://surfrider-sd-bsa.github.io/surfrider-datacard-automation/privacy.html">Privacy policy</a> &middot; <a href="#google-drive">How this app uses your Google data</a></p>
 
 <p>Volunteers record debris counts on paper data cards during a beach cleanup. Afterwards somebody
 has to type every value into a spreadsheet by hand — several hours of transcription for a large
@@ -72,7 +75,7 @@ and was developed and tested by the San Diego Chapter (CH54).</p>
 </ul>
 
 <div class="card">
-<h2>Why the app asks to sign in to Google</h2>
+<h2 id="google-drive">Why the app asks to sign in to Google</h2>
 
 <p>Chapters keep their scans in a shared Google Drive folder. Rather than making a volunteer
 download a scan to their laptop and drag it in, the app can open it straight out of that folder —
@@ -94,6 +97,8 @@ the scan.</p>
       the app ends the session.</li>
 </ul>
 
+<p>All of this is set out in full in the <a href="https://surfrider-sd-bsa.github.io/surfrider-datacard-automation/privacy.html">privacy policy</a>.</p>
+
 <p>The broader <code>drive.readonly</code> scope would have been simpler to build against and is
 deliberately not used: it would mean asking a beach cleanup volunteer to grant a transcription tool
 the run of their entire Drive.</p>
@@ -113,7 +118,7 @@ repository rather than summarised away.</p>
 <h2>Privacy, source, and contact</h2>
 
 <ul>
-  <li><a href="privacy.html">Privacy policy</a></li>
+  <li><a href="https://surfrider-sd-bsa.github.io/surfrider-datacard-automation/privacy.html">Privacy policy</a></li>
   <li><a href="https://github.com/surfrider-SD-BSA/surfrider-datacard-automation">Source code on GitHub</a>
       — the whole tool is open source under the GPL.</li>
   <li>Questions, problems, or a chapter wanting to use it:
