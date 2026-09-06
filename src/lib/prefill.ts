@@ -173,7 +173,12 @@ export const PREFILL_GATE = 0;
  * machine reading goes into the chapter's spreadsheet with nobody having looked
  * at the handwriting, ever.
  *
- * Set to 0.75 on 22 August 2026 on the chapter owner's instruction.
+ * Set to 0.75 on 22 August 2026 on the chapter owner's instruction. Lowered to
+ * 0.45 on 5 September 2026 on the owner's instruction, to take about half of a
+ * scan's cells off the review list. "About half" is the test-long figure. On
+ * the other two measured scans the same threshold hides two thirds and three
+ * quarters, because what a threshold hides depends on how much the digit reader
+ * answers on that scan, and not on the number alone.
  *
  * WHAT IT HIDES, measured with `autoaccept-coverage.mjs` over the same three
  * real scans the gate was set on -- 164 cards, 1,535 cells:
@@ -183,41 +188,46 @@ export const PREFILL_GATE = 0;
  *   0.90       0   0.0%       0   0.0%        0   0.0%      nothing reaches it
  *   0.86      71  15.7%     335  53.0%      257  57.1%      digits at their cap
  *   0.80     127  28.0%     358  56.6%      274  60.9%
- *   0.75     162  35.8%     378  59.8%      297  66.0%   <- here
+ *   0.75     162  35.8%     378  59.8%      297  66.0%      the previous setting
+ *   0.45     219  48.3%     410  64.9%      331  73.6%   <- here
  *
- * The reviewer is left 291, 254 and 153 cells to check on those three scans,
- * down from 453, 632 and 450.
- *
- * Re-measured 22 Aug 2026 after the rotation and size variants went into
- * `matchVariants`. The numbers moved by a few cells each way and the shape of
- * the decision did not: the recognizer answers slightly more cells at the same
- * precision, so the gate hides four more on test-long and one more on 1.18
- * Imperial, and six fewer on 3.22 Pacific.
+ * The reviewer is left 234, 222 and 119 cells to check on those three scans,
+ * down from 453, 632 and 450, and down from the 291, 254 and 153 that 0.75 left.
  *
  * WHAT IT COSTS, and this is the part to read before moving it further. Almost
- * everything hidden at 0.75 is the DIGIT reader on its own -- 153 of the 162,
- * 372 of the 378, 294 of the 297. Not one "agreed" reading clears the threshold
- * on any of the three scans, because agreement needs both readers to answer the
- * same cell and the tally counter answers 11, 7 and 3 of them. So this is not a
- * threshold that hides the readings two independent readers confirmed. It hides
- * the weakest reader working alone.
+ * everything hidden is the DIGIT reader on its own -- 208 of the 219, 403 of the
+ * 410, 328 of the 331. Not one "agreed" reading clears the threshold on any of
+ * the three scans, because agreement needs both readers to answer the same cell
+ * and the tally counter answers 11, 7 and 3 of them. So this is not a threshold
+ * that hides the readings two independent readers confirmed. It hides the
+ * weakest reader working alone, and at 0.45 it hides that reader's weakest
+ * answers along with its best ones.
  *
  * That reader's measured precision, leave-one-event-out over 3,325 labelled
  * digits, is 86% where it is MOST confident and 84% in the band just below --
- * the table is in HANDOFF.md. Roughly one hidden number in six or seven is
- * wrong, which is about 26, 60 and 47 wrong values per scan, and each one now
- * reaches the spreadsheet unseen. The 22 Aug 2026 variants raised the number of
- * cells the reader answers without changing that rate, so they bought coverage
- * and not safety: the count of wrong hidden values is essentially where it was. They are still exported as `recognized` with
- * their confidence rather than as `human`, so the chapter's audit column can
- * find them afterwards; that is the only remaining defence, and it is an
- * after-the-fact one.
+ * the table is in HANDOFF.md. At 0.75 that came to roughly one hidden number in
+ * six or seven wrong: about 26, 60 and 47 wrong values per scan, each reaching
+ * the spreadsheet unseen.
  *
- * Set it to 0.87 to put every digit-only reading back on the review list while
- * keeping the two-reader agreements off it. Set it above 1 to turn auto-accept
- * off entirely and show every cell, which is what this tool did until today.
+ * THE CELLS THIS THRESHOLD ADDS SIT BELOW BOTH MEASURED BANDS. Their precision
+ * is not in that table and nobody has counted it, so the honest statement is
+ * that between 0.45 and 0.75 lie the reader's least confident answers and how
+ * often they are right is unknown. The number of wrong hidden values per scan is
+ * therefore higher than the figures above, by an amount this project has not
+ * measured. `audit-prefills.mjs` renders every filled cell to be counted by eye,
+ * and counting them at this setting is the measurement this comment cannot make
+ * for you. It is worth making before a chapter files a spreadsheet from it.
+ *
+ * They are still exported as `recognized` with their confidence rather than as
+ * `human`, so the chapter's audit column can find them afterwards; that is the
+ * only remaining defence, and it is an after-the-fact one.
+ *
+ * Set it back to 0.75 for the 22 August behaviour. Set it to 0.87 to put every
+ * digit-only reading back on the review list while keeping the two-reader
+ * agreements off it. Set it above 1 to turn auto-accept off entirely and show
+ * every cell.
  */
-export const AUTO_ACCEPT = 0.75;
+export const AUTO_ACCEPT = 0.45;
 
 
 /** What the two readers make of one cell, reconciled. Null when both declined. */

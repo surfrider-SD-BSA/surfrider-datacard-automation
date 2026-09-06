@@ -9,6 +9,23 @@ count as breaking.
 
 ## [Unreleased]
 
+### Changed
+
+- **`AUTO_ACCEPT` lowered from 0.75 to 0.45**, on the owner's instruction, to take about half of
+  a scan's cells off the review list. Measured with `autoaccept-coverage.mjs` on the three
+  reference scans, it hides 219 of 453, 410 of 632 and 331 of 450 cells, against 162, 378 and 297
+  before; the reviewer is left 234, 222 and 119 cells to check. "About half" is the first scan's
+  figure — the other two hide two thirds and three quarters, because how much a threshold hides
+  depends on how much the digit reader answered on that scan.
+
+  **This is the first setting of this constant that is below what the digit reader has been
+  measured at.** Its precision table in `HANDOFF.md` covers 86% at the top band and 84% just
+  below; everything newly hidden falls under both, and how often those readings are right has
+  never been counted. The wrong-values-per-scan figures that went with 0.75 — about 26, 60 and 47,
+  reaching the spreadsheet with nobody looking at the handwriting — are therefore a floor and not
+  an estimate. `audit-prefills.mjs` is the instrument for counting the real rate, and counting it
+  is the thing to do before a chapter files a cleanup from this setting.
+
 ### Added
 
 - **Send the finished spreadsheet back to the same Drive folder.** *Save to
