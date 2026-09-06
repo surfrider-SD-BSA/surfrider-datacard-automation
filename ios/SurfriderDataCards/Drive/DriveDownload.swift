@@ -126,6 +126,9 @@ enum DriveError: LocalizedError {
     case stateMismatch
     case tokenExchangeFailed(String?)
     case download(name: String, status: Int)
+    case cannotRead(name: String)
+    case upload(name: String, status: Int)
+    case uploadUnconfirmed(name: String)
 
     var errorDescription: String? {
         switch self {
@@ -158,6 +161,19 @@ enum DriveError: LocalizedError {
                 ? "Drive would not hand over that file. It may not be shared with this Google account."
                 : "Drive returned \(status)."
             return "Could not download “\(name)”. \(detail)"
+        case .cannotRead(let name):
+            return "“\(name)” could not be read off this phone."
+        case .upload(let name, let status):
+            // 403 on an upload is the folder, not the file: `drive.file` lets
+            // this app write into a folder somebody picked and nowhere else, so
+            // the honest reading of a refusal is that the destination is not
+            // one they can add to.
+            let detail = (status == 403 || status == 404)
+                ? "Drive would not add it to that folder. Check you can add files to it."
+                : "Drive returned \(status)."
+            return "Could not save “\(name)” to Drive. \(detail)"
+        case .uploadUnconfirmed(let name):
+            return "“\(name)” was sent to Drive, but Drive did not confirm it. Check the folder before sending it again."
         }
     }
 }

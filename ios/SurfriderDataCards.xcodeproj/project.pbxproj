@@ -40,6 +40,7 @@
 		AA00000000000000000004010 /* DriveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004011 /* DriveAuth.swift */; };
 		AA00000000000000000004020 /* DriveDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004021 /* DriveDownload.swift */; };
 		AA00000000000000000004030 /* DrivePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004031 /* DrivePicker.swift */; };
+		AA0000000000000000000440 /* DriveUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000441 /* DriveUpload.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,6 +103,7 @@
 		AA00000000000000000004011 /* DriveAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveAuth.swift; path = Drive/DriveAuth.swift; sourceTree = "<group>"; };
 		AA00000000000000000004021 /* DriveDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveDownload.swift; path = Drive/DriveDownload.swift; sourceTree = "<group>"; };
 		AA00000000000000000004031 /* DrivePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DrivePicker.swift; path = Drive/DrivePicker.swift; sourceTree = "<group>"; };
+		AA0000000000000000000441 /* DriveUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveUpload.swift; path = Drive/DriveUpload.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -181,6 +183,7 @@
 				AA00000000000000000004011 /* DriveAuth.swift */,
 				AA00000000000000000004021 /* DriveDownload.swift */,
 				AA00000000000000000004031 /* DrivePicker.swift */,
+				AA0000000000000000000441 /* DriveUpload.swift */,
 			);
 			name = Drive;
 			sourceTree = "<group>";
@@ -322,6 +325,7 @@
 				AA00000000000000000004010 /* DriveAuth.swift in Sources */,
 				AA00000000000000000004020 /* DriveDownload.swift in Sources */,
 				AA00000000000000000004030 /* DrivePicker.swift in Sources */,
+				AA0000000000000000000440 /* DriveUpload.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
