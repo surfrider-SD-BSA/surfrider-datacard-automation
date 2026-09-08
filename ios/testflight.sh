@@ -50,6 +50,8 @@ cd "$root"
 # error, which is a slow thing to notice. The file assigns with `:-`, so a value
 # already in the environment still wins.
 if [ -f "$root/ios/.env.local" ]; then
+  # shellcheck source=/dev/null # gitignored and machine-local, so there is
+  # nothing for shellcheck to follow here or in CI. That is the point of it.
   . "$root/ios/.env.local"
 fi
 
