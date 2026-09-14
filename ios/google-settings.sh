@@ -1,3 +1,9 @@
+# shellcheck shell=sh
+#
+# Sourced, never executed, so there is no shebang to infer a shell from and
+# shellcheck needs telling (SC2148). sh rather than bash because testflight.sh
+# runs under /bin/sh and this has to be safe there.
+#
 # This chapter's Google project, for the Drive picker in the iOS app.
 #
 # Committed on purpose, which is a reversal of how this started out. Both values
