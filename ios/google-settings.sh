@@ -1,8 +1,13 @@
 # shellcheck shell=sh
 #
-# Sourced, never executed, so there is no shebang to infer a shell from and
-# shellcheck needs telling (SC2148). sh rather than bash because testflight.sh
-# runs under /bin/sh and this has to be safe there.
+# The directive above is load-bearing: this file is sourced, never executed, so
+# there is no shebang to infer a target shell from and SC2148 stops the check
+# before it reads a line. `sh` rather than `bash` because testflight.sh runs
+# under /bin/sh, which is what has to source this safely.
+#
+# Mind the wording of any comment added here. A line beginning with the word
+# that names the linter, followed by a space, is parsed as another directive and
+# fails to parse as one -- which is how this file broke CI once already.
 #
 # This chapter's Google project, for the Drive picker in the iOS app.
 #
