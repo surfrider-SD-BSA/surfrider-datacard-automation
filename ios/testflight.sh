@@ -43,12 +43,17 @@ BUNDLE_ID="${BUNDLE_ID:-com.mateobesse.surfriderdatacards}"
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
-# This chapter's Google settings, if this machine has them. ios/.env.local is
-# gitignored and holds GOOGLE_CLIENT_ID and GOOGLE_API_KEY, so that a build made
-# here has the Drive picker in it without anybody having to remember to export
-# two variables -- forgetting them produces an app with no Drive button and no
-# error, which is a slow thing to notice. The file assigns with `:-`, so a value
-# already in the environment still wins.
+# This chapter's Google settings. Forgetting them produces an app with no Drive
+# button and no error at any point in the build, which is a slow thing to notice,
+# so they are committed rather than left to each machine to remember.
+#
+# Three layers, weakest first, each assigning with `:-` so the later one wins:
+# ios/google-settings.sh is tracked and holds the chapter's own project;
+# ios/.env.local is gitignored and is where a fork or a second project goes; an
+# exported variable beats both, for a one-off build.
+# shellcheck source=ios/google-settings.sh
+. "$root/ios/google-settings.sh"
+
 if [ -f "$root/ios/.env.local" ]; then
   # shellcheck source=/dev/null # gitignored and machine-local, so there is
   # nothing for shellcheck to follow here or in CI. That is the point of it.
