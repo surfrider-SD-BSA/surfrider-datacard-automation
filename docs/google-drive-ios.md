@@ -86,7 +86,25 @@ a picker that will not load.
 
 ### 4. Build with it
 
-Nothing about a chapter's project is committed. The settings are passed in:
+**This chapter's own project is committed**, in
+[`ios/google-settings.sh`](../ios/google-settings.sh), which `testflight.sh`
+sources. A clone of this repository therefore builds an app with a working Drive
+button and needs no setup. That file explains the trade: both values ship inside
+every build regardless, so keeping them out bought no secrecy, only silent
+Drive-less builds — at the cost that rotating them now means a new build for
+every volunteer.
+
+**A fork must not use them.** Put your own project's values in `ios/.env.local`,
+which is gitignored and sourced after the tracked file, so it wins:
+
+```sh
+# ios/.env.local
+export GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-123456789-abc.apps.googleusercontent.com}"
+export GOOGLE_API_KEY="${GOOGLE_API_KEY:-AIza...}"
+```
+
+An exported variable beats both, which is the form a CI job or a one-off build
+uses:
 
 ```sh
 export GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
