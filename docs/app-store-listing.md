@@ -5,6 +5,9 @@ limits are Apple's; the counts beside each field are what the text below actuall
 measures, checked rather than estimated.
 
 The privacy policy that goes with this lives in [`privacy.html`](privacy.html).
+The beta that comes before all of this — who tests, on what build, what they are
+asked to answer, and the TestFlight fields App Store Connect wants — is in
+[`testflight-pilot.md`](testflight-pilot.md).
 
 ---
 
