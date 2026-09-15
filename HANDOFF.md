@@ -956,9 +956,13 @@ order, because a classifier cannot read a digit that was never cut out.
 mean.** The paragraph here used to say the recognizer was not wired in --
 `src/main.ts` passing `null` and the model read by nothing. It is wired in now:
 `loadDigitModel` fetches `assets/reference/digit-model.json`, and with
-`AUTO_ACCEPT` at 0.75 a digit-only reading above that confidence is never shown
-to anybody. On the three measured scans that is 162, 297 and most of what the
-gate hides -- see the table beside `AUTO_ACCEPT` in `src/lib/prefill.ts`.
+`AUTO_ACCEPT` at 0.45 a digit-only reading above that confidence is never shown
+to anybody. On the three measured scans that is 208, 403 and 328 digit-only
+readings hidden, out of 219, 410 and 331 hidden cells -- see the table beside
+`AUTO_ACCEPT` in `src/lib/prefill.ts`. It read 0.75 here until 5 September 2026,
+and at 0.45 most of what is newly hidden falls below every band this table
+measures, so the precision figures below are a ceiling for those cells rather
+than a description of them.
 
 So precision here is not a research figure any more. It is the rate at which
 wrong numbers reach the chapter's spreadsheet unseen, and the 86% at the top
