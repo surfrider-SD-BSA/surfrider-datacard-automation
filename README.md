@@ -79,7 +79,7 @@ recognised, and can be taken apart and counted geometrically:
    strokes were found and whose structure was rejected, a box that segmented into more pieces than
    a number can have — that is offered as a guess at a tenth of a real reading's worth, which fills
    the box and never hides it. What stays blank is where nothing was derivable at all.
-6. Readings at or above `AUTO_ACCEPT` (0.75) are taken as the answer and their cells are left off
+6. Readings at or above `AUTO_ACCEPT` (0.45) are taken as the answer and their cells are left off
    the review list entirely — there is no control that shows them.
 7. The reviewer sees a picture of each remaining cell beside a box, and types what they see.
 8. The chapter's Excel template is filled in and downloaded, with each value marked as typed by a
