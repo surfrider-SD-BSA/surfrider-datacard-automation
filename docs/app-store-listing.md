@@ -106,10 +106,14 @@ version 1.1 onward.
 | Privacy Policy URL | `https://surfrider-sd-bsa.github.io/surfrider-datacard-automation/privacy.html` |
 | Marketing URL | Optional. Leave blank. |
 
-**The privacy policy URL does not work yet.** It needs GitHub Pages switched on
-for the repository — Settings → Pages → Source: *Deploy from a branch*, branch
-`main`, folder `/docs`. Load the URL in a browser and confirm it renders before
-pasting it into App Store Connect; a policy URL that 404s is a rejection.
+**The privacy policy URL works.** GitHub Pages is on for this repository —
+*Deploy from a branch*, `main`, folder `/docs` — and the URL above returns 200.
+It was dead when this document was written, and the sentence saying so outlived
+the problem by a fortnight.
+
+Load it in a browser before pasting it into App Store Connect anyway, and a fork
+must switch Pages on for itself: a policy URL that 404s is a rejection, and it is
+the cheapest rejection there is to avoid.
 
 ## Category and rating
 
