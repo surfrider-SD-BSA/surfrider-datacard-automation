@@ -105,9 +105,14 @@ cp .env.example .env.local
 ```
 
 Fill in `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY` and
-`VITE_GOOGLE_DRIVE_FOLDER_ID`. Add `VITE_GOOGLE_APP_ID` (the project number) and
-`VITE_GOOGLE_SHARED_DRIVES=true` if the scans are on a shared drive rather than
-in someone's My Drive.
+`VITE_GOOGLE_DRIVE_FOLDER_ID`. Add `VITE_GOOGLE_SHARED_DRIVES=true` if the scans
+are on a shared drive rather than in someone's My Drive.
+
+Leave `VITE_GOOGLE_APP_ID` blank. The picker must name the app to Google or the
+download it produces is refused, so the project number is taken off the front of
+the client ID rather than left to this file -- an earlier version of this page
+called that setting optional, and a build without it fails on every pick with a
+message about sharing.
 
 `.env.local` is gitignored. For a GitHub Pages build, set the same variables as
 repository secrets and pass them to the build step.
@@ -150,4 +155,4 @@ Known failures and what they mean:
 | The consent window opens and immediately closes | The page's origin is not in **Authorised JavaScript origins** (step 4), including its port. |
 | Picker opens empty, or on "Recent" | Folder ID wrong, or the folder is not shared with this account. |
 | "The browser blocked Google's sign-in window" | A popup blocker. Allow popups for the page. |
-| "Drive would not hand over that file" | The file is not shared with the signed-in account. On a shared drive, check `VITE_GOOGLE_APP_ID` and `VITE_GOOGLE_SHARED_DRIVES`. |
+| "Drive would not hand over that file" | Usually the file is not shared with the signed-in account. If it plainly IS shared, the picker did not name the app: check that the client ID begins with the project number, and on a shared drive that `VITE_GOOGLE_SHARED_DRIVES` is set. |
