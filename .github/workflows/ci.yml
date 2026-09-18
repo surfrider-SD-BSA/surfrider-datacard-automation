@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ios/main]
   pull_request:
-    branches: [main]
+    branches: [ios/main]
 
 # Read-only by default. Any job needing more asks for it explicitly.
 permissions:
