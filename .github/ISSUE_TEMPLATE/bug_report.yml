@@ -7,7 +7,7 @@ body:
       value: |
         **Do not attach real data cards or generated spreadsheets.** They contain volunteer names
         and sometimes contact details. Use a redacted screenshot, a fake sample card, or just the
-        row and column numbers. See [SECURITY.md](../blob/main/SECURITY.md).
+        row and column numbers. See [SECURITY.md](../blob/ios/main/SECURITY.md).
 
   - type: checkboxes
     id: no-data

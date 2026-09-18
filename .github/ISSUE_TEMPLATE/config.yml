@@ -7,5 +7,5 @@ contact_links:
     about: Report privately. Never open a public issue for this — see SECURITY.md.
 
   - name: Setup help
-    url: https://github.com/surfrider-SD-BSA/surfrider-datacard-automation/blob/main/README.md
+    url: https://github.com/surfrider-SD-BSA/surfrider-datacard-automation/blob/ios/main/README.md
     about: Start with the README. If it did not answer your question, file a bug — that is a documentation bug.

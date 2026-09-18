@@ -255,7 +255,7 @@ Verify:
 
 ```bash
 gh api "repos/$REPO/rulesets" --jq '.[] | {id, name, enforcement}'
-gh api "repos/$REPO/rules/branches/main" --jq '.[].type'
+gh api "repos/$REPO/rules/branches/ios/main" --jq '.[].type'
 ```
 
 ### Fallback: classic branch protection
@@ -263,7 +263,7 @@ gh api "repos/$REPO/rules/branches/main" --jq '.[].type'
 Use this only if rulesets are unavailable.
 
 ```bash
-gh api -X PUT "repos/$REPO/branches/main/protection" --input - <<'JSON'
+gh api -X PUT "repos/$REPO/branches/ios/main/protection" --input - <<'JSON'
 {
   "required_status_checks": {
     "strict": true,
@@ -398,11 +398,11 @@ After applying everything, confirm the protection actually bites:
 # 1. A direct push to main must be rejected.
 git checkout main && git commit --allow-empty -m "test: should be rejected" && git push
 #    Expect: "protected branch hook declined". Then clean up:
-git reset --hard origin/main
+git reset --hard origin/ios/main
 
 # 2. Settings read back as expected.
 gh api "repos/$REPO" --jq '{squash: .allow_squash_merge, merge: .allow_merge_commit, rebase: .allow_rebase_merge, delete_head: .delete_branch_on_merge}'
-gh api "repos/$REPO/rules/branches/main" --jq '[.[].type]'
+gh api "repos/$REPO/rules/branches/ios/main" --jq '[.[].type]'
 
 # 3. Open a real pull request and confirm the merge button stays disabled
 #    until every required check is green and an approval is in.
