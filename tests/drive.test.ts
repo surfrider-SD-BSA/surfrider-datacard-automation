@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseFolderId } from "../src/lib/drive";
+import { parseFolderId, projectNumber } from "../src/lib/drive";
 
 describe("parseFolderId", () => {
   it("takes a bare ID unchanged", () => {
@@ -60,5 +60,39 @@ describe("parseFolderId", () => {
     // turned into a parent the picker cannot open.
     expect(parseFolderId("https://drive.google.com/file/d/1a2B3c/view")).toBeNull();
     expect(parseFolderId("the shared scans folder")).toBeNull();
+  });
+});
+
+/**
+ * The app id is not optional, whatever the setup doc used to say: a picker that
+ * does not name the app hands back a file id whose download Drive answers 403,
+ * and the message that reaches the volunteer blames sharing settings. Deriving
+ * it off the client ID is what keeps that from depending on somebody having
+ * filled in a field described as harmless to skip.
+ */
+describe("projectNumber", () => {
+  it("takes the number off the front of a client ID", () => {
+    expect(
+      projectNumber("859166248323-04u9124f7i4i3cdq1dqthe31aj50su1e.apps.googleusercontent.com"),
+    ).toBe("859166248323");
+  });
+
+  it("reads the same number off the iOS client of the same project", () => {
+    expect(
+      projectNumber("859166248323-3hdk3g9bhaacn8k8rubukgkn09vm13a6.apps.googleusercontent.com"),
+    ).toBe("859166248323");
+  });
+
+  it("tolerates surrounding whitespace, as the environment supplies it", () => {
+    expect(projectNumber("  12345-abc.apps.googleusercontent.com  ")).toBe("12345");
+  });
+
+  it("stops at the hyphen rather than running into the random half", () => {
+    expect(projectNumber("42-7up.apps.googleusercontent.com")).toBe("42");
+  });
+
+  it("is null for a client ID with no leading digits, rather than guessing", () => {
+    expect(projectNumber("not-a-real-client-id")).toBeNull();
+    expect(projectNumber("")).toBeNull();
   });
 });

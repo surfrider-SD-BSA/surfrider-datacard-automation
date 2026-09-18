@@ -59,11 +59,19 @@ export interface DriveConfig {
    */
   folderId: string | null;
   /**
-   * Cloud project NUMBER, if the scans live on a shared drive.
+   * Cloud project NUMBER, and it is REQUIRED -- not, as this once said,
+   * something that only matters for shared drives.
    *
-   * The picker needs it to hand a shared-drive file to an app holding
-   * `drive.file`; on a personal My Drive it is unnecessary. Supplying it is
-   * harmless either way, so the setup doc just tells people to set it.
+   * `drive.file` grants access to the files somebody picks, and what makes a
+   * picked file count as picked by THIS app is the picker naming the app when
+   * it hands the file over. Without it the picker still returns a file id, the
+   * download still runs, and Drive answers 403 -- which surfaces as "Drive
+   * would not hand over that file. It may not be shared with this Google
+   * account", a sentence that sends somebody to check sharing settings that
+   * were never the problem.
+   *
+   * Never null in practice: see `projectNumber`. Kept nullable because a
+   * client ID that begins with no digits has no project number to take.
    */
   appId: string | null;
   /** Whether to show shared drives in the picker. */
@@ -89,7 +97,12 @@ export function driveConfig(): DriveConfig | null {
     clientId,
     apiKey,
     folderId: parseFolderId(import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID),
-    appId: import.meta.env.VITE_GOOGLE_APP_ID?.trim() || null,
+    // Explicit if the environment sets one, otherwise taken off the client ID,
+    // which is what DriveConfig.swift does and for the same reason: an unset
+    // app id is not a missing nicety, it is a 403 on every download. See the
+    // field's own comment below.
+    appId:
+      import.meta.env.VITE_GOOGLE_APP_ID?.trim() || projectNumber(clientId),
     enableSharedDrives: import.meta.env.VITE_GOOGLE_SHARED_DRIVES === "true",
   };
 }
@@ -104,6 +117,24 @@ export function driveConfig(): DriveConfig | null {
  * to get it wrong, and getting it wrong produces a picker that opens on an
  * empty folder with no explanation. Both forms are taken.
  */
+/**
+ * The Cloud project number, taken off the front of an OAuth client ID.
+ *
+ * Google forms a client ID as `<project number>-<random>.apps.googleusercontent.com`,
+ * so the number is already in every build that has a client ID at all. Deriving
+ * it means the picker cannot be left unnamed by somebody who followed a setup
+ * doc that called the setting optional -- which is how this was wrong for the
+ * web tool while the iOS app, which has always derived it, was fine.
+ *
+ * Deliberately not a validity check: a client ID this cannot read digits off is
+ * a client ID Google will reject at the consent screen anyway, and failing
+ * there names the problem better than refusing to draw the button here.
+ */
+export function projectNumber(clientId: string): string | null {
+  const digits = clientId.trim().match(/^\d+/);
+  return digits ? digits[0] : null;
+}
+
 export function parseFolderId(raw: string | undefined): string | null {
   const value = raw?.trim();
   if (!value) return null;
