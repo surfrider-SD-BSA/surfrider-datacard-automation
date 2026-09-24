@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Only what shows before Compose draws: the window ground, so a cold start
+      is Nocturne's dark rather than a white flash. Everything else is Theme.kt.
+    -->
+    <style name="Theme.Tally" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ground</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <color name="ground">#161826</color>
+    <color name="icon_ground">#0F1722</color>
+</resources>

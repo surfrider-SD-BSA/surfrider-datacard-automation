@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NO INTERNET PERMISSION, AND THAT IS THE POINT.
+
+  "The scan stays on this phone" is the promise every screen makes, and on
+  Android it can be more than a promise: an app without android.permission.INTERNET
+  cannot open a socket, and its WebView is forced to refuse network loads. The
+  reading pipeline is served out of the APK by WebAssets.kt and never needed the
+  network. So the promise is enforced by the operating system rather than by
+  this app being careful — and anyone can check it on the store listing.
+
+  Adding the permission for a feature is a decision about that promise, not a
+  line of configuration. Google Drive is the obvious candidate; see README.md.
+
+  NOT ASKING FOR IT IS NOT ENOUGH. Libraries bring their own manifests, and ML
+  Kit's document scanner declares INTERNET and ACCESS_NETWORK_STATE for its
+  usage logging, which the merger then grants to this app without a word. So
+  both are removed below, explicitly, and app/build.gradle.kts fails the build
+  if the merged manifest ever asks for network access again. The scanner still
+  works without them: it runs in Google Play services, under Play services'
+  own permissions, and hands back pages.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Tally">
+
+        <!--
+          singleTask: one instance, so a scan shared from another app arrives
+          in onNewIntent of the cleanup already open rather than in a second
+          copy of the app stacked inside the sender's task.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- "Open with" from Files, Gmail, Drive, a scanner app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+
+            <!--
+              The share sheet. On iOS this took an extension, an App Group and
+              a drawer two processes could reach; here the share IS an intent,
+              delivered to the app itself. One PDF, and only a PDF — a cleanup
+              is one scan, front and back in card order.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
+
+        <!-- The finished spreadsheet, handed to whatever the share sheet picks. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

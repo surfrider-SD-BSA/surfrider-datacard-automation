@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Windows batch files need CRLF to run.
+android/gradlew.bat text eol=crlf

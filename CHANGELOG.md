@@ -28,6 +28,16 @@ count as breaking.
 
 ### Added
 
+- **Tally for Android** (`android/`). The iOS app's eight screens, screen for screen and word for
+  word, in Jetpack Compose, driving the same `src/engine.ts` in a headless WebView — there is still
+  one implementation of the reading and one set of measurements. The only change on the web side
+  is the name of the mailbox the engine answers into (`window.tallyAndroid`). The app has **no
+  INTERNET permission**, so "the scan stays on this phone" is enforced by the operating system;
+  Google Drive is left out of this build for that reason, and the system picker and share sheet
+  reach Drive through the Drive app instead. Scans arrive by the document picker, the share
+  sheet or "Open with"; photographing the cards is built on ML Kit's document scanner and gated
+  behind `-Ptally.beta=true`, as the iOS camera is, until capture resolution is measured.
+
 - **Send the finished spreadsheet back to the same Drive folder.** *Save to
   Drive* on the finish screen, beside *Send it on*. The other direction of the
   capture screen's button and it costs nothing extra in consent: `drive.file` is
