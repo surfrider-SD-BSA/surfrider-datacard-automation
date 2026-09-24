@@ -167,6 +167,11 @@ same `src/lib/` modules, headless, so there is one implementation and one set of
 See [ios/README.md](ios/README.md). Photographing the cards is not switched on — the pipeline
 wants 200 DPI on the card's short edge and nobody has measured a phone camera against that yet.
 
+`android/` is the same app for Android: the same eight screens in Jetpack Compose, over the same
+headless pipeline, on the `android/main` branch. It holds no INTERNET permission, so on Android the
+promise that the scan stays on the phone is enforced by the operating system. See
+[android/README.md](android/README.md).
+
 ### Requirements
 
 - Node 20 or later, to build and to run the dev server

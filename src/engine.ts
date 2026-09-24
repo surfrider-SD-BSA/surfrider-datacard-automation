@@ -15,6 +15,11 @@
  * `{ id, ok, result }` or `{ id, ok: false, error }`, except progress, which is
  * `{ event: "progress", ... }` and carries no id.
  *
+ * The Android app drives this same file the same way, from Kotlin, and gets its
+ * answers through `window.tallyAndroid` instead -- see android/README.md. One
+ * protocol and two hosts; the only thing that differs is the name of the
+ * mailbox, and `post` is the one place that knows it.
+ *
  * WHAT DOES NOT CROSS THE BRIDGE. Page images. A letter page at 200 DPI is
  * 3.7MB of grayscale and a 116-page scan is 430MB of them; they are cut into
  * row crops here and dropped, exactly as `processFile` does in `main.ts`, and
@@ -57,12 +62,18 @@ interface Bridge {
 declare global {
   interface Window {
     webkit?: { messageHandlers?: { tally?: Bridge } };
+    /**
+     * The Android host. A `WebMessageListener` scoped to the app's own origin,
+     * or a `@JavascriptInterface` on a WebView too old for one -- both put an
+     * object here with a `postMessage(string)`, which is all this file uses.
+     */
+    tallyAndroid?: Bridge;
     tally: { dispatch(json: string): void };
   }
 }
 
 function post(message: unknown): void {
-  const bridge = window.webkit?.messageHandlers?.tally;
+  const bridge = window.webkit?.messageHandlers?.tally ?? window.tallyAndroid;
   const body = JSON.stringify(message);
   // Without a host the engine still runs -- `npm run dev` and engine.html in a
   // desktop browser is how this file is debugged, and the console is the only

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Generated from the mark in ios/make-icon.mjs: four tally strokes and a fifth
+  struck through them. Same card-stock ink and blue as the iOS icon.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1536"
+    android:viewportHeight="1536">
+    <group android:translateX="256" android:translateY="256">
+        <path
+            android:pathData="M260,330 L240,694 M398,330 L378,694 M536,330 L516,694 M674,330 L654,694"
+            android:strokeColor="#E8EEF5"
+            android:strokeWidth="42"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M190,654 L724,370"
+            android:strokeColor="#60A5FA"
+            android:strokeWidth="42"
+            android:strokeLineCap="round" />
+    </group>
+</vector>
