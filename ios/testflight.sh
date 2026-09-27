@@ -44,16 +44,14 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
 # This chapter's Google settings. Forgetting them produces an app with no Drive
-# button and no error at any point in the build, which is a slow thing to notice,
-# so they are committed rather than left to each machine to remember.
+# button and no error at any point in the build, which is a slow thing to notice.
 #
-# Three layers, weakest first, each assigning with `:-` so the later one wins:
-# ios/google-settings.sh is tracked and holds the chapter's own project;
-# ios/.env.local is gitignored and is where a fork or a second project goes; an
-# exported variable beats both, for a one-off build.
-# shellcheck source=ios/google-settings.sh
-. "$root/ios/google-settings.sh"
-
+# They are NOT committed. They were for a while (#57), on the grounds that both
+# values ship inside every build anyway -- but an API key in a public repository
+# is one anybody can lift and spend against the project, whatever restrictions
+# are meant to be on it. So they live in ios/.env.local, which is gitignored and
+# machine-local; an exported variable beats it, for a one-off build. Setup is in
+# docs/google-drive-ios.md.
 if [ -f "$root/ios/.env.local" ]; then
   # shellcheck source=/dev/null # gitignored and machine-local, so there is
   # nothing for shellcheck to follow here or in CI. That is the point of it.
@@ -111,15 +109,10 @@ fi
 
 # The chapter's Google project, if this build is to have the Drive button.
 #
-# Passed through from the environment for the same reason TEAM_ID is: this
-# repository is public, and while none of these is a secret -- an iOS OAuth
-# client has no client secret, and the API key is constrained by the referrer
-# allowlist on it -- an account identifier committed to a public repo is a thing
-# somebody has to go and rotate later.
-#
-# Set none of them and the archive simply has no Drive button and makes no
-# network call, which is the right default for a chapter that has not set up a
-# Google project. Setup is in docs/google-drive-ios.md.
+# Four builds once reached TestFlight without it before anybody noticed, so a
+# build with no Google settings stops here rather than quietly dropping the
+# button. A chapter that has not set up a Google project says so on purpose with
+# DRIVE=off, and gets an archive with no Drive button and no network call.
 drive_settings=""
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   : "${GOOGLE_API_KEY:?set GOOGLE_API_KEY too. The picker needs both, and a build with only one draws a button that fails inside the Google picker}"
@@ -129,6 +122,13 @@ if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   [ -n "${GOOGLE_APP_ID:-}" ] && drive_settings="$drive_settings GOOGLE_APP_ID=$GOOGLE_APP_ID"
   [ -n "${GOOGLE_SHARED_DRIVES:-}" ] && drive_settings="$drive_settings GOOGLE_SHARED_DRIVES=$GOOGLE_SHARED_DRIVES"
   echo "==> Drive: the picker is IN this build"
+elif [ "${DRIVE:-}" = "off" ]; then
+  echo "==> Drive: DRIVE=off, so this build has no Drive button"
+else
+  echo "error: no GOOGLE_CLIENT_ID, so this build would have no Drive button." >&2
+  echo "       Put the chapter's values in ios/.env.local (see docs/google-drive-ios.md)," >&2
+  echo "       or set DRIVE=off to build without Drive on purpose." >&2
+  exit 1
 fi
 
 echo "==> archiving (build $build_number, team $TEAM_ID, bundle $BUNDLE_ID)"
