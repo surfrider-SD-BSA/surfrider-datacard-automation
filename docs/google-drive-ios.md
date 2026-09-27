@@ -86,16 +86,13 @@ a picker that will not load.
 
 ### 4. Build with it
 
-**This chapter's own project is committed**, in
-[`ios/google-settings.sh`](../ios/google-settings.sh), which `testflight.sh`
-sources. A clone of this repository therefore builds an app with a working Drive
-button and needs no setup. That file explains the trade: both values ship inside
-every build regardless, so keeping them out bought no secrecy, only silent
-Drive-less builds — at the cost that rotating them now means a new build for
-every volunteer.
-
-**A fork must not use them.** Put your own project's values in `ios/.env.local`,
-which is gitignored and sourced after the tracked file, so it wins:
+**Nothing Google is committed.** The values go in `ios/.env.local`, which is
+gitignored and which `testflight.sh` sources. For a while this chapter's own
+values were committed (#57), on the grounds that both ship inside every build
+anyway — but an API key in a public repository is one anybody can lift and spend
+against the project, so they came back out. Get them from whoever runs the
+chapter's Google project, not from git history: the key that was once committed
+is public and is being replaced.
 
 ```sh
 # ios/.env.local
@@ -103,7 +100,11 @@ export GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-123456789-abc.apps.googleuserconten
 export GOOGLE_API_KEY="${GOOGLE_API_KEY:-AIza...}"
 ```
 
-An exported variable beats both, which is the form a CI job or a one-off build
+`testflight.sh` refuses to build with no `GOOGLE_CLIENT_ID` at all, because an
+app without one has no Drive button and nothing says so. A chapter with no Google
+project builds with `DRIVE=off`.
+
+An exported variable beats the file, which is the form a CI job or a one-off build
 uses:
 
 ```sh
