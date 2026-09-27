@@ -361,9 +361,9 @@ then simply is not offered when you go to add it to the external group. Build
 Drive picker is compiled from `GOOGLE_CLIENT_ID` and `GOOGLE_API_KEY`; without
 them the app has no Drive button and reports nothing. Four builds reached
 TestFlight without it, one of them approved and installed, before anybody noticed.
-`ios/google-settings.sh` now supplies them to every build, and the check that
-proves it is reading the value back out of the compiled app rather than trusting
-the build command:
+`testflight.sh` now refuses to build without them (unless told `DRIVE=off`), and
+the check that proves they made it in is reading the value back out of the
+compiled app rather than trusting the build command:
 
 ```sh
 /usr/libexec/PlistBuddy -c "Print :GoogleClientID" \
