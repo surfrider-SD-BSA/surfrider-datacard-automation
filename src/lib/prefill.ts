@@ -209,14 +209,26 @@ export const PREFILL_GATE = 0;
  * six or seven wrong: about 26, 60 and 47 wrong values per scan, each reaching
  * the spreadsheet unseen.
  *
- * THE CELLS THIS THRESHOLD ADDS SIT BELOW BOTH MEASURED BANDS. Their precision
- * is not in that table and nobody has counted it, so the honest statement is
- * that between 0.45 and 0.75 lie the reader's least confident answers and how
- * often they are right is unknown. The number of wrong hidden values per scan is
- * therefore higher than the figures above, by an amount this project has not
- * measured. `audit-prefills.mjs` renders every filled cell to be counted by eye,
- * and counting them at this setting is the measurement this comment cannot make
- * for you. It is worth making before a chapter files a spreadsheet from it.
+ * THE CELLS THIS THRESHOLD ADDS SIT BELOW BOTH MEASURED BANDS, so that table
+ * says nothing about them. They have since been counted, by `hidden-accuracy.mjs`
+ * against the spreadsheets the chapter typed by hand from the same scans -- every
+ * scan that has one, 27 September 2026:
+ *
+ *   thresh   hidden cells the     disagree with      leaving out cards that
+ *            sheet has a number   the typed value    look column-mismatched
+ *   0.87            2               0                     --
+ *   0.75        2,828             483  17.1%         276 of 2,571  10.7%
+ *   0.45        3,178             765  24.1%         358 of 2,666  13.4%
+ *
+ * The 0.75 cells are a subset of the 0.45 ones, so the difference is exactly the
+ * cells this setting added: 350, of which 282 disagree -- about FOUR IN FIVE. A
+ * typed sheet has mistakes of its own, and a card where most hidden cells
+ * disagree is likelier matched to the wrong column than misread throughout
+ * (that is what the last column leaves out), but neither comes near explaining
+ * four in five. The 0.75 row brackets the one-in-six-or-seven estimated above
+ * from the precision table, which is some evidence the method is sound. That
+ * band is the thing to weigh before a chapter files a spreadsheet from this
+ * setting.
  *
  * They are still exported as `recognized` with their confidence rather than as
  * `human`, so the chapter's audit column can find them afterwards; that is the
