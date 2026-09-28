@@ -12,8 +12,17 @@
  * other -- so silence is not evidence either way and is left out.
  *
  * Usage:
- *   npx vite-node scripts/hidden-accuracy.mjs
- *   T=0.75 npx vite-node scripts/hidden-accuracy.mjs    # another threshold
+ *   HOLDOUT=knn npx vite-node scripts/hidden-accuracy.mjs
+ *   HOLDOUT=knn T=0.75 npx vite-node scripts/hidden-accuracy.mjs    # another threshold
+ *   npx vite-node scripts/hidden-accuracy.mjs          # the shipped model, flattered
+ *
+ * HOLDOUT IS THE HONEST NUMBER. The shipped digit model is built from the
+ * labelled digits of these very scans, so without it every one of those digits
+ * finds itself among the exemplars at distance zero and is read right with a
+ * confidence of one -- which hides it, correctly. That describes a scan the
+ * model has already seen, and no chapter will ever upload one. HOLDOUT=knn
+ * reads each scan with the nearest-neighbour model rebuilt from every OTHER
+ * event's digits, which is the test a new cleanup next month actually sets.
  *
  * Reads every scan under out/pages that has a typed spreadsheet in scans/ (see
  * `matchedPairs` in diagnose-review.mjs). Both are gitignored volunteer data, so
@@ -32,6 +41,7 @@ import { reconcile } from "../src/lib/reading.ts";
 import { pairIntoCards, referenceTargets, registerAgainstBestSide } from "../src/lib/register";
 import { itemForRow } from "../src/lib/taxonomy.ts";
 import { colName, readSpreadsheet, matchedPairs } from "./diagnose-review.mjs";
+import { loadTrainingSet } from "./train-digits.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REF = join(ROOT, "assets", "reference");
@@ -45,15 +55,28 @@ const luma = (rgba, n) => {
 const decodeJpeg = (p) => { const { width, height, data } = jpeg.decode(readFileSync(p), { useTArray: true, formatAsRGBA: true }); return { width, height, data: luma(data, width * height) }; };
 
 const maps = { front: JSON.parse(readFileSync(join(REF, "cells.front.json"), "utf8")), back: JSON.parse(readFileSync(join(REF, "cells.back.json"), "utf8")) };
-const model = decodeModel(JSON.parse(readFileSync(join(REF, "digit-model.json"), "utf8")));
+const HOLDOUT = process.env.HOLDOUT ?? "";
+const shipped = decodeModel(JSON.parse(readFileSync(join(REF, "digit-model.json"), "utf8")));
+const training = HOLDOUT === "knn" ? loadTrainingSet() : [];
+
+/** The model this scan is read with: one that never saw it, under HOLDOUT. */
+function modelFor(scan) {
+  if (HOLDOUT === "knn") {
+    // k as shipped; the exemplars are already prepared by loadTrainingSet.
+    return { k: shipped.k, exemplars: training.filter((s) => s.source !== scan).map((s) => ({ label: s.label, v: s.bitmap })) };
+  }
+  if (HOLDOUT) throw new Error(`HOLDOUT=${HOLDOUT}: expected knn`);
+  return shipped;
+}
 const decodePng = (p) => { const g = PNG.sync.read(readFileSync(p)); return { width: g.width, height: g.height, data: luma(g.data, g.width * g.height) }; };
 const targets = referenceTargets({ front: decodePng(join(REF, "blank-front.png")), back: decodePng(join(REF, "blank-back.png")) }, maps);
 
 let gTotal = 0, gWrong = 0, gBySource = {}, gKind = {}, gCardsBad = 0, gCardsAll = 0, gDroppedCells = 0, gDroppedWrong = 0;
-console.log(`hidden-cell accuracy at AUTO_ACCEPT >= ${THRESHOLD}\n`);
+console.log(`hidden-cell accuracy at AUTO_ACCEPT >= ${THRESHOLD}, ${HOLDOUT ? `each scan read by a ${HOLDOUT} model that never saw it` : "shipped model (it has seen these scans)"}\n`);
 console.log("scan              checked  wrong   rate   worst offenders");
 
 for (const pair of matchedPairs()) {
+  const model = modelFor(pair.name);
   const files = readdirSync(pair.dir).filter((f) => /\.jpe?g$/i.test(f))
     .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
   const pages = files.map((f, i) => {
