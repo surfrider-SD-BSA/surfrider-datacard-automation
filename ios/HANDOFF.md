@@ -230,7 +230,7 @@ sweep, not a change.
 | Reading pipeline | 1,606 pages, 28 scans, 10 beaches — see `HANDOFF.md` |
 | `src/lib/` after the refactor | 128 tests; real pages through `run-shipping-path.mjs` |
 | Engine bridge | replies, errors, unknown methods, failures inside the pipeline |
-| Reference loading in the engine | reference card, cell maps, 3.4MB digit model |
+| Reference loading in the engine | reference card, cell maps, 1.4MB digit model |
 | Build | typechecks, both entry points, `check-dist` clean, 5 CI checks |
 | Device | builds, signs, installs, launches on a physical iPhone 16 |
 | Screens 1–3 | driven by hand in the simulator |

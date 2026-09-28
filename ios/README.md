@@ -55,7 +55,7 @@ whole scan as a JavaScript string literal, parsed by JavaScriptCore, on a phone.
 ## What the shell still adds
 
 **Its own origin.** The page fetches the reference card, the cell maps and the
-3.4MB digit model with `fetch()`. WKWebView refuses cross-origin fetches from
+1.4MB digit model with `fetch()`. WKWebView refuses cross-origin fetches from
 `file://`, so all of them fail and the app opens to a tool that cannot read
 anything. `WebAssetSchemeHandler` serves the bundle under a `cleanup://` scheme,
 which is treated as a proper origin, and the page runs unchanged.

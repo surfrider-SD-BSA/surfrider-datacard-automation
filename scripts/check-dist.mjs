@@ -69,8 +69,11 @@ const ALLOWED_FILES = new Set([
   "reference/labels-pacific-beach.json",
 
   // The handwriting model, and the ONE entry here that is not derived from the
-  // blank card. It is 3,325 cropped 28x28 images of digits real volunteers
-  // wrote on real cleanup cards, so publishing the site publishes them.
+  // blank card. It was 3,325 cropped 28x28 images of digits real volunteers
+  // wrote on real cleanup cards, so publishing the site published them. Since
+  // the convolutional reader replaced the nearest-neighbour one it holds no
+  // image at all -- only the weights of a net trained on those digits -- but it
+  // is still derived from them, so everything below still applies.
   //
   // Added deliberately, on the chapter owner's decision, with the question this
   // file says to ask put to them first: should the public internet have this?
