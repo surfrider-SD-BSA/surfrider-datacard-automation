@@ -594,6 +594,64 @@ the CUTTING went wrong was dropped before a digit was labelled, so 66.3% and
 `scripts/diagnose-segmentation.mjs` measures that step on its own; it had never
 been measured separately.
 
+## Digits: a convolutional net replaces nearest neighbour (28 Sept 2026)
+
+`scripts/train_digits_cnn.py` trains a small CNN -- three convolutions, two dense
+layers, 257,000 weights -- first on MNIST's 70,000 public digits, thinned by a
+2x2 erosion to match pencil, then on the chapter's 3,325. It is shipped in
+`assets/reference/digit-model.json` (`kind: "cnn-28x28"`, 1.4MB where the
+exemplars were 3.5MB) and run by `netLogits` in `src/lib/digits.ts` in plain
+loops: 4.5ms a digit in Node, 5.6ms in Chrome, and identical to PyTorch to
+2e-5 on 300 digits. `decodeModel` still reads the old nearest-neighbour file,
+so `node scripts/train-digits.mjs --emit` puts it back.
+
+**Against the typed labels it barely moves, and that turned out to be the
+finding.** Leave-one-event-out, 72.4% per digit against 71.4%, and its precision
+stops near 90% however confident it gets. Its most confident "mistakes" were
+read by eye and nearly all were the LABEL's: a 5 typed as 2, a 6 as 7, and
+whole events -- oceanside-9.06, imperial-4.16 -- whose cards went into the wrong
+columns. The digit-count check in "How the card-to-column mapping is settled"
+lets most of those through.
+
+So both readers were scored against a sample read by eye: 300 training digits
+drawn at random, the 102 where a reader and the label disagreed read blind.
+It is in `scans/eye-labels/digits-300.json`, gitignored with the volunteer data.
+
+```
+                                      nearest neighbour      CNN
+  typed label wrong for the crop            one in five (59 of 270)
+  right by eye                              83.7%              86.7%
+  wrong by eye, confidence >= 0.45        19 of 232           8 of 228
+  wrong by eye, confidence >= 0.75         5 of 184           0 of 157
+```
+
+End to end, every hidden cell against the typed sheets with each scan read by a
+model that never saw it (`HOLDOUT=knn|cnn` in `hidden-accuracy.mjs`), at 0.45:
+1,109 of 2,772 disagree for nearest neighbour and 939 of 2,623 for the CNN. The
+gap is narrower than by eye because the sheets' own mistakes and every number
+cut apart wrongly count against both readers alike.
+
+**Three things worth knowing before the next attempt.**
+
+*A scan the model was built from is not a test.* The shipped nearest-neighbour
+file holds every labelled digit of every event, so any script that reads those
+scans with it finds each digit at distance zero and reads it right. That is
+what made `hidden-accuracy.mjs` first report 24% where the honest figure is
+40%, and it is why `autoaccept-coverage.mjs` showed the old reader hiding three
+quarters of 1.18 Imperial. Use HOLDOUT, or a scan outside out/training.
+
+*The labels are now the ceiling, not the reader.* Cleaning them by the model's
+own disagreement -- leaving out the 141 it contradicted at 0.8 and retraining --
+measured worse by eye at 0.45 (15 wrong of 237). The fix that would help is
+card-level: a card whose readings match a NEIGHBOURING column far better than
+its own is a typing slip, which is exactly the evidence the fitted drift in the
+section above lacked when all it had was where the ink was.
+
+*`labels-pacific-beach.json` no longer lines up.* Its `card:row` keys match at
+most five values of any card on pacific-9.27 or test-long, so the card
+numbering has moved since it was made; it needs re-keying before it can be the
+held-out test it was meant to be.
+
 ## Two readers on one cell
 
 `src/lib/reading.ts` puts the tally count and the digit reading of the same cell
@@ -1053,6 +1111,8 @@ wrong:
                          untried, and is the honest next attempt AFTER the
                          cutting is fixed -- not before, because a better
                          classifier cannot read a digit that was never cut out.
+                         (Tried since, before the cutting, and shipped: see
+                         "a convolutional net replaces nearest neighbour".)
 ```
 
 ## What to do next

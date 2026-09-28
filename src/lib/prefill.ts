@@ -240,6 +240,25 @@ export const PREFILL_GATE = 0;
  * added goes into the chapter's spreadsheet wrong and unseen. That band is the
  * thing to weigh before a chapter files a spreadsheet from this setting.
  *
+ * EVERY FIGURE ABOVE IS THE NEAREST-NEIGHBOUR READER'S. The digit reader is now
+ * a small convolutional net (`scripts/train_digits_cnn.py`), and this threshold
+ * was deliberately left where it was when it changed. What 0.45 means with it:
+ *
+ *                                  nearest neighbour      convolutional net
+ *   hides, on the three scans      219 / 410 / 331        196 / 336 / 264
+ *   ... of which (share of scan)   48% / 65% / 74%        43% / 53% / 59%
+ *   held out, disagree with sheet  1,109 of 2,772  40%    939 of 2,623  36%
+ *   ... leaving out mismatches     26.9%                  23.9%
+ *   by eye, digits wrong           19 of 232              8 of 228
+ *
+ * Two of the three scans are in both readers' training data, which is what
+ * made the old reader hide three quarters of one: it finds its own exemplars at
+ * distance zero. test-long, which neither has seen, is the fair column --
+ * 48% against 43%. So the net hides a little less, and what it hides is wrong
+ * less than half as often by eye; a reviewer gets somewhat more of each scan
+ * back. Whether to spend that on a lower threshold is the owner's call, and
+ * hidden-accuracy.mjs with HOLDOUT=cnn is the instrument for it.
+ *
  * They are still exported as `recognized` with their confidence rather than as
  * `human`, so the chapter's audit column can find them afterwards; that is the
  * only remaining defence, and it is an after-the-fact one.
