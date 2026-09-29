@@ -11,6 +11,16 @@ count as breaking.
 
 ### Changed
 
+- **Numbers written against the box's left edge keep their first digit.** The digit reader used
+  to see only the printed TOTAL box, minus a margin blanked to hide its lines, and a number
+  started on the left line lost its first digit — 67 read as 7, 24 as 4, a half-cut 8 as 3. It now
+  gets room around the box, keeps only the ink that belongs to it, and removes the printed lines
+  by their shape. Measured on every scan, each read by a model that never saw it: 165 more cells
+  read right, and 164 fewer wrong numbers taken off the review list (766 against 930).
+- **A reading made only of 1s (11, 111, …) is always shown to a person.** It is usually tally
+  marks drawn in the number box: of 99 such readings that were being taken as the answer, 80 were
+  wrong.
+
 - **The handwritten-digit reader is now a small convolutional net**, trained on the public MNIST
   digits and then the chapter's own (`scripts/train_digits_cnn.py`), in place of nearest-neighbour
   matching against 3,325 crops. Read by eye on a random 300 digits, it misreads 8 of the 228 it
