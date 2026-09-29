@@ -129,7 +129,7 @@ export function inkThreshold(img: DigitImage): number {
  * digit-COUNT measure in diagnose-segmentation.mjs does not see it at all
  * (73.0% -> 72.9%): what moved is WHICH pieces come out, not how many.
  */
-export function inkMask(img: DigitImage): Uint8Array {
+export function inkMask(img: DigitImage, box?: Area): Uint8Array {
   const { width: w, height: h } = img;
   const t = inkThreshold(img);
   const mask = new Uint8Array(w * h);
@@ -141,8 +141,19 @@ export function inkMask(img: DigitImage): Uint8Array {
       mask[i] = img.data[i]! <= t ? 1 : 0;
     }
   }
-  strikeRules(mask, w, h);
+  strikeRules(mask, w, h, box ?? { x: 0, y: 0, width: w, height: h });
   return mask;
+}
+
+/**
+ * Where the printed TOTAL box sits inside a crop that was taken with room around
+ * it. Without one, the crop IS the box, which is how every offline script cuts.
+ */
+export interface Area {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /** Pixels at the very edge of a crop that are never ink: resampling fringe, not writing. */
@@ -178,18 +189,24 @@ function longestRun(n: number, at: number, ink: (k: number, j: number) => boolea
 const RULE_GAP = 2;
 
 /** Erase the printed rules from a mask in place. See `inkMask`. */
-function strikeRules(mask: Uint8Array, w: number, h: number): void {
+function strikeRules(mask: Uint8Array, w: number, h: number, box: Area): void {
   const at = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x] === 1;
+  // Near an edge of the printed box, which is the edge of the crop unless the
+  // crop was taken with room around it.
+  const nearX = (x: number) =>
+    Math.abs(x - box.x) < box.width * RULE_BAND || Math.abs(x - (box.x + box.width)) <= box.width * RULE_BAND;
+  const nearY = (y: number) =>
+    Math.abs(y - box.y) < box.height * RULE_BAND || Math.abs(y - (box.y + box.height)) <= box.height * RULE_BAND;
 
   const columns: number[] = [];
   for (let x = 0; x < w; x++) {
-    if (x >= w * RULE_BAND && x < w * (1 - RULE_BAND)) continue;
-    if (longestRun(h, x, (y, j) => at(j, y)) >= h * RULE_SPAN) columns.push(x);
+    if (!nearX(x)) continue;
+    if (longestRun(h, x, (y, j) => at(j, y)) >= box.height * RULE_SPAN) columns.push(x);
   }
   const rows: number[] = [];
   for (let y = 0; y < h; y++) {
-    if (y >= h * RULE_BAND && y < h * (1 - RULE_BAND)) continue;
-    if (longestRun(w, y, (x, j) => at(x, j)) >= w * RULE_SPAN) rows.push(y);
+    if (!nearY(y)) continue;
+    if (longestRun(w, y, (x, j) => at(x, j)) >= box.width * RULE_SPAN) rows.push(y);
   }
 
   // A pixel either side as well: the run test allows that much wobble, and a
@@ -296,8 +313,8 @@ export function components(
  */
 const FRAGMENT_GAP = 0.18;
 
-export function segmentDigits(img: DigitImage): DigitBox[] {
-  const mask = inkMask(img);
+export function segmentDigits(img: DigitImage, box?: Area): DigitBox[] {
+  const mask = inkMask(img, box);
   if (!mask.some((v) => v)) return [];
   let boxes = components(mask, img.width, img.height);
   if (boxes.length === 0) return [];
@@ -350,7 +367,7 @@ export function segmentDigits(img: DigitImage): DigitBox[] {
     //
     // The lesson is the method, not the constant. A segmentation sweep alone
     // would have shipped this as a clear win.
-    if (h < img.height * 0.18) return false;
+    if (h < (box?.height ?? img.height) * 0.18) return false;
     if (w / h > 3.5) return false; // a horizontal bar
     // Ink should fill some of a digit's own box; a hollow rectangle outline
     // (the cell border) does not.
@@ -373,6 +390,19 @@ export function segmentDigits(img: DigitImage): DigitBox[] {
     return b.count >= w * h * 0.06;
   });
   if (boxes.length === 0) return [];
+
+  // With room around the box, keep only what belongs to it: a piece at least a
+  // quarter inside it across, whose middle is on its row. That takes the digit
+  // a volunteer started on the rule, or a 1 leaning out past it, and leaves the
+  // last strokes of the tally strip and the next row's numbers where they are.
+  if (box) {
+    boxes = boxes.filter((b) => {
+      const across = Math.min(b.maxX, box.x + box.width - 1) - Math.max(b.minX, box.x) + 1;
+      const middle = (b.minY + b.maxY) / 2;
+      return across >= (b.maxX - b.minX + 1) * 0.25 && middle >= box.y && middle < box.y + box.height;
+    });
+    if (boxes.length === 0) return [];
+  }
 
   // Drop specks: anything far smaller than the tallest survivor is a stray
   // mark, not a digit.
@@ -950,8 +980,9 @@ function classifyWithNet(
 export function readDigits(
   img: DigitImage,
   model: DigitModel,
+  box?: Area,
 ): { value: number; confidence: number } | null {
-  const boxes = segmentDigits(img);
+  const boxes = segmentDigits(img, box);
   if (boxes.length === 0) return null;
 
   // More than three pieces used to be refused outright. It is now read as the

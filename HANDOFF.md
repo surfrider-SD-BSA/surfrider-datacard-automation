@@ -677,12 +677,24 @@ read by a net that never saw it (`HOLDOUT=cnn`, the same folds
 sheet.
 
 ```
-                                     as shipped   rules struck   + all-1s shown
-  reading equals the sheet              1,841         1,899           1,899
-  hidden at AUTO_ACCEPT 0.45            2,592         2,643           2,544
-  ... of which disagree                   930           900             820
-  ... leaving out mismatched cards      24.0%         22.3%           20.7%
+                                  as shipped  rules struck  + all-1s shown  + room to read
+  reading equals the sheet           1,841        1,899         1,899           2,006
+  hidden at AUTO_ACCEPT 0.45         2,592        2,643         2,544           2,622
+  ... of which disagree                930          900           820             766
+  ... leaving out mismatched cards   24.0%        22.3%         20.7%           17.1%
 ```
+
+**The last column is the crop.** A second blind sample of 48, taken after the
+first two fixes, still had 14 of the tool's 23 errors losing a digit -- and now
+it was the CROP cutting it, not the margin: the printed box ends where a
+volunteer starts writing, so 12 read as 2, 34 as 4, and an 8 with its left half
+outside the crop read as a 3. The reader now gets the same kind of room the
+reviewer is shown (`READ_MARGIN` in extract.ts: a fifth of the box to the left,
+a twentieth to the right, three tenths above and below), and `segmentDigits`
+keeps only the pieces at least a quarter inside the box across with their
+middle on its row, which keeps the tally strip's last strokes and the next
+row's number out. More room was tried and is no better: a third to the left
+2,004 / 771, and 0.45 vertically 1,983 / 777.
 
 **The digit-count measure in `diagnose-segmentation.mjs` could not see any of
 this** -- 73.0% before, 72.9% after -- because what moved is which pieces come
@@ -698,13 +710,9 @@ Tried and not kept:
   twice the epochs. All within noise by eye; the table is in
   `train_digits_cnn.py`.
 
-Still open, and the next lever: **the crop itself cuts digits.** A 1 that leans
-out past the box's left edge is left with too few rows inside it and is dropped
-as a speck (1:18 on seaport-6.28 is "100" read as "00"). Widening the crop means
-keeping only what STRADDLES the old edge, or the tally strip's last strokes come
-in as 1s. And the tallies drawn in the TOTAL box -- 160 cells read as all 1s,
+Still open: the tallies drawn in the TOTAL box -- 160 cells read as all 1s,
 only 20 of them really 11 or 111 -- are counts that `tally.ts` could read if it
-were pointed at the box.
+were pointed at the box. They are shown to a person now, not read.
 
 ## Two readers on one cell
 
