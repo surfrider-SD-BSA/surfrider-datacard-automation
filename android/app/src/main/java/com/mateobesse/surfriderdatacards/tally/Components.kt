@@ -426,11 +426,16 @@ fun ScreenBody(
  * that a long list scrolls past the button rather than stopping short of it.
  * This is the same arrangement: the actions are measured, and the content is
  * handed their height to leave clear at the end of its scroll.
+ *
+ * `footer` is a line set at the very foot, under the actions and just above the
+ * navigation bar -- the first screen's version number, and nothing else so far.
+ * The actions keep their usual clearance when there is none.
  */
 @Composable
 fun ColumnScope.WithPinnedActions(
     actions: @Composable ColumnScope.() -> Unit,
     ground: Color = Nocturne.ground,
+    footer: (@Composable () -> Unit)? = null,
     content: @Composable (bottomClearance: Dp) -> Unit,
 ) {
     var actionsHeight by remember { mutableIntStateOf(0) }
@@ -450,11 +455,15 @@ fun ColumnScope.WithPinnedActions(
                 .background(Brush.verticalGradient(0f to Color.Transparent, 0.28f to ground, 1f to ground))
                 .navigationBarsPadding()
                 .pageMargin()
-                .padding(top = 16.dp, bottom = Nocturne.aboveNavBar),
+                // With a footer, the footer takes the clearance above the nav
+                // bar -- it sits right on it -- and the actions stand above it.
+                .padding(top = 16.dp, bottom = if (footer != null) 2.dp else Nocturne.aboveNavBar),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            content = actions,
-        )
+        ) {
+            actions()
+            footer?.invoke()
+        }
     }
 }
 
