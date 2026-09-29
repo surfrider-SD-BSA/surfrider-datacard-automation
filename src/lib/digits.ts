@@ -99,26 +99,113 @@ export function inkThreshold(img: DigitImage): number {
 }
 
 /**
- * Binary ink mask, ignoring a margin around the crop.
+ * Binary ink mask, with the printed box struck out and the handwriting kept.
  *
- * The inset is proportional, not a fixed 2px: the cell map's boxes sit right on
- * the printed rules, and at 200 DPI those are several pixels thick.
+ * The cell map's boxes sit right on the printed rules, and at 200 DPI those are
+ * several pixels thick. This used to deal with them by ignoring a margin of 6%
+ * of the width and 8% of the height on every side, and that margin was eating
+ * the numbers: volunteers start writing hard against the left rule, so the
+ * first digit of "67", "24", "13" or "100" fell inside it, came out as a sliver
+ * or not at all, and the cell was read as "7", "4", "3" or "0" -- confidently,
+ * because the digit that was left was perfectly legible. And a rule that
+ * registration had landed a few pixels INSIDE the margin survived it whole,
+ * and was read as a "1".
+ *
+ * So the margin is now two pixels, and a rule is recognised by what it is
+ * rather than by where it is: a run of ink along one column (or one row) in the
+ * outer part of the box, straight to within a pixel either way and spanning
+ * most of it. Handwriting does neither -- a "1" leans and stops well short of
+ * the box -- so it survives even when it touches the rule.
+ *
+ * Measured end to end, over the 4,096 written cells that have a typed value and
+ * with each scan read by a net that never saw it (28 September 2026):
+ *
+ *                                       margin      rules struck
+ *   reading equals the sheet             1,841        1,899
+ *   hidden at AUTO_ACCEPT 0.45           2,592        2,643
+ *   ... of which disagree with sheet       930          900
+ *
+ * More read right, more taken off the list, and fewer of those wrong. The
+ * digit-COUNT measure in diagnose-segmentation.mjs does not see it at all
+ * (73.0% -> 72.9%): what moved is WHICH pieces come out, not how many.
  */
 export function inkMask(img: DigitImage): Uint8Array {
+  const { width: w, height: h } = img;
   const t = inkThreshold(img);
-  const mask = new Uint8Array(img.width * img.height);
+  const mask = new Uint8Array(w * h);
   if (t < 0) return mask;
 
-  const ix = Math.max(3, Math.round(img.width * 0.06));
-  const iy = Math.max(3, Math.round(img.height * 0.08));
-
-  for (let y = iy; y < img.height - iy; y++) {
-    for (let x = ix; x < img.width - ix; x++) {
-      const i = y * img.width + x;
+  for (let y = EDGE; y < h - EDGE; y++) {
+    for (let x = EDGE; x < w - EDGE; x++) {
+      const i = y * w + x;
       mask[i] = img.data[i]! <= t ? 1 : 0;
     }
   }
+  strikeRules(mask, w, h);
   return mask;
+}
+
+/** Pixels at the very edge of a crop that are never ink: resampling fringe, not writing. */
+const EDGE = 2;
+
+/**
+ * How much of the box a straight run must span to be a printed rule, and how
+ * far in from the edge one can sit. The span is what separates a rule from a
+ * "1"; the band is registration drift, which lands the rule a few pixels inside
+ * the crop rather than on its edge.
+ */
+const RULE_SPAN = 0.75;
+const RULE_BAND = 0.2;
+
+/**
+ * The longest run of rows (or columns) in which `ink(k, j)` is set for some j in
+ * [at-1, at+1], bridging breaks of up to RULE_GAP: a printed rule comes through
+ * the scanner with the odd pale pixel in it, and one gap must not halve it.
+ */
+function longestRun(n: number, at: number, ink: (k: number, j: number) => boolean): number {
+  let best = 0;
+  let start = -1;
+  let last = -1;
+  for (let k = 0; k < n; k++) {
+    if (!(ink(k, at - 1) || ink(k, at) || ink(k, at + 1))) continue;
+    if (start < 0 || k - last > RULE_GAP + 1) start = k;
+    last = k;
+    best = Math.max(best, last - start + 1);
+  }
+  return best;
+}
+
+const RULE_GAP = 2;
+
+/** Erase the printed rules from a mask in place. See `inkMask`. */
+function strikeRules(mask: Uint8Array, w: number, h: number): void {
+  const at = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x] === 1;
+
+  const columns: number[] = [];
+  for (let x = 0; x < w; x++) {
+    if (x >= w * RULE_BAND && x < w * (1 - RULE_BAND)) continue;
+    if (longestRun(h, x, (y, j) => at(j, y)) >= h * RULE_SPAN) columns.push(x);
+  }
+  const rows: number[] = [];
+  for (let y = 0; y < h; y++) {
+    if (y >= h * RULE_BAND && y < h * (1 - RULE_BAND)) continue;
+    if (longestRun(w, y, (x, j) => at(x, j)) >= w * RULE_SPAN) rows.push(y);
+  }
+
+  // A pixel either side as well: the run test allows that much wobble, and a
+  // rule's anti-aliased edge left behind reads as a hairline "1".
+  for (const x of columns) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (x + dx < 0 || x + dx >= w) continue;
+      for (let y = 0; y < h; y++) mask[y * w + x + dx] = 0;
+    }
+  }
+  for (const y of rows) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if (y + dy < 0 || y + dy >= h) continue;
+      mask.fill(0, (y + dy) * w, (y + dy + 1) * w);
+    }
+  }
 }
 
 /**
@@ -302,6 +389,13 @@ export function segmentDigits(img: DigitImage): DigitBox[] {
   // joined on a small gap instead -- but only when what comes out is still
   // shaped like a digit, which is what stops two real digits being welded into
   // one.
+  //
+  // Keeping a whole "1" apart from its neighbour was tried, because a 1 is so
+  // thin that "16" or "12" passes the shape test above as one digit. Measured
+  // end to end over 4,096 written cells, it read 15 more cells right and hid 32
+  // more, of which 16 were wrong -- even when two strokes side by side (a
+  // tally drawn in the box as often as an eleven) were left joined. Half right
+  // is not a trade this project makes on a number nobody will look at.
   const merged = [];
   for (const b of boxes) {
     const prev = merged[merged.length - 1];
@@ -327,7 +421,6 @@ export function segmentDigits(img: DigitImage): DigitBox[] {
 
   return merged;
 }
-
 
 /**
  * Normalize a digit box to a 28x28 bitmap: scaled to fit 20x20 and centred by
@@ -893,10 +986,22 @@ export function readDigits(
   // A number assembled from a guess about which pieces are digits is worth less
   // than the worst digit in it, whatever the classifier says. Unmeasured, and
   // deliberately far below `AUTO_ACCEPT` so it is always shown.
-  return { value, confidence: tooMany ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst };
+  //
+  // The same goes for a number made of nothing but 1s. Volunteers draw tally
+  // marks in the TOTAL box as well as beside it, and two or three uprights are
+  // read -- each one confidently -- as 11 or 111. Measured end to end over the
+  // 4,096 written cells with a typed value, 160 read as all 1s and only 20 of
+  // them were that number; of the 99 that cleared AUTO_ACCEPT, 80 were wrong,
+  // most of them a small count (3, 4, 1, 0) the sheet has for a tally. So they
+  // are always shown, at the price of a person confirming the real elevens.
+  const allOnes = text.length >= 2 && /^1+$/.test(text);
+  return {
+    value,
+    confidence: tooMany || allOnes ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
+  };
 }
 
-/** Ceiling on a reading assembled from more pieces than a number can have. */
+/** Ceiling on a reading assembled from more pieces than a number can have, or made only of 1s. */
 export const OVERSEGMENTED_CONFIDENCE = 0.3;
 
 /** The shipped model's on-disk shape: raw 0-255 bytes, base64 per exemplar. */

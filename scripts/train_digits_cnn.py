@@ -56,9 +56,19 @@ are the ones to decide on. The by-eye sample is 300 digits drawn at random
 were read blind, without the label or either reading, and the 30 too ambiguous
 for a person to call are left out.
 
-Tried and dropped: leaving out of training the 141 labels a held-out net
-contradicted at >= 0.8, and training again. It measured WORSE by eye where it
-matters -- 15 wrong of 237 above 0.45, against 8 of 228.
+Tried and dropped, each measured the same way (typed labels / wrong by eye of
+those above 0.45), against this net's 72.4% / 8 of 228:
+
+    leaving out the 141 labels a held-out net contradicted at >= 0.8,
+      and training again                              72.8% / 15 of 237
+    three nets averaged (seeds 0-2)                   73.1% / 10 of 232
+    twice the width (--width 2), 4x the arithmetic    74.5% / 12 of 235
+    forty epochs instead of twenty                    73.3% / 10 of 232
+
+A second seed of this net alone scores 72.9% / 8 of 227, so half a point either
+way is noise. None of them is worth its cost, and the reason is the finding in
+HANDOFF.md: most hidden numbers that are wrong were CUT wrong before this net
+ever saw them, so the gains are in segmentDigits, not here.
 
 Usage:
     PYTHONPATH=<dir with torch, numpy> python3 scripts/train_digits_cnn.py \\
@@ -142,13 +152,14 @@ class Net(nn.Module):
     few lines -- no batch norm, nothing that needs a runtime.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, width: float = 1.0) -> None:
         super().__init__()
-        self.c1 = nn.Conv2d(1, 32, 3, padding=1)
-        self.c2 = nn.Conv2d(32, 64, 3, padding=1)
-        self.c3 = nn.Conv2d(64, 64, 3, padding=1)
-        self.d1 = nn.Linear(64 * 7 * 7, 64)
-        self.d2 = nn.Linear(64, 10)
+        a, b, d = int(32 * width), int(64 * width), int(64 * width)
+        self.c1 = nn.Conv2d(1, a, 3, padding=1)
+        self.c2 = nn.Conv2d(a, b, 3, padding=1)
+        self.c3 = nn.Conv2d(b, b, 3, padding=1)
+        self.d1 = nn.Linear(b * 7 * 7, d)
+        self.d2 = nn.Linear(d, 10)
         self.drop = nn.Dropout(0.3)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -396,6 +407,7 @@ def main() -> int:
         help="write the held-out predictions here (.npz), for scoring by eye",
     )
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--width", type=float, default=1.0, help="channel multiplier for the net")
     parser.add_argument(
         "--folds", action="store_true", help="write a model per held-out event to out/models/cnn/"
     )
@@ -414,7 +426,7 @@ def main() -> int:
     print("per class: " + "  ".join(f"{d}:{(y == d).sum().item()}" for d in range(10)))
 
     mnist = load_mnist(args.mnist) if args.mnist else None
-    base = Net().to(dev)
+    base = Net(args.width).to(dev)
     if mnist is not None:
         began = time.time()
         fit(base, *mnist, epochs=args.pretrain_epochs, lr=1e-3, batch=256)
@@ -452,7 +464,13 @@ def main() -> int:
     report(pred.numpy(), conf.numpy(), y.numpy(), cells, sources)
     if args.save:
         np.savez(
-            args.save, pred=pred.numpy(), conf=conf.numpy(), y=y.numpy(), src=sources, cells=cells
+            args.save,
+            pred=pred.numpy(),
+            conf=conf.numpy(),
+            logits=logits.numpy(),
+            y=y.numpy(),
+            src=sources,
+            cells=cells,
         )
 
     if args.folds or args.emit:
@@ -462,7 +480,7 @@ def main() -> int:
         blob = encode(full, temperature, events)
         if args.folds:
             for held, state in fold_nets.items():
-                net = Net()
+                net = Net(args.width)
                 net.load_state_dict(state)
                 path = FOLDS / f"{held}.json"
                 path.write_text(

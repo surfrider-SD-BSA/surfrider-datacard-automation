@@ -652,6 +652,60 @@ most five values of any card on pacific-9.27 or test-long, so the card
 numbering has moved since it was made; it needs re-keying before it can be the
 held-out test it was meant to be.
 
+## Cutting, not reading: what the wrong hidden numbers actually were (28 Sept 2026)
+
+With the CNN in, 48 hidden cells that disagreed with the sheet (on cards that do
+NOT look column-mismatched) were read by eye, blind. 8 were the sheet's mistake
+and 7 were tallies or scribbles, but 29 were the tool's -- and almost none of
+those were a digit misread. They were numbers CUT wrong before the net saw them:
+
+- **The left margin ate the first digit.** `inkMask` blanked 6% of the width on
+  every side to hide the printed rules, and volunteers write hard against the
+  left rule: 67 became 7, 24 became 4, 13 became 3, 100 became 0.
+- **A rule that registration landed inside that margin survived it** and was
+  read as a 1: a 4 became 11.
+- A 1 written against the next digit is welded onto it by the fragment merge
+  (16 becomes one piece), and tallies drawn IN the number box read as 11 or 111.
+
+`inkMask` now strikes the rules by shape -- a straight run of ink spanning three
+quarters of the box, in its outer fifth -- and keeps a two-pixel margin, and a
+reading made only of 1s is capped below AUTO_ACCEPT like an over-cut one.
+
+Measured end to end: every written cell with a typed value (4,096), each scan
+read by a net that never saw it (`HOLDOUT=cnn`, the same folds
+`hidden-accuracy.mjs` uses), counting a reading right only when it equals the
+sheet.
+
+```
+                                     as shipped   rules struck   + all-1s shown
+  reading equals the sheet              1,841         1,899           1,899
+  hidden at AUTO_ACCEPT 0.45            2,592         2,643           2,544
+  ... of which disagree                   930           900             820
+  ... leaving out mismatched cards      24.0%         22.3%           20.7%
+```
+
+**The digit-count measure in `diagnose-segmentation.mjs` could not see any of
+this** -- 73.0% before, 72.9% after -- because what moved is which pieces come
+out, not how many. Judge a cutting change end to end or not at all.
+
+Tried and not kept:
+
+- **Keeping a whole 1 apart from its neighbour** (a straight stroke the full
+  height of the pair). It fixes "16", but splits tallies into confident 1s:
+  15 more cells right, 32 more hidden of which 16 wrong, even when two strokes
+  side by side were left joined. See the comment in `segmentDigits`.
+- **Anything more on the net itself**: three nets averaged, twice the width,
+  twice the epochs. All within noise by eye; the table is in
+  `train_digits_cnn.py`.
+
+Still open, and the next lever: **the crop itself cuts digits.** A 1 that leans
+out past the box's left edge is left with too few rows inside it and is dropped
+as a speck (1:18 on seaport-6.28 is "100" read as "00"). Widening the crop means
+keeping only what STRADDLES the old edge, or the tally strip's last strokes come
+in as 1s. And the tallies drawn in the TOTAL box -- 160 cells read as all 1s,
+only 20 of them really 11 or 111 -- are counts that `tally.ts` could read if it
+were pointed at the box.
+
 ## Two readers on one cell
 
 `src/lib/reading.ts` puts the tally count and the digit reading of the same cell
