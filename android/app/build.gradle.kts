@@ -47,7 +47,7 @@ android {
     }
 
     // The web bundle is already compressed where it can be, and the digit
-    // model is read on every launch. Leaving it stored saves inflating 3.4MB
+    // model is read on every launch. Leaving it stored saves inflating 1.4MB
     // on the first screen.
     androidResources {
         noCompress += listOf("json", "png", "xlsx", "mjs", "js")
