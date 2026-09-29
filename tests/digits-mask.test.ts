@@ -158,3 +158,27 @@ describe("segmentDigits with room around the box", () => {
     expect(boxes).toHaveLength(1);
   });
 });
+
+describe("segmentDigits on a 1 written close to the next digit", () => {
+  it("keeps a whole 1 apart, where the fragment merge used to weld '10' into one digit", () => {
+    const boxes = segmentDigits(crop((set) => {
+      one(set, 30); // x 30..37
+      nought(set, 52); // x 43..61: a 5px gap, and the pair still narrower than it is tall
+    }));
+    expect(boxes).toHaveLength(2);
+  });
+
+  it("still joins the two halves of a nought closed badly", () => {
+    const boxes = segmentDigits(crop((set) => {
+      for (let a = 100; a < 260; a += 2) {
+        const r = (a * Math.PI) / 180;
+        for (let t = 0; t < 3; t++) set(Math.round(50 + (9 - t) * Math.cos(r)), Math.round(30 + (16 - t) * Math.sin(r)));
+      }
+      for (let a = -70; a < 70; a += 2) {
+        const r = (a * Math.PI) / 180;
+        for (let t = 0; t < 3; t++) set(Math.round(53 + (9 - t) * Math.cos(r)), Math.round(30 + (16 - t) * Math.sin(r)));
+      }
+    }));
+    expect(boxes).toHaveLength(1);
+  });
+});

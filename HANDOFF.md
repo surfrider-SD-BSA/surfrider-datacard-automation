@@ -696,6 +696,23 @@ middle on its row, which keeps the tally strip's last strokes and the next
 row's number out. More room was tried and is no better: a third to the left
 2,004 / 771, and 0.45 vertically 1,983 / 777.
 
+**Then a whole 1 is kept apart from its neighbour** -- a third blind sample
+still had "14" read as 4 four times, with the 1 plainly written and nowhere near
+the edge: a 1 is so thin that a 1 and a 4 side by side pass the fragment merge's
+shape test as one digit. It had been tried and rejected before, because it split
+tallies drawn in the box into confident 1s; with every all-1s reading shown, it
+no longer can. 2,041 read right against 2,006, 2,656 hidden against 2,622, 770
+disagree against 766, and 16.5% leaving out mismatched cards against 17.1%.
+
+**Retraining the net on digits cut the new way is NOT a win**, the second time
+this has been measured (see "Regenerating the training set" above). Cutting
+out/training with the app's reading crop gave 3,453 digits instead of 3,325 and
+72.4% -> 75.6% against the typed labels, but end to end it read 2,034 right and
+hid 2,673 with 779 wrong -- 17.3% leaving out mismatches against 16.5%. It is
+bolder, not better: of the cells it hides that the shipped net does not, about
+half are right. So the shipped net stays, and out/training is still cut from the
+bare box, which is what `train_digits_cnn.py` reproduces it from.
+
 **The digit-count measure in `diagnose-segmentation.mjs` could not see any of
 this** -- 73.0% before, 72.9% after -- because what moved is which pieces come
 out, not how many. Judge a cutting change end to end or not at all.

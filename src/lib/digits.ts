@@ -420,12 +420,26 @@ export function segmentDigits(img: DigitImage, box?: Area): DigitBox[] {
   // shaped like a digit, which is what stops two real digits being welded into
   // one.
   //
-  // Keeping a whole "1" apart from its neighbour was tried, because a 1 is so
-  // thin that "16" or "12" passes the shape test above as one digit. Measured
-  // end to end over 4,096 written cells, it read 15 more cells right and hid 32
-  // more, of which 16 were wrong -- even when two strokes side by side (a
-  // tally drawn in the box as often as an eleven) were left joined. Half right
-  // is not a trade this project makes on a number nobody will look at.
+  // Except when one side is already a whole "1". A 1 is so thin that a 1 and
+  // anything beside it are still narrower than they are tall, so the shape test
+  // above waved "14", "12" and "10" through as one digit -- read, confidently,
+  // as a 4, a 2 or a 0 -- and a count in the teens is the commonest two-digit
+  // number on a beach card. A 1 is told from a fragment by being a straight
+  // stroke the full height of the pair; the halves of a badly closed nought
+  // are curves, and a 5's bar is short.
+  //
+  // This was tried once and REJECTED, and then kept once `readDigits` began
+  // showing every all-1s reading to a person: what it had got wrong was
+  // splitting tally marks drawn in the box into confident 1s. Measured end to
+  // end over the 4,096 written cells, each scan read by a net that never saw it:
+  //
+  //                                    joined   kept apart
+  //   reading equals the sheet          2,006      2,041
+  //   hidden at AUTO_ACCEPT 0.45        2,622      2,656
+  //   ... of which disagree               766        770
+  //   ... leaving out mismatched cards  17.1%      16.5%
+  //
+  // 35 more read right, and of the 34 more hidden, 30 right.
   const merged = [];
   for (const b of boxes) {
     const prev = merged[merged.length - 1];
@@ -435,7 +449,13 @@ export function segmentDigits(img: DigitImage, box?: Area): DigitBox[] {
       const gap = b.minX - prev.maxX - 1;
       const height = Math.max(prev.maxY, b.maxY) - Math.min(prev.minY, b.minY) + 1;
       const joinedWidth = Math.max(prev.maxX, b.maxX) - Math.min(prev.minX, b.minX) + 1;
-      const adjacent = gap <= height * FRAGMENT_GAP && joinedWidth <= height * 1.05;
+      const wholeOne = (p: DigitBox) =>
+        p.maxY - p.minY + 1 >= height * 0.7 && isStraightStroke(mask, img.width, p);
+      const adjacent =
+        gap <= height * FRAGMENT_GAP &&
+        joinedWidth <= height * 1.05 &&
+        !wholeOne(prev) &&
+        !wholeOne(b);
 
       if (overlap > narrower * 0.5 || adjacent) {
         prev.minX = Math.min(prev.minX, b.minX);
@@ -450,6 +470,47 @@ export function segmentDigits(img: DigitImage, box?: Area): DigitBox[] {
   }
 
   return merged;
+}
+
+/**
+ * Is the ink in this box one straight stroke, upright or leaning?
+ *
+ * The middle of the ink on each row is fitted with a line; a stroke stays within
+ * a pixel or two of it, a curve bows away. Thin too: a straight stroke is narrow
+ * for its height, however it leans.
+ */
+function isStraightStroke(mask: Uint8Array, width: number, b: DigitBox): boolean {
+  const h = b.maxY - b.minY + 1;
+  if (b.maxX - b.minX + 1 > h * 0.45) return false;
+  const ys: number[] = [];
+  const xs: number[] = [];
+  for (let y = b.minY; y <= b.maxY; y++) {
+    let sum = 0;
+    let n = 0;
+    for (let x = b.minX; x <= b.maxX; x++) {
+      if (mask[y * width + x]) {
+        sum += x;
+        n++;
+      }
+    }
+    if (n) {
+      ys.push(y);
+      xs.push(sum / n);
+    }
+  }
+  if (ys.length < h * 0.6) return false;
+  const my = ys.reduce((a, v) => a + v, 0) / ys.length;
+  const mx = xs.reduce((a, v) => a + v, 0) / xs.length;
+  let syy = 0;
+  let sxy = 0;
+  for (let i = 0; i < ys.length; i++) {
+    syy += (ys[i]! - my) ** 2;
+    sxy += (ys[i]! - my) * (xs[i]! - mx);
+  }
+  const slope = syy ? sxy / syy : 0;
+  let sq = 0;
+  for (let i = 0; i < ys.length; i++) sq += (xs[i]! - (mx + slope * (ys[i]! - my))) ** 2;
+  return Math.sqrt(sq / ys.length) <= Math.max(1.5, h * 0.05);
 }
 
 /**

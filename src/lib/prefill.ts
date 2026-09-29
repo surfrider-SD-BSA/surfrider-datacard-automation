@@ -259,11 +259,12 @@ export const PREFILL_GATE = 0;
  * back. Whether to spend that on a lower threshold is the owner's call, and
  * hidden-accuracy.mjs with HOLDOUT=cnn is the instrument for it.
  *
- * Then the cutting was fixed under it (see `inkMask` and `readDigits` in
- * digits.ts): 177 / 343 / 267 hidden on the three scans, and held out, 820 of
- * 2,544 hidden cells disagree with the sheet -- 32%, and 20.7% leaving out the
- * mismatched cards. 110 fewer wrong numbers taken off the list than the net
- * alone, for 48 more cells in front of a person across all 28 scans.
+ * Then the cutting was fixed under it (`inkMask`, `segmentDigits` and
+ * `readDigits` in digits.ts, `READ_MARGIN` in extract.ts): 192 / 334 / 274
+ * hidden on the three scans, and held out, 770 of 2,656 hidden cells disagree
+ * with the sheet -- 29%, and 16.5% leaving out the mismatched cards. That is
+ * 160 fewer wrong numbers taken off the list than the net alone, with 64 more
+ * cells taken off it across all 28 scans.
  *
  * They are still exported as `recognized` with their confidence rather than as
  * `human`, so the chapter's audit column can find them afterwards; that is the
