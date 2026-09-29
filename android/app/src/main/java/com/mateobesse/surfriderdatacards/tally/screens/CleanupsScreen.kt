@@ -82,13 +82,16 @@ fun CleanupsScreen(model: TallyModel) {
                     ButtonIcon(Nocturne.Icon.add)
                     Text("Start a cleanup")
                 }
-
-                // Which build this is, for whoever is asked "what version are
-                // you on?" -- a volunteer reading it out, or someone matching
-                // a screenshot to a change. See rememberAppVersion.
-                if (version != null) {
+            },
+            // Which build this is, for whoever is asked "what version are you
+            // on?" -- a volunteer reading it out, or someone matching a
+            // screenshot to a change. See rememberAppVersion. At the very foot,
+            // just above the navigation bar, as a footnote rather than part of
+            // the action. This screen only.
+            footer = version?.let { v ->
+                @Composable {
                     Text(
-                        "Version $version",
+                        "Version $v",
                         style = Nocturne.Face.label(11),
                         color = Nocturne.text(40),
                     )
@@ -271,7 +274,7 @@ private fun EventRow(event: FinishedEvent) {
 }
 
 /**
- * The version at the foot of this screen: "#72", the newest pull request in the
+ * The version at the foot of this screen: "#73", the newest pull request in the
  * code this app was built from.
  *
  * `AppVersion` in CleanupsScreen.swift, for Android. Read from web/version.json,

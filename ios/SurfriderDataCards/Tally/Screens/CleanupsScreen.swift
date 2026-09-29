@@ -52,27 +52,30 @@ struct CleanupsScreen: View {
             // the two; below it, the ground fade in `pinnedActions` does.
             .softScrollEdges()
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 10) {
-                    Button {
-                        model.startNewCleanup()
-                    } label: {
-                        HStack(spacing: 9) {
-                            Image(systemName: Nocturne.Icon.add)
-                            Text("Start a cleanup")
-                        }
+                Button {
+                    model.startNewCleanup()
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: Nocturne.Icon.add)
+                        Text("Start a cleanup")
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-
-                    // Which build this is, for whoever is asked "what version
-                    // are you on?" -- a volunteer reading it out, or someone
-                    // matching a screenshot to a change. See AppVersion.
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .pinnedActions()
+                // Which build this is, for whoever is asked "what version are
+                // you on?" -- a volunteer reading it out, or someone matching a
+                // screenshot to a change. See AppVersion. Down in the strip
+                // under the button, just above the home indicator, so the
+                // button stays exactly where it was and the number reads as a
+                // footnote rather than part of the action. This screen only.
+                .overlay(alignment: .bottom) {
                     if let version = AppVersion.label {
                         Text("Version \(version)")
                             .font(Nocturne.Face.label(11))
                             .foregroundStyle(Nocturne.text(40))
+                            .padding(.bottom, 4)
                     }
                 }
-                .pinnedActions()
             }
         }
     }
@@ -149,7 +152,7 @@ struct CleanupsScreen: View {
 
 // MARK: - Version
 
-/// The version at the foot of this screen: "#72", the newest pull request in
+/// The version at the foot of this screen: "#73", the newest pull request in
 /// the code this app was built from.
 ///
 /// Read from `web/version.json`, which `sync-web.sh` writes into the bundle

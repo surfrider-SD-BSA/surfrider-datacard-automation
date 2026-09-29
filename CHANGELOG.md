@@ -49,7 +49,7 @@ count as breaking.
 
 ### Added
 
-- **A version number at the foot of both apps' first screen**, "Version #72": `#` and the newest
+- **A version number at the foot of both apps' first screen**, "Version #73": `#` and the newest
   pull request in the code the app was built from. `sync-web.sh` works it out from the git history
   with `scripts/app-version.sh` and writes it into the app's bundle on every build, so it counts
   up by itself; a build made without the sync step shows none rather than a wrong one.

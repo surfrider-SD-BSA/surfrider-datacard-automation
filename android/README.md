@@ -154,7 +154,7 @@ cd android && ./gradlew assembleDebug      # app/build/outputs/apk/debug/app-deb
 
 Or open `android/` in Android Studio after running `sync-web.sh` once.
 
-`sync-web.sh` also writes `web/version.json`, the "Version #72" at the foot of the
+`sync-web.sh` also writes `web/version.json`, the "Version #73" at the foot of the
 first screen, exactly as on iOS: `#` and the newest pull request in the code being
 built, from `scripts/app-version.sh`. It is searched across the whole history, not
 just this branch's own line, because `android/main` takes `ios/main` by merge.

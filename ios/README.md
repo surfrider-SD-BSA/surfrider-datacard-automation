@@ -259,7 +259,7 @@ build until `sync-web.sh` has been run at least once, and it should be run again
 after any change to `src/` — an app built against a stale bundle looks like a
 reading regression and is not one.
 
-`sync-web.sh` also writes `web/version.json`, the "Version #72" at the foot of the
+`sync-web.sh` also writes `web/version.json`, the "Version #73" at the foot of the
 first screen: `#` and the newest pull request in the code being built, worked out
 by `scripts/app-version.sh` from the git history. Nothing needs bumping by hand; a
 build made without the sync step shows no version rather than a wrong one.

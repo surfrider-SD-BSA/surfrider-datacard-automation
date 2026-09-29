@@ -25,7 +25,7 @@ cp -R "$root/dist/." "$dest/"
 echo "copied $(find "$dest" -type f | wc -l | tr -d ' ') files into ios/SurfriderDataCards/web"
 
 # The version shown at the foot of the first screen: the newest pull request in
-# this code, "#72". Written here rather than kept in the repository, so it is
+# this code, "#73". Written here rather than kept in the repository, so it is
 # whatever the build actually contains. See scripts/app-version.sh.
 sh "$root/scripts/app-version.sh" > "$dest/version.json"
 echo "version $(sed -E 's/.*"version":"([^"]*)".*/\1/' "$dest/version.json")"

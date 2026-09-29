@@ -2,10 +2,10 @@
 #
 # The version the apps show at the foot of their first screen, as JSON:
 #
-#   {"version":"#72","commit":"3e9be18"}
+#   {"version":"#73","commit":"a1b2c3d"}
 #
-# "#72" is the newest pull request in the code being built. Every change here
-# lands as a squash-merged pull request whose commit ends "(#72)", so the
+# "#73" is the newest pull request in the code being built. Every change here
+# lands as a squash-merged pull request whose commit ends "(#73)", so the
 # highest such number in the history is the newest change a build contains --
 # and it counts up by itself, with nothing to remember to bump. The whole
 # history is searched rather than the first-parent line, because android/main
