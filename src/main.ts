@@ -161,7 +161,7 @@ let referencesPromise: Promise<{
  *
  * Null is a supported state and not an error path: the tally counter is the
  * older and better-measured reader, it needs nothing fetched, and a scan is
- * still worth reviewing without the digits. A 3.4MB fetch failing on a phone
+ * still worth reviewing without the digits. A 1.4MB fetch failing on a phone
  * at a beach is a thing that will happen, and when it does the tool should
  * quietly do less rather than refuse to open.
  */

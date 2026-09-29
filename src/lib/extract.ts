@@ -198,8 +198,8 @@ export function cellsForSide(
    * The digit model, or null to leave the TOTAL box unread.
    *
    * Optional because every offline script that cuts cells wants the geometry
-   * and not the reading, and loading 3,325 exemplars to throw them away is
-   * pure cost.
+   * and not the reading, and loading the digit model to throw it away is pure
+   * cost.
    */
   model: DigitModel | null = null,
 ): ExtractedCell[] {

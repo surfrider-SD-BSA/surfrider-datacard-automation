@@ -2,7 +2,9 @@
  * Reading the number written in a TOTAL box.
  *
  * This is the second reader. `tally.ts` counts marks geometrically; this one
- * cuts the handwritten number into digits and matches each against exemplars.
+ * cuts the handwritten number into digits and reads each one -- with a small
+ * convolutional net since September 2026, or by matching it against exemplars,
+ * whichever `digit-model.json` holds.
  * The two share no code and fail for unrelated reasons, which is what makes
  * `reconcile` worth having.
  *
@@ -639,25 +641,54 @@ export interface Exemplar {
   v: Float32Array;
 }
 
-export interface DigitModel {
+/** The nearest-neighbour reader: the chapter's own labelled digits, polled. */
+export interface KnnModel {
+  kind?: "knn";
   k: number;
   exemplars: Exemplar[];
 }
+
+/**
+ * The convolutional reader, trained by `scripts/train_digits_cnn.py`: MNIST
+ * first, for the digits the chapter barely writes, then the chapter's own.
+ *
+ * The layers are the few a small net needs and nothing more, so they run here
+ * in plain loops rather than through a runtime that would cost more to fetch
+ * than the model does.
+ */
+export interface CnnModel {
+  kind: "cnn";
+  /** Logits are divided by this before the softmax, which is what makes the confidence mean something. */
+  temperature: number;
+  layers: CnnLayer[];
+}
+
+export type CnnLayer =
+  | { type: "conv"; in: number; out: number; k: number; pad: number; w: Float32Array; b: Float32Array }
+  | { type: "dense"; in: number; out: number; w: Float32Array; b: Float32Array }
+  | { type: "relu" }
+  | { type: "maxpool"; k: number }
+  | { type: "flatten" };
+
+export type DigitModel = KnnModel | CnnModel;
 
 /** How many nearest are pulled before the shift re-score. */
 const POOL = 25;
 
 /**
- * Classify by polling the k nearest exemplars.
+ * Classify one normalized bitmap with whichever reader the model is.
  *
- * Confidence is the share of the poll won by the top label, weighted by
- * closeness. It is what a pre-fill is gated on, so it is measured rather than
- * assumed to track correctness -- see `scripts/train-digits.mjs`.
+ * For the nearest-neighbour reader, by polling the k nearest exemplars:
+ * confidence is the share of the poll won by the top label, weighted by
+ * closeness. For the net, the calibrated softmax of the top label. Either way it
+ * is what a pre-fill is gated on, so it is measured rather than assumed to track
+ * correctness -- see `scripts/train-digits.mjs` and `scripts/train_digits_cnn.py`.
  */
 export function classifyDigit(
   bitmap: ArrayLike<number>,
   model: DigitModel,
 ): { label: number | null; confidence: number } {
+  if (model.kind === "cnn") return classifyWithNet(bitmap, model);
   const q = prepare(bitmap);
 
   const pool: { d: number; label: number; v: Float32Array }[] = [];
@@ -701,6 +732,118 @@ export function classifyDigit(
     }
   }
   return { label, confidence: total ? bestW / total : 0 };
+}
+
+/**
+ * The net's ten logits for one normalized bitmap.
+ *
+ * Plain loops over typed arrays. The loop order in the convolution is the one
+ * that keeps the innermost loop running along a row of both images, which is
+ * most of what makes it fast enough: about six million multiply-adds a digit,
+ * the same order as the nearest-neighbour search.
+ */
+export function netLogits(bitmap: ArrayLike<number>, model: CnnModel): Float32Array {
+  let x = new Float32Array(SIDE * SIDE);
+  for (let i = 0; i < x.length; i++) x[i] = (bitmap[i] ?? 0) / 255;
+  let c = 1;
+  let h = SIDE;
+  let w = SIDE;
+
+  for (const layer of model.layers) {
+    switch (layer.type) {
+      case "conv": {
+        const { k, pad } = layer;
+        const plane = h * w;
+        const out = new Float32Array(layer.out * plane);
+        for (let o = 0; o < layer.out; o++) {
+          const dst = o * plane;
+          out.fill(layer.b[o]!, dst, dst + plane);
+          for (let i = 0; i < c; i++) {
+            const src = i * plane;
+            for (let ky = 0; ky < k; ky++) {
+              const dy = ky - pad;
+              const y0 = Math.max(0, -dy);
+              const y1 = Math.min(h, h - dy);
+              for (let kx = 0; kx < k; kx++) {
+                const dx = kx - pad;
+                const x0 = Math.max(0, -dx);
+                const x1 = Math.min(w, w - dx);
+                const wv = layer.w[((o * c + i) * k + ky) * k + kx]!;
+                for (let y = y0; y < y1; y++) {
+                  const row = dst + y * w;
+                  const from = src + (y + dy) * w + dx;
+                  for (let xx = x0; xx < x1; xx++) out[row + xx]! += wv * x[from + xx]!;
+                }
+              }
+            }
+          }
+        }
+        x = out;
+        c = layer.out;
+        break;
+      }
+      case "relu":
+        for (let i = 0; i < x.length; i++) if (x[i]! < 0) x[i] = 0;
+        break;
+      case "maxpool": {
+        const { k } = layer;
+        const oh = Math.floor(h / k);
+        const ow = Math.floor(w / k);
+        const out = new Float32Array(c * oh * ow);
+        for (let ch = 0; ch < c; ch++) {
+          for (let y = 0; y < oh; y++) {
+            for (let xx = 0; xx < ow; xx++) {
+              let m = -Infinity;
+              for (let py = 0; py < k; py++) {
+                for (let px = 0; px < k; px++) {
+                  const v = x[ch * h * w + (y * k + py) * w + xx * k + px]!;
+                  if (v > m) m = v;
+                }
+              }
+              out[ch * oh * ow + y * ow + xx] = m;
+            }
+          }
+        }
+        x = out;
+        h = oh;
+        w = ow;
+        break;
+      }
+      case "flatten":
+        // Already channel-major and contiguous, which is the order the dense
+        // weights were trained against.
+        c = c * h * w;
+        h = w = 1;
+        break;
+      case "dense": {
+        const out = new Float32Array(layer.out);
+        for (let o = 0; o < layer.out; o++) {
+          let sum = layer.b[o]!;
+          const row = o * layer.in;
+          for (let i = 0; i < layer.in; i++) sum += layer.w[row + i]! * x[i]!;
+          out[o] = sum;
+        }
+        x = out;
+        c = layer.out;
+        h = w = 1;
+        break;
+      }
+    }
+  }
+  return x;
+}
+
+/** The top label and its calibrated softmax probability. */
+function classifyWithNet(
+  bitmap: ArrayLike<number>,
+  model: CnnModel,
+): { label: number | null; confidence: number } {
+  const logits = netLogits(bitmap, model);
+  let top = 0;
+  for (let i = 1; i < logits.length; i++) if (logits[i]! > logits[top]!) top = i;
+  let total = 0;
+  for (let i = 0; i < logits.length; i++) total += Math.exp((logits[i]! - logits[top]!) / model.temperature);
+  return { label: top, confidence: 1 / total };
 }
 
 /**
@@ -762,15 +905,81 @@ interface EncodedModel {
   samples: { label: number; b: string }[];
 }
 
+/** The net's on-disk shape: see the `note` train_digits_cnn.py writes into it. */
+interface EncodedNet {
+  kind: "cnn-28x28";
+  temperature: number;
+  layers: (
+    | { type: "conv"; in: number; out: number; k: number; pad: number; w: string; b: string }
+    | { type: "dense"; in: number; out: number; w: string; b: string }
+    | { type: "relu" }
+    | { type: "maxpool"; k: number }
+    | { type: "flatten" }
+  )[];
+}
+
+function floats(b64: string, expected: number, what: string): Float32Array {
+  const bin = atob(b64);
+  if (bin.length !== expected * 4) throw new Error(`digit model: ${what} has ${bin.length / 4} weights, expected ${expected}`);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const view = new DataView(bytes.buffer);
+  const out = new Float32Array(expected);
+  for (let i = 0; i < expected; i++) out[i] = view.getFloat32(i * 4, true);
+  return out;
+}
+
+/**
+ * Decode the net and walk its shapes once, so a file that does not fit together
+ * fails here -- where `loadDigitModel` turns it into "no digit reader" -- rather
+ * than as a wrong number halfway through a scan.
+ */
+function decodeNet(m: EncodedNet): CnnModel {
+  let c = 1;
+  let h = SIDE;
+  let w = SIDE;
+  const layers: CnnLayer[] = m.layers.map((l, n) => {
+    const at = `layer ${n} (${l.type})`;
+    switch (l.type) {
+      case "conv":
+        if (l.in !== c || 2 * l.pad !== l.k - 1) throw new Error(`digit model: ${at} does not fit its input`);
+        c = l.out;
+        return { ...l, w: floats(l.w, l.out * l.in * l.k * l.k, at), b: floats(l.b, l.out, at) };
+      case "dense":
+        if (l.in !== c * h * w) throw new Error(`digit model: ${at} expects ${l.in} inputs, gets ${c * h * w}`);
+        c = l.out;
+        h = w = 1;
+        return { ...l, w: floats(l.w, l.out * l.in, at), b: floats(l.b, l.out, at) };
+      case "maxpool":
+        h = Math.floor(h / l.k);
+        w = Math.floor(w / l.k);
+        return l;
+      case "flatten":
+        c = c * h * w;
+        h = w = 1;
+        return l;
+      case "relu":
+        return l;
+      default:
+        throw new Error(`digit model: unknown ${at}`);
+    }
+  });
+  if (c * h * w !== 10) throw new Error(`digit model: ends in ${c * h * w} outputs, not 10`);
+  if (!(m.temperature > 0)) throw new Error("digit model: temperature must be positive");
+  return { kind: "cnn", temperature: m.temperature, layers };
+}
+
 /**
  * Turn the shipped JSON into something comparable.
  *
- * The file stores raw bytes because that is a third of the size of the
- * prepared float vectors; the preparation happens here, once, at load. It must
- * be the SAME preparation the query gets, which is why both go through
+ * Either reader can be shipped in the same file, and `kind` says which. The
+ * nearest-neighbour file stores raw bytes because that is a third of the size of
+ * the prepared float vectors; the preparation happens here, once, at load. It
+ * must be the SAME preparation the query gets, which is why both go through
  * `prepare` rather than each having its own.
  */
 export function decodeModel(raw: unknown): DigitModel {
+  if ((raw as { kind?: string } | null)?.kind === "cnn-28x28") return decodeNet(raw as EncodedNet);
   const m = raw as EncodedModel;
   if (!m || !Array.isArray(m.samples)) throw new Error("digit model is not in the expected shape");
 

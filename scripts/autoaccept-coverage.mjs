@@ -49,7 +49,7 @@ const maps = { front: JSON.parse(readFileSync(join(REF, "cells.front.json"), "ut
 const targets = referenceTargets({ front: decodePng(join(REF, "blank-front.png")), back: decodePng(join(REF, "blank-back.png")) }, maps);
 const model = decodeModel(JSON.parse(readFileSync(join(REF, "digit-model.json"), "utf8")));
 
-const THRESHOLDS = [0.99, 0.9, 0.86, 0.8, 0.75, 0.7, 0.6];
+const THRESHOLDS = [0.99, 0.9, 0.86, 0.8, 0.75, 0.7, 0.6, 0.5, 0.45];
 
 for (const arg of process.argv.slice(2)) {
   const dir = existsSync(arg) ? arg : join(ROOT, "out", "pages", arg);

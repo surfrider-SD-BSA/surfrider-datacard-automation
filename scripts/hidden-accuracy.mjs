@@ -23,6 +23,8 @@
  * model has already seen, and no chapter will ever upload one. HOLDOUT=knn
  * reads each scan with the nearest-neighbour model rebuilt from every OTHER
  * event's digits, which is the test a new cleanup next month actually sets.
+ * HOLDOUT=cnn does the same for the convolutional reader, with the per-event
+ * nets `train_digits_cnn.py --folds` writes to out/models/cnn/.
  *
  * Reads every scan under out/pages that has a typed spreadsheet in scans/ (see
  * `matchedPairs` in diagnose-review.mjs). Both are gitignored volunteer data, so
@@ -59,13 +61,21 @@ const HOLDOUT = process.env.HOLDOUT ?? "";
 const shipped = decodeModel(JSON.parse(readFileSync(join(REF, "digit-model.json"), "utf8")));
 const training = HOLDOUT === "knn" ? loadTrainingSet() : [];
 
+const FOLDS = join(ROOT, "out", "models", "cnn");
+
 /** The model this scan is read with: one that never saw it, under HOLDOUT. */
 function modelFor(scan) {
   if (HOLDOUT === "knn") {
-    // k as shipped; the exemplars are already prepared by loadTrainingSet.
-    return { k: shipped.k, exemplars: training.filter((s) => s.source !== scan).map((s) => ({ label: s.label, v: s.bitmap })) };
+    // K=5, as train-digits.mjs ships it; loadTrainingSet has already prepared the exemplars.
+    return { k: 5, exemplars: training.filter((s) => s.source !== scan).map((s) => ({ label: s.label, v: s.bitmap })) };
   }
-  if (HOLDOUT) throw new Error(`HOLDOUT=${HOLDOUT}: expected knn`);
+  if (HOLDOUT === "cnn") {
+    // Written by `train_digits_cnn.py --folds`: one net per event, trained
+    // without it, and _all.json for a scan no event was trained on.
+    const own = join(FOLDS, `${scan}.json`);
+    return decodeModel(JSON.parse(readFileSync(existsSync(own) ? own : join(FOLDS, "_all.json"), "utf8")));
+  }
+  if (HOLDOUT) throw new Error(`HOLDOUT=${HOLDOUT}: expected knn or cnn`);
   return shipped;
 }
 const decodePng = (p) => { const g = PNG.sync.read(readFileSync(p)); return { width: g.width, height: g.height, data: luma(g.data, g.width * g.height) }; };

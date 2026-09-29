@@ -2,7 +2,7 @@
 //  Serving the built web bundle to WKWebView.
 //
 //  Not file:// URLs. The page fetches its reference card, its cell maps and its
-//  3.4MB digit model with `fetch()`, and WKWebView refuses cross-origin fetches
+//  1.4MB digit model with `fetch()`, and WKWebView refuses cross-origin fetches
 //  from file:// -- every one of them fails and the app opens to a tool that
 //  cannot read anything. A custom scheme is treated as a proper origin, so the
 //  same code that works on a web server works here unchanged.
