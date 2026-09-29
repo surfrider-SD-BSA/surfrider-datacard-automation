@@ -5,7 +5,7 @@
 //  reasons.
 //
 //  NOT file:// URLs. The page fetches its reference card, its cell maps and
-//  its 3.4MB digit model with `fetch()`, and a file:// page is an opaque origin
+//  its 1.4MB digit model with `fetch()`, and a file:// page is an opaque origin
 //  that cannot. Android reserves `appassets.androidplatform.net` for exactly
 //  this: a real https origin that never touches the network, answered here
 //  from the APK. The same code that works on a web server works unchanged.

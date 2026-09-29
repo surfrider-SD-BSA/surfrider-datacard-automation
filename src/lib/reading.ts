@@ -100,6 +100,12 @@ export const RECONCILE_DEFAULTS: ReconcileOptions = {
   // most a reading by it alone can ever be worth. Below the tally cap on
   // purpose: one reader that is right 86% of the time should never outrank one
   // that is right 95%.
+  //
+  // Measured on the nearest-neighbour reader, and deliberately left where it
+  // was when the convolutional one replaced it: that net is calibrated against
+  // typed labels that are themselves wrong about one time in five, so its own
+  // top band is not a number to raise a cap on. What AUTO_ACCEPT means at
+  // 0.87 -- every digit-only reading shown -- stays true either way.
   digitsConfidence: 0.86,
 };
 

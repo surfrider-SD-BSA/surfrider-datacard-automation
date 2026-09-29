@@ -594,6 +594,144 @@ the CUTTING went wrong was dropped before a digit was labelled, so 66.3% and
 `scripts/diagnose-segmentation.mjs` measures that step on its own; it had never
 been measured separately.
 
+## Digits: a convolutional net replaces nearest neighbour (28 Sept 2026)
+
+`scripts/train_digits_cnn.py` trains a small CNN -- three convolutions, two dense
+layers, 257,000 weights -- first on MNIST's 70,000 public digits, thinned by a
+2x2 erosion to match pencil, then on the chapter's 3,325. It is shipped in
+`assets/reference/digit-model.json` (`kind: "cnn-28x28"`, 1.4MB where the
+exemplars were 3.5MB) and run by `netLogits` in `src/lib/digits.ts` in plain
+loops: 4.5ms a digit in Node, 5.6ms in Chrome, and identical to PyTorch to
+2e-5 on 300 digits. `decodeModel` still reads the old nearest-neighbour file,
+so `node scripts/train-digits.mjs --emit` puts it back.
+
+**Against the typed labels it barely moves, and that turned out to be the
+finding.** Leave-one-event-out, 72.4% per digit against 71.4%, and its precision
+stops near 90% however confident it gets. Its most confident "mistakes" were
+read by eye and nearly all were the LABEL's: a 5 typed as 2, a 6 as 7, and
+whole events -- oceanside-9.06, imperial-4.16 -- whose cards went into the wrong
+columns. The digit-count check in "How the card-to-column mapping is settled"
+lets most of those through.
+
+So both readers were scored against a sample read by eye: 300 training digits
+drawn at random, the 102 where a reader and the label disagreed read blind.
+It is in `scans/eye-labels/digits-300.json`, gitignored with the volunteer data.
+
+```
+                                      nearest neighbour      CNN
+  typed label wrong for the crop            one in five (59 of 270)
+  right by eye                              83.7%              86.7%
+  wrong by eye, confidence >= 0.45        19 of 232           8 of 228
+  wrong by eye, confidence >= 0.75         5 of 184           0 of 157
+```
+
+End to end, every hidden cell against the typed sheets with each scan read by a
+model that never saw it (`HOLDOUT=knn|cnn` in `hidden-accuracy.mjs`), at 0.45:
+1,109 of 2,772 disagree for nearest neighbour and 939 of 2,623 for the CNN. The
+gap is narrower than by eye because the sheets' own mistakes and every number
+cut apart wrongly count against both readers alike.
+
+**Three things worth knowing before the next attempt.**
+
+*A scan the model was built from is not a test.* The shipped nearest-neighbour
+file holds every labelled digit of every event, so any script that reads those
+scans with it finds each digit at distance zero and reads it right. That is
+what made `hidden-accuracy.mjs` first report 24% where the honest figure is
+40%, and it is why `autoaccept-coverage.mjs` showed the old reader hiding three
+quarters of 1.18 Imperial. Use HOLDOUT, or a scan outside out/training.
+
+*The labels are now the ceiling, not the reader.* Cleaning them by the model's
+own disagreement -- leaving out the 141 it contradicted at 0.8 and retraining --
+measured worse by eye at 0.45 (15 wrong of 237). The fix that would help is
+card-level: a card whose readings match a NEIGHBOURING column far better than
+its own is a typing slip, which is exactly the evidence the fitted drift in the
+section above lacked when all it had was where the ink was.
+
+*`labels-pacific-beach.json` no longer lines up.* Its `card:row` keys match at
+most five values of any card on pacific-9.27 or test-long, so the card
+numbering has moved since it was made; it needs re-keying before it can be the
+held-out test it was meant to be.
+
+## Cutting, not reading: what the wrong hidden numbers actually were (28 Sept 2026)
+
+With the CNN in, 48 hidden cells that disagreed with the sheet (on cards that do
+NOT look column-mismatched) were read by eye, blind. 8 were the sheet's mistake
+and 7 were tallies or scribbles, but 29 were the tool's -- and almost none of
+those were a digit misread. They were numbers CUT wrong before the net saw them:
+
+- **The left margin ate the first digit.** `inkMask` blanked 6% of the width on
+  every side to hide the printed rules, and volunteers write hard against the
+  left rule: 67 became 7, 24 became 4, 13 became 3, 100 became 0.
+- **A rule that registration landed inside that margin survived it** and was
+  read as a 1: a 4 became 11.
+- A 1 written against the next digit is welded onto it by the fragment merge
+  (16 becomes one piece), and tallies drawn IN the number box read as 11 or 111.
+
+`inkMask` now strikes the rules by shape -- a straight run of ink spanning three
+quarters of the box, in its outer fifth -- and keeps a two-pixel margin, and a
+reading made only of 1s is capped below AUTO_ACCEPT like an over-cut one.
+
+Measured end to end with `scripts/reading-accuracy.mjs`: every written cell with
+a typed value (4,096), each scan read by a net that never saw it (the same folds
+`hidden-accuracy.mjs` uses with HOLDOUT=cnn), counting a reading right only when
+it equals the sheet. `--src` reads with another copy of `src/`, which is how two
+versions of the cutter were compared side by side.
+
+```
+                                  as shipped  rules struck  + all-1s shown  + room to read
+  reading equals the sheet           1,841        1,899         1,899           2,006
+  hidden at AUTO_ACCEPT 0.45         2,592        2,643         2,544           2,622
+  ... of which disagree                930          900           820             766
+  ... leaving out mismatched cards   24.0%        22.3%         20.7%           17.1%
+```
+
+**The last column is the crop.** A second blind sample of 48, taken after the
+first two fixes, still had 14 of the tool's 23 errors losing a digit -- and now
+it was the CROP cutting it, not the margin: the printed box ends where a
+volunteer starts writing, so 12 read as 2, 34 as 4, and an 8 with its left half
+outside the crop read as a 3. The reader now gets the same kind of room the
+reviewer is shown (`READ_MARGIN` in extract.ts: a fifth of the box to the left,
+a twentieth to the right, three tenths above and below), and `segmentDigits`
+keeps only the pieces at least a quarter inside the box across with their
+middle on its row, which keeps the tally strip's last strokes and the next
+row's number out. More room was tried and is no better: a third to the left
+2,004 / 771, and 0.45 vertically 1,983 / 777.
+
+**Then a whole 1 is kept apart from its neighbour** -- a third blind sample
+still had "14" read as 4 four times, with the 1 plainly written and nowhere near
+the edge: a 1 is so thin that a 1 and a 4 side by side pass the fragment merge's
+shape test as one digit. It had been tried and rejected before, because it split
+tallies drawn in the box into confident 1s; with every all-1s reading shown, it
+no longer can. 2,041 read right against 2,006, 2,656 hidden against 2,622, 770
+disagree against 766, and 16.5% leaving out mismatched cards against 17.1%.
+
+**Retraining the net on digits cut the new way is NOT a win**, the second time
+this has been measured (see "Regenerating the training set" above). Cutting
+out/training with the app's reading crop gave 3,453 digits instead of 3,325 and
+72.4% -> 75.6% against the typed labels, but end to end it read 2,034 right and
+hid 2,673 with 779 wrong -- 17.3% leaving out mismatches against 16.5%. It is
+bolder, not better: of the cells it hides that the shipped net does not, about
+half are right. So the shipped net stays, and out/training is still cut from the
+bare box, which is what `train_digits_cnn.py` reproduces it from.
+
+**The digit-count measure in `diagnose-segmentation.mjs` could not see any of
+this** -- 73.0% before, 72.9% after -- because what moved is which pieces come
+out, not how many. Judge a cutting change end to end or not at all.
+
+Tried and not kept:
+
+- **Keeping a whole 1 apart from its neighbour** (a straight stroke the full
+  height of the pair). It fixes "16", but splits tallies into confident 1s:
+  15 more cells right, 32 more hidden of which 16 wrong, even when two strokes
+  side by side were left joined. See the comment in `segmentDigits`.
+- **Anything more on the net itself**: three nets averaged, twice the width,
+  twice the epochs. All within noise by eye; the table is in
+  `train_digits_cnn.py`.
+
+Still open: the tallies drawn in the TOTAL box -- 160 cells read as all 1s,
+only 20 of them really 11 or 111 -- are counts that `tally.ts` could read if it
+were pointed at the box. They are shown to a person now, not read.
+
 ## Two readers on one cell
 
 `src/lib/reading.ts` puts the tally count and the digit reading of the same cell
@@ -1053,16 +1191,64 @@ wrong:
                          untried, and is the honest next attempt AFTER the
                          cutting is fixed -- not before, because a better
                          classifier cannot read a digit that was never cut out.
+                         (Tried since, before the cutting, and shipped: see
+                         "a convolutional net replaces nearest neighbour".)
 ```
 
 ## What to do next
 
-The shortest list of what is worth doing, in order:
+As of 29 September 2026, in order. The digit reader and its cutting were
+reworked that week (#68, #69, #70 -- see "a convolutional net replaces nearest
+neighbour" and "Cutting, not reading" above), and most of this list is what that
+work turned up. Every figure below that compares versions came from
+`scripts/reading-accuracy.mjs`.
 
-1. **Digit SEGMENTATION**, measured at 72.8% and capping everything downstream.
-   The largest single lever on how much a volunteer has to type, and it is
-   geometry rather than recognition. See "What it would take" above.
-2. **Ink that crosses a row boundary, in either direction** -- see "Counting the
+1. **Delete the old Google API key once the new iOS build is out.** The key
+   committed in #57 came out of the repository in #65, and a replacement with
+   the same restrictions was created in the Cloud project ("Data Cards picker
+   (2026-09 rotation)"). It is in the gitignored `ios/.env.local`, so the next
+   build uses it. The old key ("Data Cards picker", created 5 Sept) is still
+   live on purpose: every installed build carries it, and deleting it breaks the
+   Drive button until volunteers have the new build. It only works for the
+   Picker API and only from the chapter's own site, so waiting costs little.
+   Once it is deleted, mark the GitGuardian incident resolved.
+2. **The auto-accept threshold is the owner's decision, and the numbers for it
+   are in.** The comment on `AUTO_ACCEPT` in `src/lib/prefill.ts` records what
+   0.45 hides and how often that is wrong. With the current reader, held out,
+   770 of 2,656 hidden cells disagree with the typed sheets, 16.5% on cards
+   that are not column-mismatched. `reading-accuracy.mjs` and
+   `hidden-accuracy.mjs` (HOLDOUT=cnn) are the instruments.
+3. **Count the tallies drawn in the TOTAL box.** Of 160 cells read as all 1s
+   (11, 111, ...), only 20 really were that number; the rest are tally marks the
+   sheet holds as a count (3, 4, 1...). Since #69 they go to a person unread.
+   `tally.ts` already counts strokes in the tally strip; pointing it at the
+   TOTAL box when every piece is a straight stroke would turn most of them into
+   a pre-fill. Judge it end to end, and read the cells it hides by eye.
+4. **A hand-checked answer key big enough to decide recogniser changes.** The
+   typed sheets are wrong for about one digit in five, so they cannot rank two
+   readers that differ by a few per cent, and `scans/eye-labels/digits-300.json`
+   (300 digits read blind) only separates them by a handful of errors. A
+   thousand or so read the same way would settle whether anything more on the
+   net itself is worth doing -- the misreads left are things like 8 as 3, 4 as
+   1, 20 as 70. `assets/reference/labels-pacific-beach.json` could be part of
+   it, but its keys no longer line up with the pipeline's card numbering and it
+   needs re-keying first.
+5. **Catch cards typed into the wrong column, card by card.** Whole events
+   (oceanside-9.06, imperial-4.16) are mostly mislabelled, which poisons the
+   training set and every measure against the sheets. With the net reading
+   every digit, a card whose readings match a NEIGHBOURING column far better
+   than its own is almost certainly a typing slip -- the evidence the fitted
+   drift in "How the card-to-column mapping is settled" did not have. Dropping
+   those cards from training and from the measures is the likeliest next gain
+   for the net itself.
+6. **What still loses a digit after the cutting fixes.** Two digits written
+   touching ("15" arrives as one component -- splitting on width was measured
+   and made things worse, so a fix has to recognise the join), a 1 in faint
+   pencil breaking into specks, and a 7 whose separate top bar is thrown away
+   as a rule. All three were found by the blind sampling described in "Cutting,
+   not reading"; repeat it after any fix, because the digit-count measure in
+   `diagnose-segmentation.mjs` cannot see this kind of change.
+7. **Ink that crosses a row boundary, in either direction** -- see "Counting the
    tallies" above. A tally continuing onto the next row is the dominant error in
    the counter and the thing standing between it and the counts above five,
    which is where most of the volume is. The pre-fill audit of 2026-08-13 found
@@ -1072,19 +1258,24 @@ The shortest list of what is worth doing, in order:
    three remaining wrong pre-fills are this. One mechanism answers both: follow
    each stroke's own line into the context above and below and refuse the
    reading where the ink carries on.
-3. **The 131 cells the review list still offers with nothing in them** -- see
+8. **The 131 cells the review list still offers with nothing in them** -- see
    "What is still on the list that should not be" below. Another quarter of a
    reviewer's time, and the remaining noise is a different kind from the ruling
    that has been dealt with.
-4. **Memory**, under "Also outstanding". A 114-page scan peaks near 840MB
+9. **Memory**, under "Also outstanding". A 114-page scan peaks near 840MB
    because every page is kept at full resolution; cropping and discarding would
    make it a few MB. This is the thing most likely to make the tool fail on
    somebody else's laptop.
-5. ~~**Counting tallies.**~~ Built; see above.
 
-Digit recognition is NOT on that list, for the reasons immediately below.
+Measured that week and not worth repeating: three nets averaged, a net twice as
+wide, twice the epochs, retraining on digits cut the new way, more room to read
+than `READ_MARGIN`, and cleaning labels by the net's own disagreement. The
+numbers are in `train_digits_cnn.py`'s docstring and the two sections above.
 
-**Recognition is built and measured, and is not good enough to ship.**
+**Everything from here to the end of this section is the history of the
+nearest-neighbour reader**, kept for its measurements. The reader that ships is
+the CNN.
+
 `scripts/label-from-spreadsheet.mjs` turns a matched pair into labelled digits
 with no hand-labelling, and `scripts/train-digits.mjs` measures what they buy:
 

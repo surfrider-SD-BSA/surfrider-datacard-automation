@@ -152,11 +152,9 @@ function cropRegion(total: Rect, tally: Rect, page: GrayImage): Rect {
  * row, so this costs no new pixels and no new work, only the decision to show
  * them. 0.3 of a 58px box is about 17px, which is what the overhang measures.
  *
- * THIS IS THE VIEW ONLY. `readDigits` still reads `cell.total` exactly, because
- * every segmentation and accuracy figure in HANDOFF.md was measured on that
- * rectangle and widening it silently would invalidate all of them. Whether the
- * reader should get the same room is a real question and a separate, measured
- * one.
+ * This was the view only at first, because every segmentation and accuracy
+ * figure in HANDOFF.md had been measured on the bare box. The reader has since
+ * been given room too, measured separately: see `READ_MARGIN`.
  */
 const VIEW_MARGIN = 0.3;
 
@@ -189,6 +187,44 @@ const rebase = (r: Rect, origin: Rect): Rect => ({
   height: r.height,
 });
 
+/**
+ * Room the digit READER gets around the TOTAL box, as shares of the box.
+ *
+ * The question `VIEW_MARGIN` left open, measured. Handwriting is not confined to
+ * the printed box, and read by eye, the commonest way a hidden number came out
+ * wrong was its first digit cut by the crop -- a volunteer starts on the left
+ * rule, so 12 read as 2, 34 as 4, and an 8 with its left half cut off as a 3.
+ * The reader now gets the room to the left, a little to the right and the same
+ * overhang above and below that the reviewer sees; `segmentDigits` keeps only
+ * the pieces that belong to the box, so the tally strip's last strokes and the
+ * next row's number stay out.
+ */
+const READ_MARGIN = { left: 0.2, right: 0.05, vertical: VIEW_MARGIN };
+
+/** The crop the digit reader is given, and where the printed box sits inside it. */
+function readingCrop(image: GrayImage, total: Rect): { crop: GrayImage; box: Rect } {
+  const rect = {
+    x: total.x - total.width * READ_MARGIN.left,
+    y: total.y - total.height * READ_MARGIN.vertical,
+    width: total.width * (1 + READ_MARGIN.left + READ_MARGIN.right),
+    height: total.height * (1 + 2 * READ_MARGIN.vertical),
+  };
+  const crop = cropGray(image, rect);
+  // cropGray rounds and clamps to the page, so the box is placed against where
+  // the crop actually starts.
+  const x0 = Math.max(0, Math.round(rect.x));
+  const y0 = Math.max(0, Math.round(rect.y));
+  return {
+    crop,
+    box: {
+      x: Math.round(total.x) - x0,
+      y: Math.round(total.y) - y0,
+      width: Math.round(total.width),
+      height: Math.round(total.height),
+    },
+  };
+}
+
 export function cellsForSide(
   image: GrayImage,
   pageNumber: number,
@@ -198,8 +234,8 @@ export function cellsForSide(
    * The digit model, or null to leave the TOTAL box unread.
    *
    * Optional because every offline script that cuts cells wants the geometry
-   * and not the reading, and loading 3,325 exemplars to throw them away is
-   * pure cost.
+   * and not the reading, and loading the digit model to throw it away is pure
+   * cost.
    */
   model: DigitModel | null = null,
 ): ExtractedCell[] {
@@ -268,7 +304,8 @@ export function cellsForSide(
     // EMPTY, this one only where it holds something. No cell is ever read
     // twice by the same reader, and a cell with both is what reconcile() is
     // for.
-    const digitReading = model && hasValue ? readDigits(cropGray(image, cell.total), model) : null;
+    const reading = model && hasValue ? readingCrop(image, cell.total) : null;
+    const digitReading = model && reading ? readDigits(reading.crop, model, reading.box) : null;
 
     // A strip the counter refused, counted anyway where there were strokes to
     // count. The instruction is that every box arrives filled in; `salvageCount`

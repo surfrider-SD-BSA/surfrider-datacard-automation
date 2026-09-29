@@ -113,7 +113,7 @@ async function loadReferenceImage(url: string): Promise<GrayImage> {
  *
  * Null is a supported state and not an error path: the tally counter needs
  * nothing fetched, and a scan is still worth reviewing without the digits. A
- * 3.4MB read failing on a phone at a beach is a thing that will happen, and
+ * 1.4MB read failing on a phone at a beach is a thing that will happen, and
  * when it does the app should quietly do less rather than refuse to open.
  */
 async function loadDigitModel(): Promise<DigitModel | null> {
