@@ -49,6 +49,11 @@ count as breaking.
 
 ### Added
 
+- **A version number at the foot of both apps' first screen**, "Version #72": `#` and the newest
+  pull request in the code the app was built from. `sync-web.sh` works it out from the git history
+  with `scripts/app-version.sh` and writes it into the app's bundle on every build, so it counts
+  up by itself; a build made without the sync step shows none rather than a wrong one.
+
 - **Tally for Android** (`android/`). The iOS app's eight screens, screen for screen and word for
   word, in Jetpack Compose, driving the same `src/engine.ts` in a headless WebView — there is still
   one implementation of the reading and one set of measurements. The only change on the web side

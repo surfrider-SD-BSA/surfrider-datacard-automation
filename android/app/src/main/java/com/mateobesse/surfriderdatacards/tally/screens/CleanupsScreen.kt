@@ -25,8 +25,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mateobesse.surfriderdatacards.tally.BottomClearance
@@ -46,6 +48,7 @@ import com.mateobesse.surfriderdatacards.tally.TintedPanel
 import com.mateobesse.surfriderdatacards.tally.WithPinnedActions
 import com.mateobesse.surfriderdatacards.tally.pageMargin
 import com.mateobesse.surfriderdatacards.tally.shortDate
+import org.json.JSONObject
 
 @Composable
 fun CleanupsScreen(model: TallyModel) {
@@ -72,11 +75,23 @@ fun CleanupsScreen(model: TallyModel) {
         // short. iOS 26 separates the two with its soft scroll edge; there is
         // no such thing here, so the ground fade in WithPinnedActions does it --
         // the same answer iOS gives below 26.
+        val version = rememberAppVersion()
         WithPinnedActions(
             actions = {
                 PrimaryButton(onClick = { model.startNewCleanup() }) {
                     ButtonIcon(Nocturne.Icon.add)
                     Text("Start a cleanup")
+                }
+
+                // Which build this is, for whoever is asked "what version are
+                // you on?" -- a volunteer reading it out, or someone matching
+                // a screenshot to a change. See rememberAppVersion.
+                if (version != null) {
+                    Text(
+                        "Version $version",
+                        style = Nocturne.Face.label(11),
+                        color = Nocturne.text(40),
+                    )
                 }
             },
         ) { clearance ->
@@ -252,5 +267,25 @@ private fun EventRow(event: FinishedEvent) {
                 modifier = Modifier.size(22.dp),
             )
         }
+    }
+}
+
+/**
+ * The version at the foot of this screen: "#72", the newest pull request in the
+ * code this app was built from.
+ *
+ * `AppVersion` in CleanupsScreen.swift, for Android. Read from web/version.json,
+ * which sync-web.sh writes into the assets with scripts/app-version.sh on every
+ * build -- so it is whatever the build actually contains, and counts up with
+ * nothing to remember to bump. Null, and nothing shown, if the file is missing:
+ * a build that skipped the sync step has no honest number to give.
+ */
+@Composable
+private fun rememberAppVersion(): String? {
+    val assets = LocalContext.current.assets
+    return remember {
+        runCatching {
+            assets.open("web/version.json").bufferedReader().use { JSONObject(it.readText()).optString("version") }
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
     }
 }

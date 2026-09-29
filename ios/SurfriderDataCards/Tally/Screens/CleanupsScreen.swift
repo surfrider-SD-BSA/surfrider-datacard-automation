@@ -52,15 +52,26 @@ struct CleanupsScreen: View {
             // the two; below it, the ground fade in `pinnedActions` does.
             .softScrollEdges()
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                Button {
-                    model.startNewCleanup()
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: Nocturne.Icon.add)
-                        Text("Start a cleanup")
+                VStack(spacing: 10) {
+                    Button {
+                        model.startNewCleanup()
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: Nocturne.Icon.add)
+                            Text("Start a cleanup")
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+
+                    // Which build this is, for whoever is asked "what version
+                    // are you on?" -- a volunteer reading it out, or someone
+                    // matching a screenshot to a change. See AppVersion.
+                    if let version = AppVersion.label {
+                        Text("Version \(version)")
+                            .font(Nocturne.Face.label(11))
+                            .foregroundStyle(Nocturne.text(40))
                     }
                 }
-                .buttonStyle(PrimaryButtonStyle())
                 .pinnedActions()
             }
         }
@@ -134,4 +145,28 @@ struct CleanupsScreen: View {
             .padding(.horizontal, 15)
         }
     }
+}
+
+// MARK: - Version
+
+/// The version at the foot of this screen: "#72", the newest pull request in
+/// the code this app was built from.
+///
+/// Read from `web/version.json`, which `sync-web.sh` writes into the bundle
+/// with scripts/app-version.sh on every build -- so it is whatever the build
+/// actually contains, and counts up with nothing to remember to bump. Nil, and
+/// nothing shown, if the file is missing: a build that skipped the sync step
+/// has no honest number to give.
+enum AppVersion {
+    static let label: String? = {
+        guard
+            let url = Bundle.main.url(forResource: "web", withExtension: nil)?
+                .appendingPathComponent("version.json"),
+            let data = try? Data(contentsOf: url),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let version = json["version"] as? String,
+            !version.isEmpty
+        else { return nil }
+        return version
+    }()
 }
