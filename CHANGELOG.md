@@ -17,6 +17,9 @@ count as breaking.
   gets room around the box, keeps only the ink that belongs to it, and removes the printed lines
   by their shape. Measured on every scan, each read by a model that never saw it: 165 more cells
   read right, and 164 fewer wrong numbers taken off the review list (766 against 930).
+- **A 1 written close to the next digit is read as its own digit.** A 1 is so thin that "14" or
+  "12" still looked like one digit to the cutter, and was read — confidently — as 4 or 2. Measured
+  the same way: 35 more cells read right, and of the 34 more taken off the review list, 30 right.
 - **A reading made only of 1s (11, 111, …) is always shown to a person.** It is usually tally
   marks drawn in the number box: of 99 such readings that were being taken as the answer, 80 were
   wrong.
