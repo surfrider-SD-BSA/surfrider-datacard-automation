@@ -209,14 +209,36 @@ export const PREFILL_GATE = 0;
  * six or seven wrong: about 26, 60 and 47 wrong values per scan, each reaching
  * the spreadsheet unseen.
  *
- * THE CELLS THIS THRESHOLD ADDS SIT BELOW BOTH MEASURED BANDS. Their precision
- * is not in that table and nobody has counted it, so the honest statement is
- * that between 0.45 and 0.75 lie the reader's least confident answers and how
- * often they are right is unknown. The number of wrong hidden values per scan is
- * therefore higher than the figures above, by an amount this project has not
- * measured. `audit-prefills.mjs` renders every filled cell to be counted by eye,
- * and counting them at this setting is the measurement this comment cannot make
- * for you. It is worth making before a chapter files a spreadsheet from it.
+ * THE CELLS THIS THRESHOLD ADDS SIT BELOW BOTH MEASURED BANDS, so that table
+ * says nothing about them. They have since been counted two ways, and the two
+ * bound the answer from either side (28 September 2026).
+ *
+ * Against the spreadsheets the chapter typed from the same scans, with
+ * `hidden-accuracy.mjs` and each scan read by a model rebuilt WITHOUT its own
+ * digits (HOLDOUT=knn). The shipped model cannot be used for this: it holds the
+ * labelled digits of these very scans, finds each one at distance zero, and
+ * scores 24% where the honest figure is 40%.
+ *
+ *   thresh   hidden cells the     disagree with      leaving out cards that
+ *            sheet has a number   the typed value    look column-mismatched
+ *   0.75        2,005             675  33.7%         383 of 1,678  22.8%
+ *   0.45        2,772           1,109  40.0%         583 of 2,168  26.9%
+ *
+ * The 0.75 cells are a subset of the 0.45 ones, so the cells this setting added
+ * are the difference: 767, of which 434 disagree with the sheet -- more than half.
+ * That is an UPPER bound, because the sheets are not ground truth. Read by eye,
+ * a random 300 of the training digits -- labelled from the same sheets -- had
+ * the wrong label about one time in five: a typing slip, a card in the wrong
+ * column, or a crop that was never one digit.
+ *
+ * By eye, on those 300 digits, this reader is wrong on 19 of the 232 it answers
+ * above 0.45 and 5 of the 184 above 0.75: 14 of the 48 between them, about
+ * THREE IN TEN. That is a LOWER bound, because it only sees digits that were cut
+ * out cleanly, and a cell cut wrong reads wrong whatever the reader does.
+ *
+ * So somewhere between three in ten and more than half of what this setting
+ * added goes into the chapter's spreadsheet wrong and unseen. That band is the
+ * thing to weigh before a chapter files a spreadsheet from this setting.
  *
  * They are still exported as `recognized` with their confidence rather than as
  * `human`, so the chapter's audit column can find them afterwards; that is the

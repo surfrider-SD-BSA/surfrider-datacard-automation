@@ -9,10 +9,11 @@
  * spreadsheet with nobody having looked at the handwriting.
  *
  * It deliberately does not say whether those readings are RIGHT. For that use
- * `audit-prefills.mjs`, which renders each filled cell to be counted by eye,
- * and the digit precision table in HANDOFF.md. Read the two together: this
- * script's "hidden" column times that table's error rate is the number of
- * wrong values a scan ships unseen.
+ * `hidden-accuracy.mjs`, which checks the hidden cells against the spreadsheets
+ * the chapter typed by hand; `audit-prefills.mjs`, which renders each filled
+ * cell to be counted by eye; and the digit precision table in HANDOFF.md. Read
+ * them together: this script's "hidden" column times the error rate is the
+ * number of wrong values a scan ships unseen.
  *
  * Usage:
  *   npx vite-node scripts/autoaccept-coverage.mjs -- test-long pacific-3.22
