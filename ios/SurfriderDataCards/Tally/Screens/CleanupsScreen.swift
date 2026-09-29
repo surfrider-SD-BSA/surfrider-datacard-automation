@@ -62,6 +62,20 @@ struct CleanupsScreen: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .pinnedActions()
+                // Which build this is, for whoever is asked "what version are
+                // you on?" -- a volunteer reading it out, or someone matching a
+                // screenshot to a change. See AppVersion. Down in the strip
+                // under the button, just above the home indicator, so the
+                // button stays exactly where it was and the number reads as a
+                // footnote rather than part of the action. This screen only.
+                .overlay(alignment: .bottom) {
+                    if let version = AppVersion.label {
+                        Text("Version \(version)")
+                            .font(Nocturne.Face.label(11))
+                            .foregroundStyle(Nocturne.text(40))
+                            .padding(.bottom, 4)
+                    }
+                }
             }
         }
     }
@@ -134,4 +148,28 @@ struct CleanupsScreen: View {
             .padding(.horizontal, 15)
         }
     }
+}
+
+// MARK: - Version
+
+/// The version at the foot of this screen: "#73", the newest pull request in
+/// the code this app was built from.
+///
+/// Read from `web/version.json`, which `sync-web.sh` writes into the bundle
+/// with scripts/app-version.sh on every build -- so it is whatever the build
+/// actually contains, and counts up with nothing to remember to bump. Nil, and
+/// nothing shown, if the file is missing: a build that skipped the sync step
+/// has no honest number to give.
+enum AppVersion {
+    static let label: String? = {
+        guard
+            let url = Bundle.main.url(forResource: "web", withExtension: nil)?
+                .appendingPathComponent("version.json"),
+            let data = try? Data(contentsOf: url),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let version = json["version"] as? String,
+            !version.isEmpty
+        else { return nil }
+        return version
+    }()
 }
