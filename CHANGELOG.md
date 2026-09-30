@@ -11,6 +11,16 @@ count as breaking.
 
 ### Changed
 
+- **Tally marks drawn in the number box are counted, not read as 111.** Some volunteers draw
+  their tally in the TOTAL box, and the digit reader took each stroke for a 1: "|||" arrived in
+  the box as 111. Where it reads nothing but 1s and the tally space beside the box is empty, the
+  strokes are now counted instead, and three or more become the count. Across every scan that
+  changes 39 boxes, all of which held 11 or 111. Read by eye, and again blind by three independent
+  readers, 37 now hold the right number and 2 are a stroke short. In both apps they are still shown
+  on the review screen, tagged "counted: check it", because three uprights in the box are
+  occasionally the number 111. Two uprights are left as 11: by the chapter's own sheets they are an
+  eleven as often as a two.
+
 - **Numbers written against the box's left edge keep their first digit.** The digit reader used
   to see only the printed TOTAL box, minus a margin blanked to hide its lines, and a number
   started on the left line lost its first digit — 67 read as 7, 24 as 4, a half-cut 8 as 3. It now
@@ -48,6 +58,15 @@ count as breaking.
   is the thing to do before a chapter files a cleanup from this setting.
 
 ### Added
+
+- **`scripts/cell-cache.mjs` and `reading-accuracy.mjs --cache`.** The end-to-end measure spent
+  almost all of its eight minutes registering pages that do not change between two versions of a
+  reader. The cache registers every matched scan once and keeps each offered cell with a margin
+  around it; `--cache` then gives the same figures in under a minute, and the same cells: none of
+  the 7,180 differ from a whole-page run.
+- **`scripts/audit-box-tallies.mjs` and `eye-labels/box-tallies.json`**: the 277 boxes read as
+  all 1s, read by eye, and the instrument that scores the box counter against them and lists any
+  box the labels do not cover yet.
 
 - **A version number at the foot of both apps' first screen**, "Version #73": `#` and the newest
   pull request in the code the app was built from. `sync-web.sh` works it out from the git history
