@@ -189,3 +189,69 @@ describe("tally marks drawn in the TOTAL box", () => {
     expect(found!.digitValue).toBe(111);
   });
 });
+
+describe("a 1 made of printing or a pen line, not a digit", () => {
+  // The same stand-in reader: every piece is a confident 1.
+  const b64 = (values: number[]) => {
+    let out = "";
+    for (const b of new Uint8Array(new Float32Array(values).buffer)) out += String.fromCharCode(b);
+    return btoa(out);
+  };
+  const readsOnes = decodeModel({
+    kind: "cnn-28x28",
+    temperature: 1,
+    layers: [
+      { type: "flatten" },
+      { type: "dense", in: 784, out: 10, w: b64(new Array(7840).fill(0)), b: b64([0, 20, 0, 0, 0, 0, 0, 0, 0, 0]) },
+    ],
+  });
+
+  const row = map.cells[20]!.row;
+  const { total } = map.cells.find((c) => c.row === row)!;
+
+  /**
+   * One upright in the TOTAL box, `half` pixels either side of x, from `top` to
+   * `bottom`, between the card's printed rules. Without the rules a lone stroke
+   * is too little of the crop to set an ink threshold by, and is read as light
+   * pencil.
+   */
+  function page(half: number, top: number, bottom: number): GrayImage {
+    const { width, height } = map.referenceSize;
+    const data = new Uint8Array(width * height).fill(248);
+    for (const ry of [total.y, total.y + total.height]) {
+      for (let y = Math.round(ry) - 1; y <= Math.round(ry); y++) {
+        for (let x = Math.round(total.x - total.width); x < total.x + total.width * 1.5; x++) data[y * width + x] = 150;
+      }
+    }
+    const x = Math.round(total.x + total.width / 2);
+    for (let y = Math.round(top); y < bottom; y++) {
+      for (let dx = -half; dx <= half; dx++) data[y * width + x + dx] = 60;
+    }
+    return { width, height, data };
+  }
+  const read = (img: GrayImage) => {
+    const [found] = cellsForSide(img, 1, map, "front", readsOnes).filter((c) => c.row === row);
+    return prefillFor(found!);
+  };
+
+  it("takes a 1 written in the box as read", () => {
+    const reading = read(page(1, total.y + 8, total.y + total.height - 8));
+    expect(reading.value).toBe(1);
+    expect(isAutoAccepted(reading)).toBe(true);
+  });
+
+  it("shows a 1 that is one stretch of a line drawn down the column", () => {
+    // Two volunteers struck out their TOTAL column like this, and every box
+    // along it read as a confident 1.
+    const reading = read(page(1, total.y - total.height, total.y + 2 * total.height));
+    expect(reading.value).toBe(1);
+    expect(isAutoAccepted(reading)).toBe(false);
+  });
+
+  it("shows a 1 that is a solid block of ink", () => {
+    // A printed band at the box's edge, or a torn patch of card.
+    const reading = read(page(4, total.y + 8, total.y + total.height - 8));
+    expect(reading.value).toBe(1);
+    expect(isAutoAccepted(reading)).toBe(false);
+  });
+});

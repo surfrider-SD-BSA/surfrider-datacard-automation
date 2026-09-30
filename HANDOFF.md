@@ -854,7 +854,8 @@ the shape test, and the digit reader rightly finds nothing.
 band at the box's right edge read as 1 at 0.84 (test-long cards 13 and 14, row
 71), one a smudge read as 2, one a printed line inside the box read as 1. Those
 reach the spreadsheet unseen. Across the 28 scans the same thing is a column of
-them: see item 1 of "What to do next", where it is measured and half built.
+them. The printed band and line, and the struck-out columns, are shown since 30
+September: see B under "What to do next".
 
 **Light pencil was invisible to the digit reader, and that is fixed.** Of the
 placeholder boxes that do hold writing, several were plainly legible numbers
@@ -1373,34 +1374,32 @@ A. **Check #74 and #76 in the iOS app, which matters at least as much as
    "read: check it". `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`
    in front of `xcodebuild` / `xcrun simctl` works without the switch.
 
-B. **Numbers made out of printing, taken as read -- measured, prototyped, not
-   shipped.** A "1" that is really a line drawn down the whole TOTAL column (two
-   volunteers struck out their column: imperial-3.15 card 21, oceanbeach-9.06
-   card 17), a printed line inside the box (imperial-1.18 cards 20 and 21), a
-   printed band at the box's edge (test-long row 71), or a torn patch of card, is
-   read as 1 at 0.5-0.85 and hidden. Two checks, each only capping a "1" at
-   `OVERSEGMENTED_CONFIDENCE` so a person sees it -- no value changes:
+B. **Numbers made out of printing, taken as read -- shipped (30 Sept).** A "1"
+   that is really a line drawn down the whole TOTAL column (two volunteers struck
+   out their column: imperial-3.15 card 21, oceanbeach-9.06 card 17), a printed
+   line inside the box (imperial-1.18 cards 20 and 21), a printed band at the
+   box's edge (test-long row 71) or a torn patch of card was read as 1 at 0.5-0.85
+   and hidden. Two checks now cap such a "1" at `OVERSEGMENTED_CONFIDENCE` so a
+   person sees it; no value changes.
 
-   - *A line down the column* (in `extract.ts`, which has the page): from ink in
-     the inner 60% of the box's width on its middle row, follow the stroke up and
-     down row by row, two pixels of drift and three rows of gap allowed; a stroke
-     spanning 2.5 box heights within one box height above and below is a line.
-     One box height is all the cell cache keeps, which is why it is not 1.5.
-   - *A solid block* (in `readDigits`): one piece, ink over 85% of its bounding
-     box, 8 pixels wide or more.
+   - *A line down the column* (`lineDownTheColumn` in `extract.ts`, which has the
+     page): from the piece `readDigits` read as "1" -- now returned as `piece` --
+     follow the stroke up and down row by row, two pixels of drift and three rows
+     of gap allowed; 2.5 box heights within one box height above and below is a
+     line. Traced from the piece, not from any ink in the box, which was the
+     prototype's mistake: on test-long 27:63 a real "1" beside the card's own
+     printed line was blamed for it. It no longer is.
+   - *A solid block* (`solidBlock` in `digits.ts`): one piece at least 6 pixels
+     wide and 85% ink. The prototype's 8 pixels missed test-long 14:71, a band 6
+     wide at 0.99; keying on solidity alone (5 pixels at 0.95) showed a real 1 in
+     marker instead (seaport-8.23 16:110). Width stays in the rule.
 
-   Measured with `reading-accuracy.mjs --cache`: hidden 2,656 -> 2,640 and
-   disagreeing 770 -> 754 -- all 16 boxes pulled back into view were phantoms,
-   read by eye (renders in the session's notes: the 13 struck-out rows, two
-   printed lines, the torn card), and nothing read right moved. Two refinements
-   before shipping, both found on the test scan: trace from the PIECE read as
-   "1", not from any ink in the band -- on test-long 27:63 a real "1" sits beside
-   the card's own printed line and was pulled into view by it; and key the block
-   check on solidity (the second band, 14:71, is 6 px wide at fill 0.99, under
-   the 8 px bar). The prototype is in the gitignored `out/exp/srcC/`
-   (`lineDownTheColumn` in `lib/extract.ts`, the `solid` test in `lib/digits.ts`),
-   with `out/exp/ra-line.mjs` to run it; note the shell is zsh, which does not
-   word-split `$var`, so set each switch explicitly.
+   Measured with `reading-accuracy.mjs --cache`: hidden 2,656 -> 2,638 and
+   disagreeing 770 -> 752. All 19 boxes pulled into view are phantoms by eye --
+   14 struck out, 3 printed lines, the torn card (oceanbeach-8.02 11:23) and a
+   stray tick (tamarack-8.13 4:38) -- and none was typed as 1. On the test scan
+   (`out/exp/emptyshown.mjs`) it shows 13:71, 14:71 and 27:77, all blank by eye,
+   and nothing written moves.
 
 As of 29 September 2026, in order. The digit reader and its cutting were
 reworked that week (#68, #69, #70 -- see "a convolutional net replaces nearest
