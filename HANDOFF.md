@@ -19,7 +19,7 @@ State of the project, what is proven, and what to do next.
 | The web app | Runs end to end: drop a PDF, review crops, download the spreadsheet. |
 | The export, end to end | 61 values typed into the running app on a real scan come back out of the downloaded file in the right cell, all 61. Pinned in CI as well: every one of the 83 items across five cards, including the last volunteer column. |
 
-119 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
+207 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
 
 ## Registration: fixed
 
@@ -728,9 +728,105 @@ Tried and not kept:
   twice the epochs. All within noise by eye; the table is in
   `train_digits_cnn.py`.
 
-Still open: the tallies drawn in the TOTAL box -- 160 cells read as all 1s,
-only 20 of them really 11 or 111 -- are counts that `tally.ts` could read if it
-were pointed at the box. They are shown to a person now, not read.
+Still open at the time: the tallies drawn in the TOTAL box -- 160 cells read
+as all 1s, only 20 of them really 11 or 111. Done since, and the premise
+turned out to be half right; see the next section.
+
+## Tally marks drawn in the TOTAL box (29 Sept 2026)
+
+Some volunteers draw the tally in the TOTAL box instead of the strip beside it,
+and the digit reader takes each stroke for a 1, so "|||" arrived as 111.
+`countBoxTally` in `tally.ts` now counts those strokes. `extract.ts` asks it only
+about a box the digit reader read as nothing but 1s, and only when the tally
+strip beside the box is empty. When it counts three or more, the count replaces
+the digit reading. It is tagged "counted: check it" and stays below
+`AUTO_ACCEPT`, so a person always sees it.
+
+**The spreadsheets overstated what was there, so every box was read by eye.**
+The note above counted 140 of 160 all-1s readings as tallies because the sheet
+held a small number for them. Reading all 277 such boxes (176 with a typed
+value) at 1x, and the unclear ones again at 2x-3x, gives a less tidy picture:
+
+```
+  a tally of three or more strokes          97   (64 with the strip beside it empty)
+  a tally of two, with a 2 written beside it  9
+  two uprights: a 2 or an eleven             78
+  a number the cutting broke into 1s         32   14, 41, 10, a 4 written open
+  a tally and a number in the same box       12
+  unclear: scribbles, a tally run on         49
+    from the strip, the edge of a word
+```
+
+The labels are in `eye-labels/box-tallies.json`.
+
+**Two uprights are left as they are, as 11.** By the chapter's own sheets they
+are an eleven as often as a two (22 against 23), and nothing in the ink tells
+the two apart. The counter declines them outright.
+
+**Measured end to end.** Across all 28 scans the change touches 39 boxes, all
+of which said 11 or 111 before. Each was read by eye, and then read again blind
+by three independent readers, with any disagreement adjudicated on a 4x crop:
+
+```
+  counted right, all three blind readers agree       35
+  counted right, disputed                             2   the sheet and the first reading say 3;
+                                                          a reader saw a 41, or a fourth stroke
+                                                          drawn over the third
+  a stroke short                                      2   a faint stroke on the printed edge,
+                                                          below the ink threshold; two strokes
+                                                          that touch, taken as one
+```
+
+Both errors undercount by one, beside a picture of the strokes.
+
+`reading-accuracy.mjs`: 2,060 cells read as the sheet has them, up from 2,041.
+Hidden cells are unchanged at 2,656, with 770 disagreeing with the sheet,
+because none of these counts is hidden.
+
+**Why they are shown rather than hidden.** 37 of 39 is about the strip
+counter's precision, and the strip counter's readings are hidden. But the
+risk is not the same. Three strokes in the box where a number goes are
+occasionally the number 111: one box of the 277, oceanbeach-9.13:3:18, was typed
+up that way. The whole gain is a correct number in the box, and a person
+confirming it costs a glance, not a keystroke. `BOX_TALLY_CONFIDENCE` is the one
+number to change if the chapter wants them off the list.
+
+**Four things that did not work, each measured against the eye labels.**
+
+- *`countTally` pointed at the printed box.* It answered 33 of the 97 tallies
+  and got 15 wrong. Its rule test looks for ink in the rows above and below the
+  strip, and it did not find the box's left edge. So the edge was read as a
+  stroke running off the strip, which was its commonest reason to decline.
+- *The digit reader's rule strike.* It removes a straight run most of the box
+  tall near either side, which is right for a number and wrong for a tally: a
+  stroke drawn beside the edge went with it, and a four read as three.
+  `countBoxTally` finds the printed sides by what only they do -- carry on
+  through the rows above and below.
+- *Counting when the strip holds marks too.* 20 more answers, 7 of them wrong
+  or unsettled: a tally run on from the strip and counted from the box alone, a
+  10 counted as three strokes, two miscounts, and three boxes nobody could
+  settle. Where the strip holds the NUMBER and the box holds the tally, counting
+  the box alone is right -- which is why the next step is to read that number,
+  not to count those boxes blind.
+- *The strip's length tolerance.* At 1.9 a short mark in the margin passed as a
+  third stroke beside "11". The box uses 1.5.
+
+**What is left.** 33 of the 97 tallies sit beside a strip that holds marks.
+Mostly that strip holds the NUMBER, with the tally drawn in the box ("3 |||").
+Reading that number and requiring it to agree with the count would be two
+independent readers agreeing, which is the strongest evidence this tool has.
+It is not done. Crossed fives in the box that the digit reader reads as some
+other digit are outside this population altogether.
+
+```bash
+npx vite-node scripts/cell-cache.mjs                        # once: ~6 minutes
+npx vite-node scripts/audit-box-tallies.mjs -- --show       # score, and render the counted boxes
+npx vite-node scripts/reading-accuracy.mjs -- --cache       # the end-to-end figures in under a minute
+```
+
+`audit-box-tallies.mjs` lists any all-1s box the labels do not cover. A change to
+the digit reader or its cutting moves which boxes come out as 1s, and those
+boxes need reading before its figures mean anything.
 
 ## Two readers on one cell
 
@@ -1218,12 +1314,11 @@ work turned up. Every figure below that compares versions came from
    770 of 2,656 hidden cells disagree with the typed sheets, 16.5% on cards
    that are not column-mismatched. `reading-accuracy.mjs` and
    `hidden-accuracy.mjs` (HOLDOUT=cnn) are the instruments.
-3. **Count the tallies drawn in the TOTAL box.** Of 160 cells read as all 1s
-   (11, 111, ...), only 20 really were that number; the rest are tally marks the
-   sheet holds as a count (3, 4, 1...). Since #69 they go to a person unread.
-   `tally.ts` already counts strokes in the tally strip; pointing it at the
-   TOTAL box when every piece is a straight stroke would turn most of them into
-   a pre-fill. Judge it end to end, and read the cells it hides by eye.
+3. **Read the number in the strip when the tally is in the box.** Done for
+   tallies in the TOTAL box whose strip is empty -- see "Tally marks drawn in
+   the TOTAL box". 33 more are drawn beside a strip that usually holds the
+   number itself ("3 |||"). Read that number and accept the box's count only
+   where the two agree. 78 boxes of two uprights stay with a person either way.
 4. **A hand-checked answer key big enough to decide recogniser changes.** The
    typed sheets are wrong for about one digit in five, so they cannot rank two
    readers that differ by a few per cent, and `scans/eye-labels/digits-300.json`
@@ -1262,10 +1357,6 @@ work turned up. Every figure below that compares versions came from
    "What is still on the list that should not be" below. Another quarter of a
    reviewer's time, and the remaining noise is a different kind from the ruling
    that has been dealt with.
-9. **Memory**, under "Also outstanding". A 114-page scan peaks near 840MB
-   because every page is kept at full resolution; cropping and discarding would
-   make it a few MB. This is the thing most likely to make the tool fail on
-   somebody else's laptop.
 
 Measured that week and not worth repeating: three nets averaged, a net twice as
 wide, twice the epochs, retraining on digits cut the new way, more room to read

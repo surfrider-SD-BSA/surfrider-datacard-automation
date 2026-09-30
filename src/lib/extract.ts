@@ -12,7 +12,7 @@ import type { CellMap, Rect } from "./cells";
 import { readDigits, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
 import { boxMarked, cropGray, stripMarked } from "./marks";
-import { countTally, salvageCount } from "./tally";
+import { countBoxTally, countTally, salvageCount } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
 import { itemForRow, type CardSide } from "./taxonomy";
 
@@ -52,17 +52,26 @@ export interface ExtractedCell {
   /** True when there are tally marks but no numeric total. */
   tallyOnly: boolean;
   /**
-   * The tally strip counted, or null when the counter declined.
+   * What the digit recognizer read in the TOTAL box, if it read one.
+   *
+   * Null as well where the box turned out to hold tally marks rather than a
+   * number: its "11" or "111" was a reading of strokes, and `tallyCount` has
+   * the count of them instead.
+   */
+  digitValue: number | null;
+  /** 0-1. The WORST digit in the number: see readDigits. */
+  digitConfidence: number;
+  /**
+   * The tally counted, or null when the counter declined.
+   *
+   * Counted in the strip when the TOTAL box is empty, and in the box itself
+   * when what is written there is only tally strokes -- see `countBoxTally`.
    *
    * Null far more often than not, and that is the design rather than a
    * shortfall: a strip it declines costs the reviewer the keystroke they were
    * making anyway, and a strip it counts wrongly costs data integrity. See the
    * head of `tally.ts`.
    */
-  /** What the digit recognizer read in the TOTAL box, if it read one. */
-  digitValue: number | null;
-  /** 0-1. The WORST digit in the number: see readDigits. */
-  digitConfidence: number;
   tallyCount: number | null;
   /** How far that count can be trusted, 0-1. See `confidence` in tally.ts. */
   tallyConfidence: number;
@@ -305,7 +314,20 @@ export function cellsForSide(
     // twice by the same reader, and a cell with both is what reconcile() is
     // for.
     const reading = model && hasValue ? readingCrop(image, cell.total) : null;
-    const digitReading = model && reading ? readDigits(reading.crop, model, reading.box) : null;
+    const digits = model && reading ? readDigits(reading.crop, model, reading.box) : null;
+
+    // Tally marks drawn in the box itself. The digit reader sees each stroke as
+    // a perfectly good 1 and reads "|||" as 111, so where it read nothing but
+    // 1s the same crop is handed to the counter. Only where the strip beside it
+    // is empty: where the strip holds marks too, the box is as often a tally
+    // run on from the strip, or a number, as a tally of its own. Counted
+    // anyway, those answered 20 more boxes and 7 of them were wrong or could not
+    // be settled by eye.
+    const boxTally = reading && digits?.onlyOnes && !tallyMarked ? countBoxTally(reading.crop, reading.box) : null;
+    const boxCount = boxTally?.count != null ? boxTally : null;
+    // The strokes were not digits, so the digit reading is withdrawn rather
+    // than left to disagree with the count of them.
+    const digitReading = boxCount ? null : digits;
 
     // A strip the counter refused, counted anyway where there were strokes to
     // count. The instruction is that every box arrives filled in; `salvageCount`
@@ -326,10 +348,12 @@ export function cellsForSide(
       tallyOnly,
       digitValue: digitReading?.value ?? null,
       digitConfidence: digitReading?.confidence ?? 0,
-      tallyCount: tallyReading?.count ?? salvaged?.value ?? null,
-      tallyConfidence: tallyReading?.count !== null && tallyReading?.count !== undefined
-        ? tallyReading.confidence
-        : (salvaged?.confidence ?? 0),
+      tallyCount: boxCount?.count ?? tallyReading?.count ?? salvaged?.value ?? null,
+      tallyConfidence: boxCount
+        ? boxCount.confidence
+        : tallyReading?.count !== null && tallyReading?.count !== undefined
+          ? tallyReading.confidence
+          : (salvaged?.confidence ?? 0),
       rect: rebase(cell.total, region),
       tallyRect: rebase(cell.tally, region),
       // The tally run beside the number, so the reviewer can sanity-check one

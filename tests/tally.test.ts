@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { SALVAGE_CONFIDENCE, countTally, salvageCount, type TallyReading } from "../src/lib/tally";
+import { AUTO_ACCEPT } from "../src/lib/prefill";
+import {
+  BOX_TALLY_CONFIDENCE,
+  SALVAGE_CONFIDENCE,
+  countBoxTally,
+  countTally,
+  salvageCount,
+  type TallyReading,
+} from "../src/lib/tally";
 import type { MarkImage } from "../src/lib/marks";
 
 /**
@@ -395,5 +403,86 @@ describe("salvageCount", () => {
   it("is worth enough to reach a box and nowhere near enough to skip review", () => {
     expect(SALVAGE_CONFIDENCE).toBeGreaterThan(0);
     expect(SALVAGE_CONFIDENCE).toBeLessThan(0.75);
+  });
+});
+
+describe("countBoxTally", () => {
+  // The crop the digit reader is given: the TOTAL box, a fifth of its width to
+  // the left and three tenths of its height above and below. The box's printed
+  // sides run the full height, because they are the sides of the whole TOTAL
+  // column; its top and bottom rules cross the box and stop.
+  const box = { x: 20, y: 17, width: 100, height: 58 };
+  function boxCrop() {
+    const img = blank(126, 93);
+    for (const x of [box.x, box.x + box.width]) stroke(img, x, 0, x, img.height - 1, 150);
+    for (const y of [box.y, box.y + box.height]) stroke(img, box.x, y, box.x + box.width, y, 150);
+    return img;
+  }
+  const upright = (img: MarkImage, x: number) => stroke(img, x, 24, x - 3, 68);
+
+  it("counts strokes drawn where the number goes, and not the box's printed sides", () => {
+    const img = boxCrop();
+    for (const x of [45, 59, 73]) upright(img, x);
+    const got = countBoxTally(img, box);
+    expect(got.count).toBe(3);
+  });
+
+  it("counts a crossed group of five", () => {
+    const img = boxCrop();
+    for (const x of [40, 54, 68, 82]) upright(img, x);
+    stroke(img, 32, 52, 92, 36);
+    expect(countBoxTally(img, box).count).toBe(5);
+  });
+
+  it("keeps a stroke drawn right beside the printed side", () => {
+    // Straight, nearly the height of the box and within a fifth of its side:
+    // the digit reader's rule strike takes exactly this for the printed edge,
+    // and a tally of three was counted as two. The printed side carries on
+    // above and below the box, and this stroke does not.
+    const img = boxCrop();
+    stroke(img, 26, 19, 26, 73);
+    for (const x of [45, 59]) upright(img, x);
+    expect(countBoxTally(img, box).count).toBe(3);
+  });
+
+  it("does not take a short mark beside two strokes for a third", () => {
+    // The end of something in the margin, about half a stroke long. The strip
+    // allows strokes to differ by a factor of 1.9, and at that "11" beside it
+    // was counted as 3.
+    const img = boxCrop();
+    for (const x of [45, 59]) upright(img, x);
+    stroke(img, 30, 42, 30, 66);
+    expect(countBoxTally(img, box).count).toBeNull();
+  });
+
+  it("declines two strokes, which are an eleven as often as a two", () => {
+    const img = boxCrop();
+    for (const x of [45, 59]) upright(img, x);
+    const got = countBoxTally(img, box);
+    expect(got.count).toBeNull();
+    expect(got.strokes).toBe(2);
+  });
+
+  it("declines a 4 written open at the top", () => {
+    // Two uprights and a bar across both -- how several volunteers write a 4,
+    // and seen in the boxes read by eye. The strip takes a bar through a short
+    // last group as its fifth stroke and would count this as 3; in a box a bar
+    // is only a crossbar through four uprights.
+    const img = boxCrop();
+    stroke(img, 48, 24, 48, 58);
+    stroke(img, 70, 24, 70, 68);
+    stroke(img, 42, 52, 80, 52);
+    expect(countBoxTally(img, box).count).toBeNull();
+  });
+
+  it("is shown to a person, never taken as read", () => {
+    // Three uprights in a box are a tally far more often than the number 111,
+    // and only somebody looking at the card can tell which.
+    const img = boxCrop();
+    for (const x of [45, 59, 73]) upright(img, x);
+    const got = countBoxTally(img, box);
+    expect(got.confidence).toBeGreaterThan(0);
+    expect(got.confidence).toBeLessThanOrEqual(BOX_TALLY_CONFIDENCE);
+    expect(BOX_TALLY_CONFIDENCE).toBeLessThan(AUTO_ACCEPT);
   });
 });

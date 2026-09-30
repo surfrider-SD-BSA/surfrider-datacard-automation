@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CellMap } from "../src/lib/cells";
+import { decodeModel } from "../src/lib/digits";
 import { cellsForSide, viewRect } from "../src/lib/extract";
 import type { GrayImage } from "../src/lib/image";
+import { isAutoAccepted, prefillFor } from "../src/lib/prefill";
 
 const map: CellMap = JSON.parse(
   readFileSync(fileURLToPath(new URL("../assets/reference/cells.front.json", import.meta.url)), "utf8"),
@@ -130,5 +132,60 @@ describe("viewRect", () => {
   it("widens a tally-only row instead of hugging its box", () => {
     const c = cell({ x: 60, y: 40, width: 100, height: 58 }, 400, 160);
     expect(viewRect(c, true).width).toBeGreaterThan(viewRect(c, false).width);
+  });
+});
+
+describe("tally marks drawn in the TOTAL box", () => {
+  // A stand-in reader that calls every digit a 1, which is what the real one
+  // does with an upright stroke.
+  const b64 = (values: number[]) => {
+    let out = "";
+    for (const b of new Uint8Array(new Float32Array(values).buffer)) out += String.fromCharCode(b);
+    return btoa(out);
+  };
+  const readsOnes = decodeModel({
+    kind: "cnn-28x28",
+    temperature: 1,
+    layers: [
+      { type: "flatten" },
+      { type: "dense", in: 784, out: 10, w: b64(new Array(7840).fill(0)), b: b64([0, 20, 0, 0, 0, 0, 0, 0, 0, 0]) },
+    ],
+  });
+
+  const row = map.cells[20]!.row;
+  const cell = map.cells.find((c) => c.row === row)!;
+
+  /** Three uprights in the TOTAL box, and optionally a tally in the strip too. */
+  function page(stripMarks: boolean): GrayImage {
+    const { width, height } = map.referenceSize;
+    const data = new Uint8Array(width * height).fill(248);
+    const draw = (x: number, top: number, bottom: number) => {
+      for (let y = Math.round(top); y < bottom; y++) {
+        for (let dx = -1; dx <= 1; dx++) data[y * width + Math.round(x) + dx] = 60;
+      }
+    };
+    const { total, tally } = cell;
+    for (const dx of [30, 45, 60]) draw(total.x + dx, total.y + 8, total.y + total.height - 8);
+    if (stripMarks) for (let i = 0; i < 4; i++) draw(tally.x + 200 + i * 14, tally.y + 19, tally.y + 39);
+    return { width, height, data };
+  }
+
+  it("counts them, where the digit reader saw 111", () => {
+    const [found] = cellsForSide(page(false), 1, map, "front", readsOnes).filter((c) => c.row === row);
+    expect(found!.tallyCount).toBe(3);
+    expect(found!.digitValue).toBeNull();
+
+    const reading = prefillFor(found!);
+    expect(reading.value).toBe(3);
+    expect(reading.source).toBe("tally");
+    expect(isAutoAccepted(reading)).toBe(false);
+  });
+
+  it("leaves the box to the digit reader when the strip beside it holds marks too", () => {
+    // There the box is as often a tally run on from the strip, or a number, as
+    // a tally of its own; counted anyway, 7 of 20 were wrong or unsettled.
+    const [found] = cellsForSide(page(true), 1, map, "front", readsOnes).filter((c) => c.row === row);
+    expect(found!.tallyCount).toBeNull();
+    expect(found!.digitValue).toBe(111);
   });
 });

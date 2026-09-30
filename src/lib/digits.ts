@@ -1042,7 +1042,16 @@ export function readDigits(
   img: DigitImage,
   model: DigitModel,
   box?: Area,
-): { value: number; confidence: number } | null {
+): {
+  value: number;
+  confidence: number;
+  /**
+   * Every digit read was a 1, and there were at least two: 11, 111. Capped
+   * below, and the one case where `countBoxTally` in tally.ts is asked whether
+   * the "digits" were tally strokes all along.
+   */
+  onlyOnes: boolean;
+} | null {
   const boxes = segmentDigits(img, box);
   if (boxes.length === 0) return null;
 
@@ -1086,10 +1095,13 @@ export function readDigits(
   // them were that number; of the 99 that cleared AUTO_ACCEPT, 80 were wrong,
   // most of them a small count (3, 4, 1, 0) the sheet has for a tally. So they
   // are always shown, at the price of a person confirming the real elevens.
+  // Where the strokes are three or more and the strip beside the box is empty,
+  // `countBoxTally` in tally.ts counts them instead; see `onlyOnes`.
   const allOnes = text.length >= 2 && /^1+$/.test(text);
   return {
     value,
     confidence: tooMany || allOnes ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
+    onlyOnes: allOnes,
   };
 }
 

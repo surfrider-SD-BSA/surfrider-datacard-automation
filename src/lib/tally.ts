@@ -57,6 +57,7 @@
  * longest first, each one removed before the next is looked for.
  */
 
+import { inkThreshold } from "./digits";
 import { inkMask, insetRows, type MarkImage, type MarkOptions } from "./marks";
 
 export interface TallyReading {
@@ -1133,6 +1134,38 @@ export function countTally(
   if (raw > o.maxInk) return DECLINE("too dense");
   if (clipped) return DECLINE("runs off the strip");
 
+  // Does any of this belong to a neighbouring row?
+  //
+  // Declined whole rather than counted short. One escaping stroke says the crop
+  // is not showing this row's tally in the first place -- a diagonal crossing
+  // the card, a word written above -- and what is left after dropping it is not
+  // a smaller tally, it is the remains of something else. See `rowEscape`.
+  const escape = Math.round((frame.stripBottom - frame.stripTop) * o.rowEscape);
+  return countStrokes(mask, width, height, o, {
+    escapes: escape > 0 ? (s) => rowOverrun(s, whole, frame, o) >= escape : null,
+    barNeedsFour: false,
+  });
+}
+
+/**
+ * The counting itself, on a mask that holds only the marks to be counted.
+ *
+ * Shared by the strip and the box. What differs between them is everything
+ * before this -- which ink is the card's own printing, and which belongs to
+ * another row -- and that is the caller's job.
+ */
+function countStrokes(
+  mask: Uint8Array,
+  width: number,
+  height: number,
+  o: TallyOptions,
+  checks: {
+    /** A stroke whose ink carries on into another row, or null not to ask. */
+    escapes: ((s: Segment) => boolean) | null;
+    /** Refuse a crossbar through anything but four uprights. See `countBoxTally`. */
+    barNeedsFour: boolean;
+  },
+): TallyReading {
   // Everything from here on is measured on the thinned ink, including the share
   // that has to be explained: on a skeleton that share is a statement about
   // shape alone, where on the raw mask it would partly be a statement about how
@@ -1177,14 +1210,7 @@ export function countTally(
     explained: explainedInk(bars),
   });
 
-  // Does any of this belong to a neighbouring row?
-  //
-  // Declined whole rather than counted short. One escaping stroke says the crop
-  // is not showing this row's tally in the first place -- a diagonal crossing
-  // the card, a word written above -- and what is left after dropping it is not
-  // a smaller tally, it is the remains of something else. See `rowEscape`.
-  const escape = Math.round((frame.stripBottom - frame.stripTop) * o.rowEscape);
-  if (escape > 0 && strokes.some((s) => rowOverrun(s, whole, frame, o) >= escape)) {
+  if (checks.escapes && strokes.some(checks.escapes)) {
     return DECLINE(ROW_ESCAPE_REASON, state());
   }
 
@@ -1249,6 +1275,9 @@ export function countTally(
     if (last ? sizes[i]! > 5 : sizes[i] !== 5) {
       return DECLINE("ragged groups", { ...full, groups: sizes });
     }
+    if (checks.barNeedsFour && barsPerGroup[i]! > 0 && sizes[i] !== 5) {
+      return DECLINE("ragged groups", { ...full, groups: sizes });
+    }
   }
 
   return {
@@ -1263,6 +1292,192 @@ export function countTally(
       explained,
     ),
   };
+}
+
+/**
+ * What a count of tally marks drawn IN THE TOTAL BOX is worth.
+ *
+ * Deliberately below `AUTO_ACCEPT` in prefill.ts, so every one of these is
+ * shown to a person. Three uprights in the box where a number goes are a tally
+ * of three far more often than they are the number 111, but not always -- one
+ * of the 277 boxes read by eye was typed up as 111 -- and only somebody looking
+ * at the card can tell which. The same as the cap on the all-1s reading these
+ * replace (`OVERSEGMENTED_CONFIDENCE` in digits.ts), because it is the other
+ * reading of the same strokes.
+ */
+export const BOX_TALLY_CONFIDENCE = 0.3;
+
+/**
+ * The box's own settings, where they differ from the strip's. Each was
+ * measured against the 277 boxes of `eye-labels/box-tallies.json`.
+ */
+const BOX = {
+  /**
+   * Share of the box's height trimmed off its top and bottom before counting.
+   *
+   * The box's printed top and bottom rules are often dotted, so nothing that
+   * looks for a straight run finds them, and what survives of them is
+   * horizontal ink no stroke can account for. Strokes are tall enough to lose
+   * a tenth at each end.
+   */
+  rowTrim: 0.1,
+  /**
+   * How far either side of the box's printed edge, in pixels, a column is
+   * checked for being that edge rather than a stroke. Registration drift.
+   */
+  borderReach: 8,
+  /**
+   * Share of the rows ABOVE AND BELOW the box a column must be inked in to be
+   * the box's printed side.
+   *
+   * The digit reader strikes its rules by shape -- a straight run most of the
+   * box tall, near its side -- and that is right for a number, which leans and
+   * stops short of the box. It is wrong here: a tally stroke drawn beside the
+   * printed edge is straight and tall too, and it went with the edge, turning
+   * a four into a three. What only the printed side does is carry on through
+   * the rows above and below; a stroke stays in its own box.
+   */
+  borderCover: 0.5,
+  /**
+   * The strip's `lengthTolerance` is 1.9. In a box a short mark beside two
+   * strokes -- the end of something in the margin -- passed as a third stroke,
+   * and "11" was counted as 3. One hand drawing the same mark in a box this size
+   * does not vary by as much as the strip allows.
+   */
+  lengthTolerance: 1.5,
+};
+
+/**
+ * Count tally marks a volunteer drew in the TOTAL box instead of beside it.
+ *
+ * Volunteers do this, and the digit reader cannot know it: two or three
+ * uprights are each a perfectly good "1", so the box is read as 11 or 111.
+ * Read by eye, 277 boxes read that way across the chapter's scans held 97
+ * tallies of three or more strokes -- "|||", "||||", crossed fives -- and one
+ * number made of 1s. `extract.ts` asks this only of those boxes, and only where
+ * the tally strip beside them is empty; see there for why.
+ *
+ * `img` is the crop the digit reader was given and `box` is where the printed
+ * box sits inside it. The room around the box matters: a tally drawn against
+ * the box's left edge often starts just outside it.
+ *
+ * Two uprights are declined outright. They are as often the number eleven as a
+ * tally of two -- by the chapter's own sheets, 22 elevens against 23 twos --
+ * and nothing in the ink tells them apart.
+ */
+export function countBoxTally(
+  img: MarkImage,
+  box: { x: number; y: number; width: number; height: number },
+): TallyReading {
+  const o = { ...TALLY_DEFAULTS, lengthTolerance: BOX.lengthTolerance };
+  const { width, height, data } = img;
+
+  // Ink by the digit reader's threshold, which was tuned on these boxes, and
+  // with the same two pixels of resampling fringe left out.
+  const t = inkThreshold(img);
+  if (t < 0) return DECLINE("no ink");
+  const ink = new Uint8Array(width * height);
+  for (let y = 2; y < height - 2; y++) {
+    for (let x = 2; x < width - 2; x++) ink[y * width + x] = data[y * width + x]! <= t ? 1 : 0;
+  }
+
+  // Strike the box's printed sides: columns near them that are inked through
+  // the rows above and below the box. See `BOX.borderCover`.
+  const outside: number[] = [];
+  for (let y = 0; y < height; y++) if (y < box.y - 2 || y >= box.y + box.height + 2) outside.push(y);
+  if (outside.length >= 6) {
+    const inked = (x: number, y: number) => x >= 0 && x < width && ink[y * width + x] === 1;
+    const sides: number[] = [];
+    for (const edge of [box.x, box.x + box.width]) {
+      for (let x = Math.max(0, edge - BOX.borderReach); x <= Math.min(width - 1, edge + BOX.borderReach); x++) {
+        let n = 0;
+        for (const y of outside) if (inked(x - 1, y) || inked(x, y) || inked(x + 1, y)) n++;
+        if (n >= outside.length * BOX.borderCover) sides.push(x);
+      }
+    }
+    for (const x of sides) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (x + dx < 0 || x + dx >= width) continue;
+        for (let y = 0; y < height; y++) ink[y * width + x + dx] = 0;
+      }
+    }
+  }
+
+  // Keep the marks that belong to this box: pieces whose middle is on its row,
+  // and not ones lying past its right-hand edge. A piece just left of the box is
+  // kept -- the first stroke of a tally is often drawn over the edge.
+  const { labels, pieces } = labelPieces(ink, width, height);
+  const keep = pieces.map(
+    (p) =>
+      p.count >= 12 &&
+      (p.minY + p.maxY) / 2 >= box.y &&
+      (p.minY + p.maxY) / 2 < box.y + box.height &&
+      p.minX < box.x + box.width - 2,
+  );
+
+  const top = box.y + Math.round(box.height * BOX.rowTrim);
+  const bottom = box.y + box.height - Math.round(box.height * BOX.rowTrim);
+  const mask = new Uint8Array(width * height);
+  let raw = 0;
+  for (let y = Math.max(0, top); y < Math.min(height, bottom); y++) {
+    for (let x = 0; x < width; x++) {
+      const id = labels[y * width + x]!;
+      if (id >= 0 && keep[id]) {
+        mask[y * width + x] = 1;
+        raw++;
+      }
+    }
+  }
+  if (raw === 0) return DECLINE("no ink");
+  if (raw > o.maxInk) return DECLINE("too dense");
+
+  // A crossbar is only accepted through exactly four uprights. The strip
+  // allows it through fewer, as the last group of a run; in a box that is what
+  // a 4 looks like -- a stroke, a diagonal and a bar across both.
+  const reading = countStrokes(mask, width, height, o, { escapes: null, barNeedsFour: true });
+  if (reading.count === null) return reading;
+  if (reading.count < 3) {
+    const { strokes, bars, groups, explained } = reading;
+    return DECLINE("two strokes are an eleven as often as a two", { strokes, bars, groups, explained });
+  }
+  return { ...reading, confidence: Math.min(reading.confidence, BOX_TALLY_CONFIDENCE) };
+}
+
+/** Connected pieces of a mask, 8-connected, with every pixel labelled by its piece. */
+function labelPieces(mask: Uint8Array, width: number, height: number) {
+  const labels = new Int32Array(width * height).fill(-1);
+  const pieces: { minX: number; maxX: number; minY: number; maxY: number; count: number }[] = [];
+  const stack: number[] = [];
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i] || labels[i] !== -1) continue;
+    const piece = { minX: width, maxX: -1, minY: height, maxY: -1, count: 0 };
+    labels[i] = pieces.length;
+    stack.push(i);
+    while (stack.length) {
+      const p = stack.pop()!;
+      const x = p % width;
+      const y = (p / width) | 0;
+      piece.count++;
+      if (x < piece.minX) piece.minX = x;
+      if (x > piece.maxX) piece.maxX = x;
+      if (y < piece.minY) piece.minY = y;
+      if (y > piece.maxY) piece.maxY = y;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const q = ny * width + nx;
+          if (mask[q] && labels[q] === -1) {
+            labels[q] = pieces.length;
+            stack.push(q);
+          }
+        }
+      }
+    }
+    pieces.push(piece);
+  }
+  return { labels, pieces };
 }
 
 /**
