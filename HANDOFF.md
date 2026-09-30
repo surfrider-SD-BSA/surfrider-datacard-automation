@@ -19,7 +19,7 @@ State of the project, what is proven, and what to do next.
 | The web app | Runs end to end: drop a PDF, review crops, download the spreadsheet. |
 | The export, end to end | 61 values typed into the running app on a real scan come back out of the downloaded file in the right cell, all 61. Pinned in CI as well: every one of the 83 items across five cards, including the last volunteer column. |
 
-207 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
+211 vitest tests and 27 stdlib-Python checks pass. `npm run dev` to run it.
 
 ## Registration: fixed
 
@@ -840,6 +840,57 @@ npx vite-node scripts/reading-accuracy.mjs -- --cache       # the end-to-end fig
 the digit reader or its cutting moves which boxes come out as 1s, and those
 boxes need reading before its figures mean anything.
 
+## Light pencil, and the boxes that reach a volunteer empty (30 Sept 2026)
+
+**Two in five of the boxes a volunteer is asked to check hold nothing.** The
+58-card test scan through today's code: 453 boxes offered, 192 taken as read,
+261 shown. Joined to `eye-labels/test-long.json` by card and row (the cache
+that labelling was keyed to pairs pages exactly as the app does, all 730 cells
+on the same page), 104 of the 261 are empty boxes. 103 of them arrive as
+"nothing read: type it" with the placeholder 1 in them: the printed rules pass
+the shape test, and the digit reader rightly finds nothing.
+
+**Four empty boxes are taken as read, with a number.** Two are a dark printed
+band at the box's right edge read as 1 at 0.84 (test-long cards 13 and 14, row
+71), one a smudge read as 2, one a printed line inside the box read as 1. Those
+reach the spreadsheet unseen. Open.
+
+**Light pencil was invisible to the digit reader, and that is fixed.** Of the
+placeholder boxes that do hold writing, several were plainly legible numbers
+-- 26, 19, 5, 3 -- that the reader found nothing in. Rendered with the mask the
+cutter keeps: `inkThreshold` counts ink only below 200 on paper at about 251,
+light pencil sits between 170 and 230, and what survives is dots under the
+twelve-pixel floor for a piece. On a bottom row the card's printed footer in
+the crop darkens the automatic threshold further. `LIGHT_PENCIL` in
+`digits.ts` looks again, only where the first look found nothing, with ink
+counted from 20 below the paper; a reading from that look is capped at 0.3 and
+always shown, and one of three digits or more is refused -- at that threshold
+the grain beside a faint number is cut into extra digits (a 3 read as 423).
+
+```
+  on the 126 boxes the second look reads, 28 scans,   placeholder 1   second look
+  each by a net that never saw it                                    (2 digits max)
+    equal to the typed sheet                                23             59
+    total error against the sheet                        1,671          1,294
+```
+
+`reading-accuracy.mjs`: 2,060 -> 2,119 read as the sheet has them; hidden cells
+unchanged (2,656, 770 disagreeing), because none of these is hidden. On the test
+scan by eye: 6 right (26, 19, 5, 5, two faint 1s), 2 wrong numbers, 5 marks
+reaching in from the neighbouring rows read as digits, and 3 empty boxes read
+from smudges -- against a placeholder that was right for two of them.
+
+Two things tried and not kept:
+
+- *Counting the strip when the box yields nothing.* The theory was a tally in
+  the strip beside a box the rules had fooled. Only 183 of the 796 such boxes
+  have a marked strip, and counting those gets the sheet's number 16 times.
+- *A placeholder of 0 instead of 1.* Right on the test scan, wrong across the
+  scans; the numbers are beside `PLACEHOLDER_VALUE` in `prefill.ts`.
+
+What is left on this is item 8 of "What to do next": the empty boxes the shape
+test still offers.
+
 ## Two readers on one cell
 
 `src/lib/reading.ts` puts the tally count and the digit reading of the same cell
@@ -1365,10 +1416,13 @@ work turned up. Every figure below that compares versions came from
    three remaining wrong pre-fills are this. One mechanism answers both: follow
    each stroke's own line into the context above and below and refuse the
    reading where the ink carries on.
-8. **The 131 cells the review list still offers with nothing in them** -- see
-   "What is still on the list that should not be" below. Another quarter of a
-   reviewer's time, and the remaining noise is a different kind from the ruling
-   that has been dealt with.
+8. **The empty boxes the review list still offers.** Measured 30 September
+   2026 on the test scan: 104 of the 261 boxes a volunteer is shown hold
+   nothing, 103 of them as "nothing read" -- two in five of what a volunteer
+   checks. See "Light pencil, and the boxes that reach a volunteer empty"
+   above, and "What is still on the list that should not be" below. Four more
+   empty boxes are taken as read with a number in them (a dark printed band
+   read as 1), which is worse and smaller: start there.
 
 Measured that week and not worth repeating: three nets averaged, a net twice as
 wide, twice the epochs, retraining on digits cut the new way, more room to read
