@@ -175,6 +175,16 @@ adb shell am start -n com.mateobesse.surfriderdatacards/.MainActivity
 A debug build lets Chrome's inspector (`chrome://inspect`) into the engine's
 page; a release build does not, because that page holds a scan.
 
+**A freshly booted emulator can close the app under you.** Shortly after boot
+the Play Store may update Android System WebView in the background, and
+installing it force-stops every app using a WebView -- this one included,
+because the engine runs in one. The app vanishes to the home screen mid-review,
+nothing reaches the crash log, and it looks exactly like a crash. logcat says
+what happened: `Killing ...surfriderdatacards... stop com.google.android.webview
+due to installPackageLI`. Let the updates finish before a long test, or turn off
+auto-update in the emulator's Play Store. On 29 September 2026 this took the app
+down once in the middle of a check.
+
 ## Getting it to volunteers
 
 Google Play's equivalent of TestFlight is a **testing track** — internal (up to
