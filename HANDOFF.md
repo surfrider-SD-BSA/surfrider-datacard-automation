@@ -783,6 +783,18 @@ Both errors undercount by one, beside a picture of the strokes.
 Hidden cells are unchanged at 2,656, with 770 disagreeing with the sheet,
 because none of these counts is hidden.
 
+**Seen in the app, not only measured.** The Android build of #74 on the
+emulator, reading the 6.13 Seaport scan through the system file picker:
+card 4's Cigarette Butts, Plastic Straws and Plastic Cutlery come up as 4, 3
+and 3, tagged "counted: check it", exactly as the offline figures say. They
+were 111, 11 and 11 before. That scan's sheet has card 4 typed into the wrong
+column (65, 1, 16), so the picture was the only check. On the same card the
+Large Plastic Fragments box still says 111, and that is the design: its strip
+holds a tally running into the box, so the counter leaves it to a person. The
+iOS build installs, launches and takes a shared scan with the same engine; it
+was not tapped through, because the simulator could not be driven from this
+Mac at the time.
+
 **Why they are shown rather than hidden.** 37 of 39 is about the strip
 counter's precision, and the strip counter's readings are hidden. But the
 risk is not the same. Three strokes in the box where a number goes are
