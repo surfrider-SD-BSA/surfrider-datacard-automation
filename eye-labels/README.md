@@ -15,8 +15,9 @@ the point of this directory, so it is worth being exact about it.
 | `prefill-audit.json` | 46 cells the tool would PRE-FILL, across every scan the chapter has, each counted by eye. Produced by `scripts/audit-prefills.mjs`, scored by it and by `scripts/sweep-row-escape.mjs`. |
 | `test-long.json` | All 730 cells of the 58-card test scan's old review list: 277 with writing, 450 without. |
 | `test-long-tally.json` | The tally strips of the same scan: 49 with marks, 86 without. |
+| `box-tallies.json` | 277 TOTAL boxes the digit reader read as nothing but 1s, across every matched scan: what each one holds -- a tally and its count, two uprights, a number the cutting broke up. Scored by `scripts/audit-box-tallies.mjs`, and what `countBoxTally` in `tally.ts` was built against. |
 
-Each entry is a key and a small integer or a word — `delmar-6.20:5:18: 4`,
+Each entry is a key and a small integer, a word or a short phrase — `delmar-6.20:5:18: 4`,
 `"48": "marked"`. There are no images here, no names, and no handwriting: only
 what somebody counted, and which cell they counted it in.
 
@@ -37,7 +38,7 @@ published by a build whether it is gitignored or not.
 
 ## Adding to them
 
-Keys are `scan:card:row` (`prefill-audit.json`) or the cell ids of a
+Keys are `scan:card:row` (`prefill-audit.json`, `box-tallies.json`) or the cell ids of a
 `review-cache.mjs` cache (`test-long*.json`). Prefer the first: it survives the
 pipeline being re-run, which is exactly how the first version of the pre-fill
 audit went stale and had to be redone from scratch.

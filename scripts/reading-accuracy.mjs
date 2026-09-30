@@ -19,12 +19,18 @@
  * Usage:
  *   npx vite-node scripts/reading-accuracy.mjs
  *   npx vite-node scripts/reading-accuracy.mjs -- --src <copy of src/> --out cells.json
+ *   npx vite-node scripts/reading-accuracy.mjs -- --cache
  *
  * --src reads with another copy of src/ -- how two versions of the cutter were
  * compared side by side, each in its own copy. --out writes one row per cell
  * ([scan:card:row, reading, typed, confidence, card looks mismatched]) for
  * digging into what changed. Takes about eight minutes; needs the gitignored
  * out/pages, out/models/cnn and scans/.
+ *
+ * --cache reads the cells `scripts/cell-cache.mjs` cut out once instead of
+ * registering every page again: the same figures in under a minute, for any
+ * change to the readers. Not for a change to registration or to which cells are
+ * offered -- rebuild the cache for those.
  */
 import { readdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -33,6 +39,7 @@ import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
 import { colName, readSpreadsheet, matchedPairs } from "./diagnose-review.mjs";
+import { cachedScans, loadCells } from "./lib/cellcache.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REF = join(ROOT, "assets", "reference");
@@ -44,6 +51,7 @@ const arg = (name) => {
 };
 const SRC = resolve(arg("--src") ?? join(ROOT, "src"));
 const OUT = arg("--out");
+const CACHE = process.argv.includes("--cache");
 
 const { cellsForSide } = await import(join(SRC, "lib/extract.ts"));
 const { decodeModel } = await import(join(SRC, "lib/digits.ts"));
@@ -86,64 +94,92 @@ function modelFor(scan) {
 const total = { written: 0, read: 0, right: 0, hidden: 0, hiddenWrong: 0, kept: 0, keptWrong: 0 };
 const rows = [];
 
-for (const pair of matchedPairs()) {
-  const model = modelFor(pair.name);
-  const files = readdirSync(pair.dir)
-    .filter((f) => /\.jpe?g$/i.test(f))
-    .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
-  const pages = files.map((f, i) => {
-    const r = registerAgainstBestSide(decodeJpeg(join(pair.dir, f)), targets, i + 1);
-    return {
-      pageNumber: i + 1,
-      side: r.side,
-      trusted: r.trusted,
-      bannerOverlap: r.bannerOverlap,
-      cells: r.trusted ? cellsForSide(r.image, i + 1, maps[r.side], r.side, model) : [],
-    };
-  });
-  const { cards } = pairIntoCards(pages);
-  const sheet = readSpreadsheet(pair.sheet);
-
-  cards.forEach((card, idx) => {
-    const column = sheet.get(colName(2 + (idx + 1)));
-    if (!column) return;
-    const cells = [];
-    for (const side of ["front", "back"]) {
-      for (const c of card[side]?.cells ?? []) {
-        if (!itemForRow(c.row) || !c.hasValue) continue;
-        const raw = column.get(c.row);
-        if (raw === undefined) continue;
-        const typed = Math.round(Number(raw));
-        if (!Number.isFinite(typed)) continue;
-        const r = reconcile(
-          c.tallyCount === null ? null : { value: c.tallyCount, confidence: c.tallyConfidence },
-          c.digitValue === null ? null : { value: c.digitValue, confidence: c.digitConfidence },
-        );
-        cells.push({ key: `${pair.name}:${idx + 1}:${c.row}`, typed, value: r?.value ?? null, conf: r?.confidence ?? 0 });
+/** Score one card: its written cells that have a typed value, read and reconciled. */
+function scoreCard(cells) {
+  const hidden = cells.filter((c) => c.conf >= AUTO_ACCEPT);
+  const mismatched = hidden.length >= 4 && hidden.filter((c) => c.value !== c.typed).length / hidden.length > 0.6;
+  for (const c of cells) {
+    total.written++;
+    if (c.value !== null) total.read++;
+    if (c.value === c.typed) total.right++;
+    if (c.conf >= AUTO_ACCEPT) {
+      total.hidden++;
+      if (c.value !== c.typed) total.hiddenWrong++;
+      if (!mismatched) {
+        total.kept++;
+        if (c.value !== c.typed) total.keptWrong++;
       }
     }
-    const hidden = cells.filter((c) => c.conf >= AUTO_ACCEPT);
-    const mismatched = hidden.length >= 4 && hidden.filter((c) => c.value !== c.typed).length / hidden.length > 0.6;
-    for (const c of cells) {
-      total.written++;
-      if (c.value !== null) total.read++;
-      if (c.value === c.typed) total.right++;
-      if (c.conf >= AUTO_ACCEPT) {
-        total.hidden++;
-        if (c.value !== c.typed) total.hiddenWrong++;
-        if (!mismatched) {
-          total.kept++;
-          if (c.value !== c.typed) total.keptWrong++;
+    rows.push([c.key, c.value, c.typed, Number(c.conf.toFixed(3)), mismatched]);
+  }
+}
+
+/** A written cell with a typed value, as the app would read it; null for any other cell. */
+function scored(key, c, typed) {
+  if (!itemForRow(c.row) || !c.hasValue || typed === null || !Number.isFinite(typed)) return null;
+  const r = reconcile(
+    c.tallyCount === null ? null : { value: c.tallyCount, confidence: c.tallyConfidence },
+    c.digitValue === null ? null : { value: c.digitValue, confidence: c.digitConfidence },
+  );
+  return { key, typed, value: r?.value ?? null, conf: r?.confidence ?? 0 };
+}
+
+const progress = (name) =>
+  process.stdout.write(`\r  ${name.padEnd(18)} ${String(total.written).padStart(5)} cells so far   `);
+
+if (CACHE) {
+  for (const scan of cachedScans()) {
+    const model = modelFor(scan);
+    const { records, page, map } = loadCells(scan);
+    const cards = new Map();
+    for (const r of records) {
+      const [c] = cellsForSide(page(r), r.pageNumber, map(r), r.side, model);
+      const cell = c && scored(r.key, c, r.typed);
+      if (!cell) continue;
+      if (!cards.has(r.card)) cards.set(r.card, []);
+      cards.get(r.card).push(cell);
+    }
+    for (const cells of cards.values()) scoreCard(cells);
+    progress(scan);
+  }
+} else {
+  for (const pair of matchedPairs()) {
+    const model = modelFor(pair.name);
+    const files = readdirSync(pair.dir)
+      .filter((f) => /\.jpe?g$/i.test(f))
+      .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
+    const pages = files.map((f, i) => {
+      const r = registerAgainstBestSide(decodeJpeg(join(pair.dir, f)), targets, i + 1);
+      return {
+        pageNumber: i + 1,
+        side: r.side,
+        trusted: r.trusted,
+        bannerOverlap: r.bannerOverlap,
+        cells: r.trusted ? cellsForSide(r.image, i + 1, maps[r.side], r.side, model) : [],
+      };
+    });
+    const { cards } = pairIntoCards(pages);
+    const sheet = readSpreadsheet(pair.sheet);
+
+    cards.forEach((card, idx) => {
+      const column = sheet.get(colName(2 + (idx + 1)));
+      if (!column) return;
+      const cells = [];
+      for (const side of ["front", "back"]) {
+        for (const c of card[side]?.cells ?? []) {
+          const raw = column.get(c.row);
+          const cell = raw === undefined ? null : scored(`${pair.name}:${idx + 1}:${c.row}`, c, Math.round(Number(raw)));
+          if (cell) cells.push(cell);
         }
       }
-      rows.push([c.key, c.value, c.typed, Number(c.conf.toFixed(3)), mismatched]);
-    }
-  });
-  process.stdout.write(`\r  ${pair.name.padEnd(18)} ${String(total.written).padStart(5)} cells so far   `);
+      scoreCard(cells);
+    });
+    progress(pair.name);
+  }
 }
 
 const pct = (a, b) => ((a / b) * 100).toFixed(1) + "%";
-console.log(`\n\nreading from ${SRC}`);
+console.log(`\n\nreading from ${SRC}${CACHE ? ", cells from the cache" : ""}`);
 console.log(`written cells with a typed value   ${total.written}`);
 console.log(`  given a reading                  ${total.read}`);
 console.log(`  reading equals the sheet         ${total.right}  (${pct(total.right, total.written)})`);
