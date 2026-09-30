@@ -294,6 +294,18 @@ export function readingFor(cell: ExtractedCell): Reading | null {
  * the one thing about the cell that IS known; 1 is the smallest count
  * consistent with the evidence and the least distorting if it survives into an
  * aggregate.
+ *
+ * **0 was measured on 30 September 2026, and 1 stays.** The premise above is
+ * often false: on the 58-card test scan, read by eye, 103 of the 126 boxes
+ * shown as "nothing read" are empty -- the printed rules passed the shape test
+ * -- so a volunteer who taps Next on one records a 1 for debris that is not
+ * there. That looked like the case for 0, and across every scan it is not.
+ * Over the 28 matched scans, 1,006 boxes reach a volunteer as a placeholder;
+ * the chapter's sheet holds a number for 634 of them and nothing for 372. So 0
+ * would be exactly right more often (372 against the 78 where the number is 1),
+ * but 1 is closer in total, because most of these rows do hold a count -- and
+ * the total is what the chapter's data is for. The test scan was the exception,
+ * which is why the question was asked of every scan before anything moved.
  */
 export const PLACEHOLDER_VALUE = 1;
 

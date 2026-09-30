@@ -8,7 +8,15 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { decodeModel, inkMask, OVERSEGMENTED_CONFIDENCE, readDigits, segmentDigits } from "../src/lib/digits";
+import {
+  decodeModel,
+  inkMask,
+  LIGHT_PENCIL,
+  normalizeDigit,
+  OVERSEGMENTED_CONFIDENCE,
+  readDigits,
+  segmentDigits,
+} from "../src/lib/digits";
 
 /** A blank 100x60 crop, paper at 230, with ink drawn in at 20. */
 function crop(draw: (set: (x: number, y: number) => void) => void) {
@@ -116,6 +124,67 @@ describe("readDigits on a number made only of 1s", () => {
     }), alwaysOne);
     expect(reading?.value).toBe(1);
     expect(reading?.confidence).toBeGreaterThan(0.99);
+  });
+});
+
+describe("readDigits on a number in light pencil", () => {
+  // Paper at 250 and pencil at 215: well clear of the paper, and lighter than
+  // the 200 the first look counts as ink. Read by eye this is a plain "1".
+  function light(draw: (set: (x: number, y: number) => void) => void) {
+    const width = 100;
+    const height = 60;
+    const data = new Uint8Array(width * height).fill(250);
+    draw((x, y) => {
+      if (x >= 0 && y >= 0 && x < width && y < height) data[y * width + x] = 215;
+    });
+    return { width, height, data };
+  }
+  const b64 = (values: number[]) => {
+    let out = "";
+    for (const b of new Uint8Array(new Float32Array(values).buffer)) out += String.fromCharCode(b);
+    return btoa(out);
+  };
+  const readsOnes = decodeModel({
+    kind: "cnn-28x28",
+    temperature: 1,
+    layers: [
+      { type: "flatten" },
+      { type: "dense", in: 784, out: 10, w: b64(new Array(7840).fill(0)), b: b64([0, 20, 0, 0, 0, 0, 0, 0, 0, 0]) },
+    ],
+  });
+  const faintOne = light((set) => {
+    one(set, 40);
+    one(set, 42);
+  });
+
+  it("is invisible to the first look", () => {
+    expect(segmentDigits(faintOne)).toHaveLength(0);
+  });
+
+  it("is read on the second, and always shown", () => {
+    const reading = readDigits(faintOne, readsOnes);
+    expect(reading?.value).toBe(1);
+    expect(reading?.confidence).toBeLessThanOrEqual(OVERSEGMENTED_CONFIDENCE);
+  });
+
+  it("is sampled for the net with the threshold it was cut with", () => {
+    // Sampled at the ordinary threshold the piece is paper, and the net is
+    // handed a blank square.
+    const paper = 250;
+    const [piece] = segmentDigits(faintOne, undefined, paper - LIGHT_PENCIL.depth);
+    const ink = (b: Uint8Array) => b.reduce((a, v) => a + v, 0);
+    expect(ink(normalizeDigit(faintOne, piece!, paper - LIGHT_PENCIL.depth))).toBeGreaterThan(0);
+    expect(ink(normalizeDigit(faintOne, piece!))).toBe(0);
+  });
+
+  it("refuses three pieces or more, which at this threshold is paper grain", () => {
+    const three = light((set) => {
+      for (const x of [20, 45, 70]) {
+        one(set, x);
+        one(set, x + 2);
+      }
+    });
+    expect(readDigits(three, readsOnes)).toBeNull();
   });
 });
 
