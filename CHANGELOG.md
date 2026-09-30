@@ -11,6 +11,13 @@ count as breaking.
 
 ### Changed
 
+- **Numbers written in light pencil are read.** The digit reader counted a pixel as ink only
+  well below the paper, and light pencil sits just under it, so a plainly legible "26" or "19"
+  reached the volunteer as "nothing read" with a 1 in it. Where the first look finds nothing, a
+  second one now counts lighter ink, reads at most two digits, and always shows what it read.
+  Across every scan that puts the right number in 59 boxes that got the placeholder, against 23
+  where the placeholder happened to be right, and nothing that was read before changes.
+
 - **Tally marks drawn in the number box are counted, not read as 111.** Some volunteers draw
   their tally in the TOTAL box, and the digit reader took each stroke for a 1: "|||" arrived in
   the box as 111. Where it reads nothing but 1s and the tally space beside the box is empty, the

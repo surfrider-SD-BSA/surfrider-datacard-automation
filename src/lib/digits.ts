@@ -129,9 +129,9 @@ export function inkThreshold(img: DigitImage): number {
  * digit-COUNT measure in diagnose-segmentation.mjs does not see it at all
  * (73.0% -> 72.9%): what moved is WHICH pieces come out, not how many.
  */
-export function inkMask(img: DigitImage, box?: Area): Uint8Array {
+export function inkMask(img: DigitImage, box?: Area, threshold?: number): Uint8Array {
   const { width: w, height: h } = img;
-  const t = inkThreshold(img);
+  const t = threshold ?? inkThreshold(img);
   const mask = new Uint8Array(w * h);
   if (t < 0) return mask;
 
@@ -313,8 +313,8 @@ export function components(
  */
 const FRAGMENT_GAP = 0.18;
 
-export function segmentDigits(img: DigitImage, box?: Area): DigitBox[] {
-  const mask = inkMask(img, box);
+export function segmentDigits(img: DigitImage, box?: Area, threshold?: number): DigitBox[] {
+  const mask = inkMask(img, box, threshold);
   if (!mask.some((v) => v)) return [];
   let boxes = components(mask, img.width, img.height);
   if (boxes.length === 0) return [];
@@ -518,14 +518,16 @@ function isStraightStroke(mask: Uint8Array, width: number, b: DigitBox): boolean
  * centre of mass. This is the MNIST convention, so the same preprocessing
  * serves whichever classifier ends up being used.
  */
-export function normalizeDigit(img: DigitImage, box: DigitBox): Uint8Array {
+export function normalizeDigit(img: DigitImage, box: DigitBox, threshold?: number): Uint8Array {
   const w = box.maxX - box.minX + 1;
   const h = box.maxY - box.minY + 1;
   const scale = 20 / Math.max(w, h);
   const tw = Math.max(1, Math.round(w * scale));
   const th = Math.max(1, Math.round(h * scale));
 
-  const t = inkThreshold(img);
+  // The same threshold the piece was cut with: a light-pencil piece sampled at
+  // the ordinary one comes out as a nearly blank bitmap. See `LIGHT_PENCIL`.
+  const t = threshold ?? inkThreshold(img);
   const small = new Float64Array(tw * th);
 
   for (let y = 0; y < th; y++) {
@@ -1052,7 +1054,16 @@ export function readDigits(
    */
   onlyOnes: boolean;
 } | null {
-  const boxes = segmentDigits(img, box);
+  let boxes = segmentDigits(img, box);
+
+  // Nothing found: look again for light pencil. See `LIGHT_PENCIL`.
+  let light: number | undefined;
+  if (boxes.length === 0) {
+    const sorted = Uint8Array.from(img.data).sort();
+    light = sorted[sorted.length >> 1]! - LIGHT_PENCIL.depth;
+    boxes = segmentDigits(img, box, light);
+    if (boxes.length > LIGHT_PENCIL.maxDigits) return null;
+  }
   if (boxes.length === 0) return null;
 
   // More than three pieces used to be refused outright. It is now read as the
@@ -1076,7 +1087,7 @@ export function readDigits(
   let text = "";
   let worst = 1;
   for (const box of use) {
-    const { label, confidence } = classifyDigit(normalizeDigit(img, box), model);
+    const { label, confidence } = classifyDigit(normalizeDigit(img, box, light), model);
     if (label === null) return null;
     text += String(label);
     worst = Math.min(worst, confidence);
@@ -1100,10 +1111,47 @@ export function readDigits(
   const allOnes = text.length >= 2 && /^1+$/.test(text);
   return {
     value,
-    confidence: tooMany || allOnes ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
+    confidence: tooMany || allOnes || light !== undefined ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
     onlyOnes: allOnes,
   };
 }
+
+/**
+ * A second look at a box the first found nothing in, for numbers written in
+ * light pencil.
+ *
+ * `inkThreshold` counts a pixel as ink only below 200 on paper that scans at
+ * about 251, and light pencil sits between 170 and 230. So only the darkest
+ * dots of each stroke survive, they fall under the twelve-pixel floor for a
+ * piece, and a plainly legible "26" or "19" is read as nothing at all -- a box
+ * that reaches the volunteer as "nothing read: type it" with a 1 in it. The
+ * mark test that offered the box measures against the paper around it and saw
+ * the number; this is the same idea, once, only where the first pass found
+ * nothing, so no reading it made before can change.
+ *
+ * Measured over the 28 matched scans with each read by a net that never saw it
+ * (`reading-accuracy.mjs --cache`), against the placeholder those boxes get
+ * without it:
+ *
+ *   ink below paper by    read    equal to the sheet    total error vs the sheet
+ *   (placeholder 1)          -          23                    1,671
+ *     15                   137          58                    1,837
+ *     20                   126          59                    1,973
+ *     25                   115          51                    2,230
+ *   20, two digits at most 119          59                    1,294   <- this
+ *
+ * The limit on digits is what makes it safe to have. At a lighter threshold the
+ * grain of the paper beside a faint number is cut out as more digits -- a 3
+ * read as 423, a 14 as 121 -- and every one of those was three digits; no
+ * reading it refuses was right. With it, the second look puts the right number
+ * in two and a half times as many boxes as the placeholder, and is further off
+ * in total by less. On the test scan, read by eye: 6 right (26, 19, 5, 5 and
+ * two faint 1s), 2 wrong numbers, 5 marks from the neighbouring rows read as
+ * digits, and 3 empty boxes read from smudges.
+ *
+ * So it is capped like a guess and always shown: `OVERSEGMENTED_CONFIDENCE`.
+ */
+export const LIGHT_PENCIL = { depth: 20, maxDigits: 2 };
 
 /** Ceiling on a reading assembled from more pieces than a number can have, or made only of 1s. */
 export const OVERSEGMENTED_CONFIDENCE = 0.3;
