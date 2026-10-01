@@ -8,6 +8,7 @@ import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import { toGray, type GrayImage } from "./image";
+import { scannedPage } from "./scanpage";
 
 /**
  * Hand pdf.js a worker we constructed, rather than a URL for it to construct
@@ -61,6 +62,12 @@ export interface RasterPage {
  * each page over and forgetting it lets the caller keep only what it needs.
  *
  * `onPage` may be async; the page is not released until it resolves.
+ *
+ * The next page is read while `onPage` works on this one, so two are in hand at
+ * most. Decoding a scan is pdf.js's own JavaScript now, in its worker (see
+ * scanpage.ts), and slower than the phone's native decoder it replaced: on the
+ * Android emulator a 52-page scan went from 16s to 24s read one page after the
+ * other. Overlapped with the registration of the page before, it costs little.
  */
 export async function rasterizePdf(
   file: File,
@@ -68,17 +75,25 @@ export async function rasterizePdf(
   signal?: AbortSignal,
 ): Promise<number> {
   const buffer = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+  // pdf.js's own JPEG decoder, and the pixels it decodes handed over as bytes
+  // rather than as a bitmap: the same on every web engine. See scanpage.ts.
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(buffer),
+    isImageDecoderSupported: false,
+    isOffscreenCanvasSupported: false,
+  }).promise;
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
-  try {
-    for (let n = 1; n <= doc.numPages; n++) {
-      if (signal?.aborted) throw new DOMException("cancelled", "AbortError");
+  const read = async (n: number): Promise<GrayImage> => {
+    const page = await doc.getPage(n);
+    const viewport = page.getViewport({ scale: SCALE });
+    try {
+      // A scanned page is taken as the scanner's pixels; anything else is drawn.
+      const scanned = await scannedPage(page, viewport, pdfjs);
+      if (scanned) return scanned;
 
-      const page = await doc.getPage(n);
-      const viewport = page.getViewport({ scale: SCALE });
       canvas.width = Math.round(viewport.width);
       canvas.height = Math.round(viewport.height);
 
@@ -89,8 +104,20 @@ export async function rasterizePdf(
 
       await page.render({ canvasContext: ctx, viewport }).promise;
       const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      const image = toGray(rgba, canvas.width, canvas.height);
+      return toGray(rgba, canvas.width, canvas.height);
+    } finally {
       page.cleanup();
+    }
+  };
+
+  // Never two reads at once -- the canvas is shared -- but always one ahead.
+  let next: Promise<GrayImage> | null = read(1);
+  try {
+    for (let n = 1; n <= doc.numPages; n++) {
+      if (signal?.aborted) throw new DOMException("cancelled", "AbortError");
+
+      const image: GrayImage = await next!;
+      next = n < doc.numPages ? read(n + 1) : null;
 
       await onPage({ pageNumber: n, image, total: doc.numPages });
 
@@ -98,6 +125,10 @@ export async function rasterizePdf(
       await new Promise((r) => setTimeout(r, 0));
     }
   } finally {
+    // A read still in flight is finished before the document goes, and its
+    // failure, if any, is not the one being reported.
+    await next?.catch(() => undefined);
+
     // Release the last canvas backing store rather than leaving a full page of
     // pixels attached to a detached element.
     canvas.width = 0;
