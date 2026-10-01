@@ -1,10 +1,12 @@
 name: CI
 
+# Both app branches carry the same tree, and every change goes to both, so
+# both get the same checks.
 on:
   push:
-    branches: [ios/main]
+    branches: [ios/main, android/main]
   pull_request:
-    branches: [ios/main]
+    branches: [ios/main, android/main]
 
 # Read-only by default. Any job needing more asks for it explicitly.
 permissions:
