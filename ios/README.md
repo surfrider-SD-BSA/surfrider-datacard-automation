@@ -277,6 +277,38 @@ This needs the iOS platform installed, which a stock Xcode does not include:
 xcodebuild -downloadPlatform iOS
 ```
 
+## Checking a change in the app
+
+A change to the reading is measured offline, but it reaches a volunteer through
+these screens, so it is checked on them too. One command reads a scan in the app
+on a simulator and reports what the review screen says about the boxes named:
+
+```sh
+scripts/app-check/ios.sh scans/6.13.25_Seaport-Village_CH54.pdf \
+  "4|Cigarette Butts;4|Plastic Straws;4|Plastic Cutlery"
+```
+
+```
+row C4 Cigarette Butts: C4, Cigarette Butts, Common & Priority Items, 4
+review C4 Cigarette Butts: [... "Cell 8 of 28", "Card 4 → column F", "Cigarette Butts",
+  "Common & Priority Items", "counted: check it", ..., "4", "Next"]
+```
+
+Each target is a card and an item as the "All cards" list shows them. The log
+and a screenshot of each box go to `out/app-check/ios-<scan>/`. A box the tool
+took as read is not on the review list and comes back MISSING, which is the
+answer rather than a failure.
+
+It is an XCUITest, which is why it needs neither the `sudo xcode-select` switch
+the Claude Code simulator tools want nor anything in the app's own project.
+`scripts/app-check/ios_harness.py` writes a copy of the project with one UI-test
+target added into the gitignored `ios/build-uitest/`; `sync-web.sh` runs first,
+so what is checked is this checkout's `src/`; and the scan reaches the app the way
+the share extension leaves one, in the App Group drawer. It reads on a simulator
+of its own, "App Check" (an iPhone 17 on iOS 27.0), made the first time and
+kept, because other sessions on the same Mac boot and shut down simulators of
+their own. The Android counterpart is `scripts/app-check/android.py`.
+
 ## Getting it onto a phone
 
 There are two routes and they are not the same amount of work.
