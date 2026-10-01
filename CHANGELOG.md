@@ -73,6 +73,16 @@ count as breaking.
   an estimate. `audit-prefills.mjs` is the instrument for counting the real rate, and counting it
   is the thing to do before a chapter files a cleanup from this setting.
 
+- **Both apps read a scan to the same pixels, and so offer the same boxes.** The iOS and
+  Android apps cut different cells from the same PDF: 48 against 50 on a 10-page scan, 349
+  against 346 on a 52-page one, and so a different list of boxes to check. Each page was drawn
+  through the web engine, which decoded the scan's JPEG with its own decoder and resized it by
+  a fraction of a percent with its own filter. A page that is one scanned image -- every page of
+  every chapter scan -- is now taken as the scanner's own pixels, decoded by pdf.js's own code,
+  and comes out identical on both: 52 and 52, 366 and 366. Measured on all 28 scans, the
+  scanner's pixels find 234 more boxes that hold a number the chapter typed up, and read the
+  boxes found either way as well as before.
+
 ### Added
 
 - **`scripts/cell-cache.mjs` and `reading-accuracy.mjs --cache`.** The end-to-end measure spent
