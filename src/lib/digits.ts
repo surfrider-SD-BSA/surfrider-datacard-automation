@@ -1053,6 +1053,8 @@ export function readDigits(
    * the "digits" were tally strokes all along.
    */
   onlyOnes: boolean;
+  /** Where the digit sits in `img`, when the number is one piece. */
+  piece?: DigitBox;
 } | null {
   let boxes = segmentDigits(img, box);
 
@@ -1095,6 +1097,9 @@ export function readDigits(
 
   const value = Number(text);
   if (!Number.isFinite(value)) return null;
+  // One piece that is a solid block of ink is printing, a tear or a blot: see
+  // `SOLID_BLOCK`.
+  const solid = use.length === 1 && solidBlock(use[0]!);
   // A number assembled from a guess about which pieces are digits is worth less
   // than the worst digit in it, whatever the classifier says. Unmeasured, and
   // deliberately far below `AUTO_ACCEPT` so it is always shown.
@@ -1111,9 +1116,29 @@ export function readDigits(
   const allOnes = text.length >= 2 && /^1+$/.test(text);
   return {
     value,
-    confidence: tooMany || allOnes || light !== undefined ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
+    confidence: tooMany || allOnes || light !== undefined || solid ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
     onlyOnes: allOnes,
+    piece: use.length === 1 ? use[0] : undefined,
   };
+}
+
+/**
+ * A piece too wide and too solid to be one stroke of a pen.
+ *
+ * A dark printed band at the box's edge, or a torn patch of card, comes out as
+ * one piece and is read as 1 at 0.8 or more. A written 1 fills its bounding box
+ * too, but only while it is narrow. Measured with `reading-accuracy.mjs`, this
+ * shows one more box on the 28 scans, a torn card, and moves nothing read
+ * right; on the test scan it shows both printed bands at row 71. A bar of 5
+ * pixels at 0.95 showed a real 1 in marker instead (seaport-8.23 card 16), and
+ * one of 8 missed a band 6 pixels wide at 0.99 (test-long card 14).
+ */
+const SOLID_BLOCK = { width: 6, fill: 0.85 };
+
+function solidBlock(b: DigitBox): boolean {
+  const w = b.maxX - b.minX + 1;
+  const h = b.maxY - b.minY + 1;
+  return w >= SOLID_BLOCK.width && b.count >= w * h * SOLID_BLOCK.fill;
 }
 
 /**
