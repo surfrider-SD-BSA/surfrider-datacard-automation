@@ -1354,6 +1354,103 @@ wrong:
                          "a convolutional net replaces nearest neighbour".)
 ```
 
+## The two apps read the same pixels (30 Sept 2026)
+
+**They did not, and so they did not offer the same boxes.** Read in each app with
+the same bundle, through `scripts/app-check/`:
+
+```
+                       cells offered        on the review list
+                       iOS    Android       iOS    Android
+  seaport-6.13          48      50           28      32
+  lajolla-9.25          19      19            8       7
+  imperial-3.15        349     346          143     139
+```
+
+**Why.** `rasterizePdf` drew every page through a canvas, which leaves two things
+to the web engine. pdf.js hands JPEG decoding to the browser's own decoder where
+the engine offers one (WebCodecs `ImageDecoder`, which it uses by default on any
+engine without `window.chrome`), and the canvas then scales the image to the
+page's size at 200 DPI with its own filter. It always scales: a scan's pixels are
+never exactly the page at 200 DPI (1699 against 1697 across on Seaport). Which
+engine took which path was not pinned down. Taking both out of the engines' hands
+made the apps agree, below, and that is the evidence.
+
+**What changed.** Every page of every chapter scan is one JPEG at about 200 DPI
+over the whole page -- all 1,184 pages of the 28 scans and the 116 of test-long,
+`out/exp/pdfops.mjs` -- so such a page is no longer drawn. `scannedPage`
+(`src/lib/scanpage.ts`) asks pdf.js to decode it in its own JavaScript
+(`isImageDecoderSupported: false`) and to hand over the bytes rather than a
+bitmap (`isOffscreenCanvasSupported: false`), turns them the way the page shows
+them, and converts to grey with `toGray`'s arithmetic. Anything else -- a page
+with text or drawing on it, an image far from 200 DPI, a bitmap mask -- still goes
+through the canvas. Built from this change, both apps read the same:
+
+```
+                       cells offered        on the review list
+                       iOS    Android       iOS    Android
+  seaport-6.13          52      52           31      31
+  imperial-3.15        366     366          139     139
+```
+
+with the same box at the same place in the list (card 4's Cigarette Butts is
+"Cell 9 of 31" in both). The same function renders a scan in Node exactly as the
+apps now do: `out/exp/render-js-pages.mjs` writes `out/pages-js/`, about 55 ms a
+page.
+
+**What it does to the reading,** measured with `reading-accuracy.mjs` on those
+pages against the PDFKit pages every figure in this file is measured on:
+
+```
+                                      PDFKit pages    the apps' pages
+  written cells with a typed value        4,096           4,330
+  reading equals the sheet                2,119 (51.7%)   2,212 (51.1%)
+  hidden at AUTO_ACCEPT 0.45              2,638           2,772
+    of which disagree with sheet            752 (28.5%)     796 (28.7%)
+    leaving out mismatched cards         16.4%           16.9%
+```
+
+The 3,920 cells both find read alike (2,100 and 2,094 equal to the sheet; 744 and
+752 hidden and wrong). The difference is in what is found: 410 boxes only on the
+apps' pages, 220 of them typed up as a real count, against 176 only on PDFKit's,
+108 of them typed as 0. The scanner's own pixels keep faint pencil that PDFKit's
+resampling and its JPEG re-encoding wore away. Registration trusts exactly the
+same pages on both.
+
+**What it does to the list a volunteer checks.** Finding more boxes means more
+to check. Across the 28 scans, with #78's phantom checks in both counts
+(`autoaccept-coverage.mjs`, and `out/exp/cov-js.mjs` for the apps' pages):
+
+```
+                              PDFKit pages    the apps' pages
+  boxes offered                   7,180            7,661
+    with a reading                6,340            6,649
+    nothing read                    840            1,012
+  on the review list              2,656 (37%)      2,919 (38%)
+    a card                          4.5              4.9
+    a cleanup, median                75               77
+```
+
+From 7 boxes on a one-card cleanup to 335 on moonlight-7.05's 48 cards.
+
+**The offline figures still come from PDFKit pages.** Every figure above this
+section, and the cell cache, is measured on `out/pages` -- PDFKit renders made by
+`scripts/render-pdf.swift`, then saved as JPEG -- and the apps have never read
+those pixels. One page there is plainly wrong: `render-pdf.swift` sizes a page
+with `/Rotate` the right way round but draws it without turning it, so
+delmar-6.20's first page -- the only rotated page in the 28 scans -- is on its side
+in `out/pages` and upright in the apps and in `out/pages-js`. It made no
+difference to which pages registration trusts. Moving the offline tools onto pages
+rendered the apps' way, and measuring again from there, is the next step;
+`out/exp/render-js-pages.mjs` and `out/exp/ra-js.mjs` are where it starts.
+
+**Speed.** pdf.js's JPEG decoder is slower than the native ones it replaces. So
+`rasterizePdf` now reads the next page while the caller registers the one before,
+two in hand at most. On the Android emulator, on an otherwise idle Mac, the
+52-page imperial-3.15 reads in 20s against 16s before; the iOS simulator takes 13s
+either way. No real phone has been timed.
+
+
 ## What to do next
 
 As of 29 September 2026, in order. The digit reader and its cutting were
