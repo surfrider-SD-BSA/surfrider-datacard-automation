@@ -185,6 +185,23 @@ due to installPackageLI`. Let the updates finish before a long test, or turn off
 auto-update in the emulator's Play Store. On 29 September 2026 this took the app
 down once in the middle of a check.
 
+## Checking a change in the app
+
+The counterpart of `scripts/app-check/ios.sh` (see `ios/README.md`): reads a scan
+in the app on the emulator and reports what the review screen says about the
+boxes named, with a screenshot of each in `out/app-check/android-<scan>/`.
+
+```sh
+python3 scripts/app-check/android.py scans/6.13.25_Seaport-Village_CH54.pdf \
+  "4|Cigarette Butts;4|Plastic Straws;4|Plastic Cutlery"
+```
+
+It rebuilds the bundle and installs the debug build first, boots `tally-pixel`
+without a window when nothing is attached, and leaves it running (`adb emu kill`
+stops it). The screens are driven with `uiautomator dump` and `adb shell input`,
+and the scan goes in through the system file picker, from Downloads: the shell
+cannot hand the app a MediaStore URI directly, as "Not proven" below explains.
+
 ## Getting it to volunteers
 
 Google Play's equivalent of TestFlight is a **testing track** — internal (up to
