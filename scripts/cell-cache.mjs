@@ -22,18 +22,24 @@
  *
  * Writes out/cells/<scan>.json (one record per offered cell, keyed
  * scan:card:row, with the typed value where the sheet has one) and
- * out/cells/<scan>.bin (their pixels, deflated). Takes about six and a half minutes;
- * needs the gitignored out/pages and scans/.
+ * out/cells/<scan>.bin (their pixels, deflated), or under CELL_CACHE when that is
+ * set. Takes about six and a half minutes; needs the gitignored scans/, and
+ * out/pages for the list of scans.
+ *
+ * The pages are rendered from the PDF in scans/ exactly as the apps render them
+ * (scripts/lib/pages.mjs). `PAGES=pdfkit` builds from the PDFKit renders in
+ * out/pages instead, which is what every figure before 30 September 2026 was
+ * measured on.
  */
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
-import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
 import { colName, readSpreadsheet, matchedPairs } from "./diagnose-review.mjs";
 import { CELLS } from "./lib/cellcache.mjs";
+import { PAGES, scanPages } from "./lib/pages.mjs";
 import { cellsForSide } from "../src/lib/extract.ts";
 import { cropGray } from "../src/lib/marks.ts";
 import { pairIntoCards, referenceTargets, registerAgainstBestSide } from "../src/lib/register.ts";
@@ -46,10 +52,6 @@ const luma = (rgba, n) => {
   for (let i = 0, p = 0; i < n; i++, p += 4) out[i] = (rgba[p] * 299 + rgba[p + 1] * 587 + rgba[p + 2] * 114) / 1000;
   return out;
 };
-const decodeJpeg = (p) => {
-  const { width, height, data } = jpeg.decode(readFileSync(p), { useTArray: true, formatAsRGBA: true });
-  return { width, height, data: luma(data, width * height) };
-};
 const decodePng = (p) => {
   const g = PNG.sync.read(readFileSync(p));
   return { width: g.width, height: g.height, data: luma(g.data, g.width * g.height) };
@@ -57,7 +59,7 @@ const decodePng = (p) => {
 
 const rebase = (r, x0, y0) => ({ x: r.x - x0, y: r.y - y0, width: r.width, height: r.height });
 
-function main() {
+async function main() {
   const i = process.argv.indexOf("--only");
   const only = i >= 0 ? process.argv[i + 1] : undefined;
   mkdirSync(CELLS, { recursive: true });
@@ -74,14 +76,12 @@ function main() {
   for (const pair of matchedPairs()) {
     if (only && pair.name !== only) continue;
     const started = Date.now();
-    const files = readdirSync(pair.dir)
-      .filter((f) => /\.jpe?g$/i.test(f))
-      .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
-
     const chunks = [];
     let offset = 0;
-    const pages = files.map((f, i) => {
-      const r = registerAgainstBestSide(decodeJpeg(join(pair.dir, f)), targets, i + 1);
+    const pages = [];
+    for await (const { pageNumber, image } of scanPages(pair.name)) {
+      const i = pageNumber - 1;
+      const r = registerAgainstBestSide(image, targets, pageNumber);
       const cells = [];
       if (r.trusted) {
         const map = maps[r.side];
@@ -110,8 +110,8 @@ function main() {
           offset += mini.data.length;
         }
       }
-      return { pageNumber: i + 1, side: r.side, trusted: r.trusted, bannerOverlap: r.bannerOverlap, cells };
-    });
+      pages.push({ pageNumber, side: r.side, trusted: r.trusted, bannerOverlap: r.bannerOverlap, cells });
+    }
 
     // Card N is spreadsheet column N, as everywhere else; see reading-accuracy.mjs.
     const { cards } = pairIntoCards(pages);
@@ -140,4 +140,5 @@ function main() {
   }
 }
 
-main();
+console.log(`pages: ${PAGES === "app" ? "rendered from scans/ as the apps render them" : "out/pages (PDFKit)"}`);
+await main();
