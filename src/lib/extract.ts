@@ -9,7 +9,7 @@
  */
 
 import type { CellMap, Rect } from "./cells";
-import { readDigits, type DigitModel } from "./digits";
+import { inkThreshold, OVERSEGMENTED_CONFIDENCE, readDigits, type DigitBox, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
 import { boxMarked, cropGray, stripMarked } from "./marks";
 import { countBoxTally, countTally, salvageCount } from "./tally";
@@ -210,6 +210,68 @@ const rebase = (r: Rect, origin: Rect): Rect => ({
  */
 const READ_MARGIN = { left: 0.2, right: 0.05, vertical: VIEW_MARGIN };
 
+/**
+ * How a line drawn down the TOTAL column is told from a "1" written in the box.
+ *
+ * `reach` is how far above and below the box the stroke is followed, in box
+ * heights, and `span` how long it must run to be a line. One box height either
+ * side is all the cell cache keeps, so the figures were measured there;
+ * `drift` and `gap` are the pixels a ruled line wanders sideways per row, and
+ * the rows it may skip, on a scan.
+ */
+const COLUMN_LINE = { reach: 1, span: 2.5, drift: 2, gap: 3 };
+
+/**
+ * Is the piece read as "1" one stretch of a line drawn down the column?
+ *
+ * Two volunteers struck out their whole TOTAL column with a pen line, and a
+ * printed line or band crosses some boxes; inside the box, either is a
+ * perfectly good 1, read at 0.5-0.85 and taken as read. What gives it away is
+ * that it does not stop at the box. Traced from the piece itself and not from
+ * any ink in the box: a real 1 written beside the card's own printed line
+ * would otherwise be blamed for it (test-long card 27, row 63).
+ *
+ * `piece` is in the coordinates of the reading crop, which starts at `origin`
+ * on the page.
+ */
+function lineDownTheColumn(image: GrayImage, total: Rect, piece: DigitBox, origin: { x: number; y: number }): boolean {
+  const { reach, span, drift, gap } = COLUMN_LINE;
+  const h = total.height;
+  const top = Math.max(0, Math.round(total.y - reach * h));
+  const left = Math.max(0, Math.round(total.x - total.width * READ_MARGIN.left));
+  const win = cropGray(image, { x: left, y: top, width: total.width * (1 + READ_MARGIN.left + READ_MARGIN.right), height: h * (1 + 2 * reach) });
+  const t = inkThreshold(win);
+  if (t < 0) return false;
+  const ink = (x: number, y: number) => x >= 0 && x < win.width && y >= 0 && y < win.height && win.data[y * win.width + x]! <= t;
+
+  // How far the stroke through (x0, y0) runs in one direction.
+  const run = (x0: number, y0: number, dir: number) => {
+    let x = x0;
+    let len = 0;
+    let missed = 0;
+    for (let y = y0 + dir; y >= 0 && y < win.height; y += dir) {
+      let found = -1;
+      for (let d = 0; d <= drift && found < 0; d++) {
+        if (ink(x - d, y)) found = x - d;
+        else if (ink(x + d, y)) found = x + d;
+      }
+      if (found >= 0) {
+        x = found;
+        missed = 0;
+        len = Math.abs(y - y0);
+      } else if (++missed > gap) break;
+    }
+    return len;
+  };
+
+  const y = Math.round(origin.y + (piece.minY + piece.maxY) / 2) - top;
+  for (let px = piece.minX; px <= piece.maxX; px++) {
+    const x = origin.x + px - left;
+    if (ink(x, y) && run(x, y, -1) + run(x, y, 1) >= span * h) return true;
+  }
+  return false;
+}
+
 /** The crop the digit reader is given, and where the printed box sits inside it. */
 function readingCrop(image: GrayImage, total: Rect): { crop: GrayImage; box: Rect } {
   const rect = {
@@ -327,7 +389,18 @@ export function cellsForSide(
     const boxCount = boxTally?.count != null ? boxTally : null;
     // The strokes were not digits, so the digit reading is withdrawn rather
     // than left to disagree with the count of them.
-    const digitReading = boxCount ? null : digits;
+    const kept = boxCount ? null : digits;
+    // A "1" that is one stretch of a line down the column is shown, never
+    // taken as read. Only the confidence moves: it may still be a 1.
+    const struck =
+      kept?.value === 1 &&
+      kept.piece !== undefined &&
+      reading !== null &&
+      lineDownTheColumn(image, cell.total, kept.piece, {
+        x: Math.round(cell.total.x) - reading.box.x,
+        y: Math.round(cell.total.y) - reading.box.y,
+      });
+    const digitReading = kept && struck ? { ...kept, confidence: Math.min(kept.confidence, OVERSEGMENTED_CONFIDENCE) } : kept;
 
     // A strip the counter refused, counted anyway where there were strokes to
     // count. The instruction is that every box arrives filled in; `salvageCount`
