@@ -1358,21 +1358,18 @@ wrong:
 
 ## What to do next
 
-**Start here (30 September 2026).** Two things came after the list below was
+**Start here (30 September 2026).** Three things came after the list below was
 written, and they go first.
 
-A. **Check #74 and #76 in the iOS app, which matters at least as much as
-   Android.** Both were seen working on the Android emulator (`android/README.md`
-   says how; the emulator is `tally-pixel`, driven with `adb`). On iOS the build
-   compiles, installs, launches and takes a shared scan, but was not tapped
-   through: the simulator integration needs `sudo xcode-select -s
-   /Applications/Xcode-beta.app/Contents/Developer` (the owner runs it; it wants a
-   password), and in Xcode 27 there is no Simulator.app to drive instead -- it is
-   Device Hub. What to look for, with the same scans as on Android: 6.13 Seaport
-   card 4, Cigarette Butts / Plastic Straws / Plastic Cutlery read 4, 3, 3
-   "counted: check it"; 9.25 La Jolla Shores card 2, Paper/Wood Straws reads 8
-   "read: check it". `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`
-   in front of `xcodebuild` / `xcrun simctl` works without the switch.
+A. **#74 and #76 in the iOS app -- done (30 Sept), on iOS 27.0.** Tapped through
+   with `scripts/app-check/ios.sh` (#79), which needs no `xcode-select` switch: an
+   XCUITest drives the simulator, with `DEVELOPER_DIR` set per command. Exactly as
+   on Android: 6.13 Seaport card 4, Cigarette Butts / Plastic Straws / Plastic
+   Cutlery read 4, 3, 3 "counted: check it"; 9.25 La Jolla Shores card 2,
+   Paper/Wood Straws reads 8 "read: check it". `scripts/app-check/android.py` does
+   the same on the emulator, so every change to the reading can now be seen in
+   both apps with one command each -- `ios/README.md` and `android/README.md`,
+   "Checking a change in the app".
 
 B. **Numbers made out of printing, taken as read -- shipped (30 Sept).** A "1"
    that is really a line drawn down the whole TOTAL column (two volunteers struck
@@ -1400,6 +1397,32 @@ B. **Numbers made out of printing, taken as read -- shipped (30 Sept).** A "1"
    stray tick (tamarack-8.13 4:38) -- and none was typed as 1. On the test scan
    (`out/exp/emptyshown.mjs`) it shows 13:71, 14:71 and 27:77, all blank by eye,
    and nothing written moves.
+
+   Seen in both apps (iOS 27.0 simulator, Android 16 emulator): imperial-3.15
+   card 21's Juice Boxes, Foam Plates, Syringes and Wipes are on the review list,
+   1 in the box, "read: check it", under a picture of the pen line. The iOS app
+   built from `ios/main` without the change takes all four as read: none is on
+   its list, which is 132 boxes long against 143 with it.
+
+C. **The two apps do not cut the same cells from the same scan.** Same bundle,
+   same PDF, read in each app (`scripts/app-check/`):
+
+   ```
+                          cells offered       on the review list
+                          iOS    Android      iOS    Android
+     seaport-6.13          48      50          28      32
+     lajolla-9.25          19      19           8       7
+     imperial-3.15        349     346         143     139
+   ```
+
+   Not investigated. The likely cause is the rendering: both apps rasterize with
+   pdf.js inside their own web engine (`src/lib/pdf.ts`), and pdf.js hands JPEG
+   decoding and image scaling to the browser, which is WebKit on one and Chromium
+   on the other. Every figure in this file is measured on a third rendering:
+   `out/pages`, made by PDFKit (`scripts/render-pdf.swift`). So the figures
+   describe neither app exactly. Worth knowing how far apart the three are --
+   render one scan all three ways and diff the cells -- before tuning another
+   threshold to the second decimal.
 
 As of 29 September 2026, in order. The digit reader and its cutting were
 reworked that week (#68, #69, #70 -- see "a convolutional net replaces nearest
