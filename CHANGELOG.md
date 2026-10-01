@@ -11,6 +11,15 @@ count as breaking.
 
 ### Changed
 
+- **A "1" that is really a pen line or printing is shown, not taken as read.** Two volunteers
+  struck out their TOTAL column with a line drawn down it, and every box along it was read as a
+  confident 1 that nobody saw. A printed line or band across a box, or a torn patch of card, did
+  the same. Now a 1 whose stroke runs on well above and below its box, or that is a solid block
+  of ink too wide to be a pen stroke, is shown on the review screen with the 1 still in it. No
+  value changes. Across every scan that shows 19 more boxes, all of them empty or struck out by
+  eye, and moves nothing that was read right; on the test scan it shows the three phantoms there
+  and leaves a real 1 beside a printed line alone.
+
 - **Numbers written in light pencil are read.** The digit reader counted a pixel as ink only
   well below the paper, and light pencil sits just under it, so a plainly legible "26" or "19"
   reached the volunteer as "nothing read" with a 1 in it. Where the first look finds nothing, a
