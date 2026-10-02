@@ -193,7 +193,7 @@ boxes named, with a screenshot of each in `out/app-check/android-<scan>/`.
 
 ```sh
 python3 scripts/app-check/android.py scans/6.13.25_Seaport-Village_CH54.pdf \
-  "4|Cigarette Butts;4|Plastic Straws;4|Plastic Cutlery"
+  "4|Cigarette Butts" "4|Plastic Straws" "4|Plastic Cutlery"
 ```
 
 It rebuilds the bundle and installs the debug build first, boots `tally-pixel`
