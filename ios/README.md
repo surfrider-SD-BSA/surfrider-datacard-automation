@@ -285,7 +285,7 @@ on a simulator and reports what the review screen says about the boxes named:
 
 ```sh
 scripts/app-check/ios.sh scans/6.13.25_Seaport-Village_CH54.pdf \
-  "4|Cigarette Butts;4|Plastic Straws;4|Plastic Cutlery"
+  "4|Cigarette Butts" "4|Plastic Straws" "4|Plastic Cutlery"
 ```
 
 ```
@@ -294,10 +294,15 @@ review C4 Cigarette Butts: [... "Cell 8 of 28", "Card 4 → column F", "Cigarett
   "Common & Priority Items", "counted: check it", ..., "4", "Next"]
 ```
 
-Each target is a card and an item as the "All cards" list shows them. The log
-and a screenshot of each box go to `out/app-check/ios-<scan>/`. A box the tool
-took as read is not on the review list and comes back MISSING, which is the
-answer rather than a failure.
+Each target is a card and an item as the "All cards" list shows them, one per
+argument -- plus the section for the six "Other" rows, which share a name:
+`"2|Other (do not write in the item name, just a number)|Glass"`.
+`scripts/app-check/targets.py` checks every target against the card's items
+before anything is built, so a typo fails at once. The log and a screenshot of
+each box go to `out/app-check/ios-<scan>/`. A box that is not on the review list
+-- taken as read, or never offered -- comes back NOT ON THE LIST, which is an
+answer rather than a failure; a failed UI test, or a scan the app refuses, ends
+the run with an error.
 
 It is an XCUITest, which is why it needs neither the `sudo xcode-select` switch
 the Claude Code simulator tools want nor anything in the app's own project.

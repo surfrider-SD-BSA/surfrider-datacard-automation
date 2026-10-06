@@ -3,11 +3,14 @@
  * holds and why running `cellsForSide` on it gives what the app gets.
  */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 
-export const CELLS = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "out", "cells");
+/** out/cells, or CELL_CACHE to keep two caches side by side and compare them. */
+export const CELLS = process.env.CELL_CACHE
+  ? resolve(process.env.CELL_CACHE)
+  : join(dirname(fileURLToPath(import.meta.url)), "..", "..", "out", "cells");
 
 /** The scans in the cache, or a message saying how to build it. */
 export function cachedScans() {
