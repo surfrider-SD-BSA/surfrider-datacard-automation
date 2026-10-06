@@ -18,7 +18,8 @@
  * Usage:
  *   npx vite-node scripts/autoaccept-coverage.mjs -- test-long pacific-3.22
  *
- * Takes directory names under out/pages, or paths. The source breakdown is the
+ * Takes scan names (as in out/pages), rendered from their PDFs in scans/ as the
+ * apps render them -- or paths to directories of page JPEGs, read as they are. The source breakdown is the
  * point: "agreed" and "tally" are the readers measured in the nineties,
  * "digits" is the one measured at 86% at its most confident, and a threshold
  * that hides the third is not the same decision as one that hides the first
@@ -34,6 +35,7 @@ import { cellsForSide } from "../src/lib/extract";
 import { decodeModel } from "../src/lib/digits";
 import { reconcile } from "../src/lib/reading.ts";
 import { pairIntoCards, referenceTargets, registerAgainstBestSide } from "../src/lib/register";
+import { scanPages } from "./lib/pages.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REF = join(ROOT, "assets", "reference");
@@ -49,18 +51,24 @@ const maps = { front: JSON.parse(readFileSync(join(REF, "cells.front.json"), "ut
 const targets = referenceTargets({ front: decodePng(join(REF, "blank-front.png")), back: decodePng(join(REF, "blank-back.png")) }, maps);
 const model = decodeModel(JSON.parse(readFileSync(join(REF, "digit-model.json"), "utf8")));
 
+async function* jpegPages(dir) {
+  const files = readdirSync(dir).filter((f) => /\.jpe?g$/i.test(f))
+    .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
+  for (let i = 0; i < files.length; i++) yield { pageNumber: i + 1, image: decodeJpeg(join(dir, files[i])) };
+}
+
 const THRESHOLDS = [0.99, 0.9, 0.86, 0.8, 0.75, 0.7, 0.6, 0.5, 0.45];
 
 for (const arg of process.argv.slice(2)) {
-  const dir = existsSync(arg) ? arg : join(ROOT, "out", "pages", arg);
-  const files = readdirSync(dir).filter((f) => /\.jpe?g$/i.test(f))
-    .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
-
-  const pages = files.map((f, i) => {
-    const r = registerAgainstBestSide(decodeJpeg(join(dir, f)), targets, i + 1);
-    return { pageNumber: i + 1, side: r.side, trusted: r.trusted, bannerOverlap: r.bannerOverlap,
-             cells: r.trusted ? cellsForSide(r.image, i + 1, maps[r.side], r.side, model) : [] };
-  });
+  // A directory of page JPEGs is read as it is; a scan's name is rendered from its
+  // PDF in scans/ as the apps render it (scripts/lib/pages.mjs).
+  const source = existsSync(arg) ? jpegPages(arg) : scanPages(arg);
+  const pages = [];
+  for await (const { pageNumber, image } of source) {
+    const r = registerAgainstBestSide(image, targets, pageNumber);
+    pages.push({ pageNumber, side: r.side, trusted: r.trusted, bannerOverlap: r.bannerOverlap,
+                 cells: r.trusted ? cellsForSide(r.image, pageNumber, maps[r.side], r.side, model) : [] });
+  }
   const { cards } = pairIntoCards(pages);
 
   let total = 0;

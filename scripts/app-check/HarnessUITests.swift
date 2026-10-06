@@ -6,14 +6,14 @@ import XCTest
 /// Group drawer the way the share extension does, and passes two settings through
 /// xcodebuild's TEST_RUNNER_ prefix:
 ///
-///   TARGETS  "4|Cigarette Butts;4|Plastic Straws" -- card number and item name
+///   TARGETS  one "card|item|section" per line, as scripts/app-check/targets.py writes them
 ///   OUT      a directory on the Mac for log.txt and a screenshot of each box
 ///
 /// It walks the screens a volunteer does -- the event, the waiting scan, the reading,
 /// "Start checking", "All cards" -- and for each target taps its row and writes down
 /// every text on the review screen: the tag ("counted: check it"), the number in the
-/// box, which cell of how many. A box the tool took as read is not on the list, and
-/// is logged as MISSING.
+/// box, which cell of how many. A box that is not on the list -- taken as read, or
+/// never offered -- is logged as NOT ON THE LIST.
 final class HarnessUITests: XCTestCase {
     private var out: URL!
     private var log = ""
@@ -59,11 +59,18 @@ final class HarnessUITests: XCTestCase {
 
     func testReadAndInspect() throws {
         let env = ProcessInfo.processInfo.environment
-        let targets: [(card: Int, item: String)] = (env["TARGETS"] ?? "").split(separator: ";").compactMap {
-            let parts = $0.split(separator: "|", maxSplits: 1).map(String.init)
-            guard parts.count == 2, let card = Int(parts[0]) else { return nil }
-            return (card, parts[1])
+        // One per line: an item name can hold a ";" ("Treated Wood (i.e. pallets; NOT
+        // driftwood)"), and six share a name, told apart by their section.
+        var targets: [(card: Int, item: String, section: String)] = []
+        for line in (env["TARGETS"] ?? "").split(separator: "\n") {
+            let parts = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 3, let card = Int(parts[0]) else {
+                XCTFail("a target that is not card|item|section: \(line)")
+                return
+            }
+            targets.append((card, parts[1], parts[2]))
         }
+        XCTAssertFalse(targets.isEmpty, "no targets")
 
         let app = XCUIApplication(bundleIdentifier: "com.mateobesse.surfriderdatacards")
         app.launch()
@@ -83,10 +90,22 @@ final class HarnessUITests: XCTestCase {
         note("capture: \(read.label)")
         read.tap()
 
-        // Screen 4: reading.
+        // Screen 4: reading. It ends in "Start checking", or in a scan that could not
+        // be read, or in a page refused -- and the last two are answers too.
         let start = app.buttons["Start checking"]
+        let failed = app.staticTexts["That scan could not be read."]
+        let refused = app.buttons["Look at that page first"]
         let began = Date()
-        XCTAssertTrue(start.waitForExistence(timeout: 1800), "reading did not finish: \(texts(app))")
+        while !start.exists && Date().timeIntervalSince(began) < 1800 {
+            if failed.exists || refused.exists {
+                shot("reading-refused")
+                note("READ REFUSED: \(texts(app))")
+                XCTFail("the scan was not read: \(texts(app))")
+                return
+            }
+            sleep(2)
+        }
+        XCTAssertTrue(start.exists, "reading did not finish in 30 minutes: \(texts(app))")
         note("read in \(Int(Date().timeIntervalSince(began)))s")
         shot("reading-done")
         start.tap()
@@ -101,8 +120,9 @@ final class HarnessUITests: XCTestCase {
 
         for t in targets {
             let tag = "C\(t.card)"
-            guard let row = find(app, tag: tag, item: t.item) else {
-                note("MISSING \(tag) \(t.item): not on the review list")
+            guard let row = find(app, tag: tag, item: t.item, section: t.section) else {
+                XCTAssertTrue(app.buttons["Make the spreadsheet"].exists, "lost the All cards list looking for \(tag) \(t.item)")
+                note("NOT ON THE LIST \(tag) \(t.item) (\(t.section)): taken as read, or never offered")
                 shot("missing-\(tag)-\(t.item.prefix(20))")
                 scrollToTop(app)
                 continue
@@ -125,7 +145,7 @@ final class HarnessUITests: XCTestCase {
                     withVelocity: 200,
                     thenHoldForDuration: 0.6)
                 sleep(1)
-                guard let again = find(app, tag: tag, item: t.item) else { break }
+                guard let again = find(app, tag: tag, item: t.item, section: t.section) else { break }
                 at = again.at
                 tries += 1
             }
@@ -146,7 +166,7 @@ final class HarnessUITests: XCTestCase {
     }
 
     /// Where the row for this card and item is on screen, scrolling the list until it shows.
-    private func find(_ app: XCUIApplication, tag: String, item: String) -> (label: String, at: CGPoint)? {
+    private func find(_ app: XCUIApplication, tag: String, item: String, section: String) -> (label: String, at: CGPoint)? {
         let list = app.scrollViews.firstMatch
         let screen = app.windows.firstMatch.frame
         var lastSeen = ""
@@ -155,8 +175,9 @@ final class HarnessUITests: XCTestCase {
                 !$0.frame.isEmpty && screen.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
             }
             // A row is one button labelled "C4, Cigarette Butts, Common & Priority Items, 4".
-            // Item names hold commas of their own, so the label is matched from the front.
-            for b in visible where b.elementType == .button && b.label.hasPrefix("\(tag), \(item), ") {
+            // Item names hold commas of their own, so the label is matched from the front,
+            // section included: the six "Other" rows differ only in theirs.
+            for b in visible where b.elementType == .button && b.label.hasPrefix("\(tag), \(item), \(section), ") {
                 return (b.label, CGPoint(x: b.frame.midX, y: b.frame.midY))
             }
             let seen = visible.filter { $0.elementType == .staticText }.map(\.label).joined(separator: "|")

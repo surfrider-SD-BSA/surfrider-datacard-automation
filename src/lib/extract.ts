@@ -12,7 +12,7 @@ import type { CellMap, Rect } from "./cells";
 import { inkThreshold, OVERSEGMENTED_CONFIDENCE, readDigits, type DigitBox, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
 import { boxMarked, cropGray, stripMarked } from "./marks";
-import { countBoxTally, countTally, salvageCount } from "./tally";
+import { countBoxTally, countTally, salvageCount, TWO_UPRIGHTS } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
 import { itemForRow, type CardSide } from "./taxonomy";
 
@@ -385,8 +385,27 @@ export function cellsForSide(
     // run on from the strip, or a number, as a tally of its own. Counted
     // anyway, those answered 20 more boxes and 7 of them were wrong or could not
     // be settled by eye.
-    const boxTally = reading && digits?.onlyOnes && !tallyMarked ? countBoxTally(reading.crop, reading.box) : null;
+    //
+    // A lone 1 is handed over too. The digit reader strikes a tall stroke near
+    // either side of the box as a printed rule, so "||" or "|||" drawn there
+    // comes out as one stroke and one confident 1 -- the commonest way a box of
+    // tally marks reached the spreadsheet unseen (HANDOFF.md, "Strokes struck as
+    // rules"). The counter tells a printed side from a stroke by whether it
+    // carries on into the rows around, so it sees every upright.
+    const lone =
+      digits !== null && !digits.onlyOnes && digits.value === 1 && digits.piece !== undefined && !tallyMarked;
+    const boxTally =
+      reading && (digits?.onlyOnes || (lone && !(globalThis as { __NO_LONE?: boolean }).__NO_LONE)) && !tallyMarked
+        ? countBoxTally(reading.crop, reading.box)
+        : null;
     const boxCount = boxTally?.count != null ? boxTally : null;
+    // Two clean uprights the counter will not call a two -- they are an eleven
+    // as often -- are not a 1 either, so a lone 1 beside them is shown. Only
+    // when that is the counter's one objection: a 1 with a flag, a curl from
+    // the row above or a circle round it also comes out as two "strokes", and
+    // fails its shape tests instead.
+    const twoUprights =
+      lone && boxTally !== null && boxTally.count === null && boxTally.strokes === 2 && boxTally.reason === TWO_UPRIGHTS;
     // The strokes were not digits, so the digit reading is withdrawn rather
     // than left to disagree with the count of them.
     const kept = boxCount ? null : digits;
@@ -400,7 +419,8 @@ export function cellsForSide(
         x: Math.round(cell.total.x) - reading.box.x,
         y: Math.round(cell.total.y) - reading.box.y,
       });
-    const digitReading = kept && struck ? { ...kept, confidence: Math.min(kept.confidence, OVERSEGMENTED_CONFIDENCE) } : kept;
+    const digitReading =
+      kept && (struck || twoUprights) ? { ...kept, confidence: Math.min(kept.confidence, OVERSEGMENTED_CONFIDENCE) } : kept;
 
     // A strip the counter refused, counted anyway where there were strokes to
     // count. The instruction is that every box arrives filled in; `salvageCount`

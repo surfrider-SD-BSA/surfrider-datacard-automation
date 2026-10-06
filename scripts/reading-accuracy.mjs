@@ -23,23 +23,29 @@
  *
  * --src reads with another copy of src/ -- how two versions of the cutter were
  * compared side by side, each in its own copy. --out writes one row per cell
- * ([scan:card:row, reading, typed, confidence, card looks mismatched]) for
- * digging into what changed. Takes about eight minutes; needs the gitignored
- * out/pages, out/models/cnn and scans/.
+ * ([scan:card:row, reading, typed, confidence, card looks mismatched, which
+ * reader spoke, the digit reader's number and confidence, the counter's count
+ * and confidence]) for digging into what changed. Takes about eight minutes; needs the gitignored
+ * out/models/cnn and scans/, and out/pages for the list of scans.
+ *
+ * Pages are rendered from the PDFs in scans/ exactly as the apps render them
+ * (scripts/lib/pages.mjs), always with this checkout's src/lib/scanpage.ts.
+ * `PAGES=pdfkit` reads the PDFKit renders in out/pages instead, which every
+ * figure before 30 September 2026 was measured on.
  *
  * --cache reads the cells `scripts/cell-cache.mjs` cut out once instead of
  * registering every page again: the same figures in under a minute, for any
  * change to the readers. Not for a change to registration or to which cells are
  * offered -- rebuild the cache for those.
  */
-import { readdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
 import { colName, readSpreadsheet, matchedPairs } from "./diagnose-review.mjs";
 import { cachedScans, loadCells } from "./lib/cellcache.mjs";
+import { PAGES, scanPages } from "./lib/pages.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REF = join(ROOT, "assets", "reference");
@@ -64,10 +70,6 @@ const luma = (rgba, n) => {
   const out = new Uint8Array(n);
   for (let i = 0, p = 0; i < n; i++, p += 4) out[i] = (rgba[p] * 299 + rgba[p + 1] * 587 + rgba[p + 2] * 114) / 1000;
   return out;
-};
-const decodeJpeg = (p) => {
-  const { width, height, data } = jpeg.decode(readFileSync(p), { useTArray: true, formatAsRGBA: true });
-  return { width, height, data: luma(data, width * height) };
 };
 const decodePng = (p) => {
   const g = PNG.sync.read(readFileSync(p));
@@ -110,7 +112,18 @@ function scoreCard(cells) {
         if (c.value !== c.typed) total.keptWrong++;
       }
     }
-    rows.push([c.key, c.value, c.typed, Number(c.conf.toFixed(3)), mismatched]);
+    rows.push([
+      c.key,
+      c.value,
+      c.typed,
+      Number(c.conf.toFixed(3)),
+      mismatched,
+      c.source,
+      c.digits,
+      Number(c.digitsConf.toFixed(3)),
+      c.tally,
+      Number(c.tallyConf.toFixed(3)),
+    ]);
   }
 }
 
@@ -121,7 +134,17 @@ function scored(key, c, typed) {
     c.tallyCount === null ? null : { value: c.tallyCount, confidence: c.tallyConfidence },
     c.digitValue === null ? null : { value: c.digitValue, confidence: c.digitConfidence },
   );
-  return { key, typed, value: r?.value ?? null, conf: r?.confidence ?? 0 };
+  return {
+    key,
+    typed,
+    value: r?.value ?? null,
+    conf: r?.confidence ?? 0,
+    source: r?.source ?? null,
+    digits: c.digitValue,
+    digitsConf: c.digitConfidence,
+    tally: c.tallyCount,
+    tallyConf: c.tallyConfidence,
+  };
 }
 
 const progress = (name) =>
@@ -145,19 +168,17 @@ if (CACHE) {
 } else {
   for (const pair of matchedPairs()) {
     const model = modelFor(pair.name);
-    const files = readdirSync(pair.dir)
-      .filter((f) => /\.jpe?g$/i.test(f))
-      .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
-    const pages = files.map((f, i) => {
-      const r = registerAgainstBestSide(decodeJpeg(join(pair.dir, f)), targets, i + 1);
-      return {
-        pageNumber: i + 1,
+    const pages = [];
+    for await (const { pageNumber, image } of scanPages(pair.name)) {
+      const r = registerAgainstBestSide(image, targets, pageNumber);
+      pages.push({
+        pageNumber,
         side: r.side,
         trusted: r.trusted,
         bannerOverlap: r.bannerOverlap,
-        cells: r.trusted ? cellsForSide(r.image, i + 1, maps[r.side], r.side, model) : [],
-      };
-    });
+        cells: r.trusted ? cellsForSide(r.image, pageNumber, maps[r.side], r.side, model) : [],
+      });
+    }
     const { cards } = pairIntoCards(pages);
     const sheet = readSpreadsheet(pair.sheet);
 
@@ -179,7 +200,9 @@ if (CACHE) {
 }
 
 const pct = (a, b) => ((a / b) * 100).toFixed(1) + "%";
-console.log(`\n\nreading from ${SRC}${CACHE ? ", cells from the cache" : ""}`);
+console.log(
+  `\n\nreading from ${SRC}${CACHE ? ", cells from the cache" : PAGES === "app" ? ", pages rendered as the apps render them" : ", pages from out/pages (PDFKit)"}`,
+);
 console.log(`written cells with a typed value   ${total.written}`);
 console.log(`  given a reading                  ${total.read}`);
 console.log(`  reading equals the sheet         ${total.right}  (${pct(total.right, total.written)})`);
