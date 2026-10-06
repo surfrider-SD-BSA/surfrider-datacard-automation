@@ -39,7 +39,7 @@ import {
   viewRect,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
-import { isAutoAccepted, prefillFor } from "./lib/prefill";
+import { autoAcceptedInScan, prefillFor } from "./lib/prefill";
 import { rasterizePdf } from "./lib/pdf";
 import {
   pairIntoCards,
@@ -262,12 +262,19 @@ async function process(params: ProcessParams) {
     })),
     minBannerOverlap: MIN_BANNER_OVERLAP,
     problems: state.problems,
-    cards: state.cards.map((card) => ({
+    cards: ((): unknown[] => {
+      // Ranked across the whole scan: the least sure share is shown, the rest
+      // taken as read. See SHOW_SHARE in lib/prefill.ts.
+      const all = state.cards.flatMap((card) => card.cells.map((cell) => prefillFor(cell)));
+      const accepted = autoAcceptedInScan(all);
+      let k = 0;
+      return state.cards.map((card) => ({
       cardNumber: card.cardNumber,
       column: columnLetter(card.cardNumber),
       missingSides: card.missingSides,
       cells: card.cells.map((cell) => {
         const prefill = prefillFor(cell);
+        k++;
         return {
           row: cell.row,
           itemName: cell.itemName,
@@ -287,11 +294,12 @@ async function process(params: ProcessParams) {
             // side, because which cells a person is shown must not depend on
             // which front end they opened -- the desktop tool and the phone
             // read the threshold from the same constant.
-            autoAccepted: isAutoAccepted(prefill),
+            autoAccepted: accepted[k - 1],
           },
         };
       }),
-    })),
+    }));
+    })(),
   };
 }
 
