@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  autoAcceptedInScan,
   AUTO_ACCEPT,
   PLACEHOLDER_VALUE,
   PREFILL_GATE,
@@ -135,5 +136,20 @@ describe("autoAcceptFor", () => {
 
   it("returns null for a cell that stays on the review list", () => {
     expect(autoAcceptFor(cell({ digitValue: 7, digitConfidence: 0.4 }))).toBeNull();
+  });
+});
+
+describe("autoAcceptedInScan", () => {
+  const r = (confidence: number, source = "digits") =>
+    ({ value: 1, confidence, source, tally: null, digits: 1 }) as Parameters<typeof autoAcceptedInScan>[0][number];
+
+  it("shows the least confident fifth and takes the rest", () => {
+    const confs = [0.9, 0.1, 0.8, 0.7, 0.2, 0.95, 0.6, 0.85, 0.5, 0.99];
+    expect(autoAcceptedInScan(confs.map((c) => r(c)))).toEqual(confs.map((c) => c > 0.1 && c !== 0.2));
+  });
+
+  it("always shows a box with nothing read, even past the share", () => {
+    const got = autoAcceptedInScan([r(0, "placeholder"), r(0, "placeholder"), r(0.1), null, r(0.9)]);
+    expect(got).toEqual([false, false, true, false, true]);
   });
 });
