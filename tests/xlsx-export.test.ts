@@ -525,3 +525,27 @@ describe("the committed sample workbook", () => {
     expect(cached(cells.get("B18")!)).toBeGreaterThan(0);
   });
 });
+
+describe("the hidden Training sheet", () => {
+  const png = "iVBORw0KGgo=";
+  const filled = parts(
+    fillTemplate(template, {
+      ...baseInput,
+      training: [{ cardNumber: 1, row: 18, value: 12, corrected: true, png }],
+    }),
+  );
+
+  it("is added hidden, with the box's value and picture", () => {
+    expect(text(filled["xl/workbook.xml"])).toMatch(/<sheet state="hidden" name="Training" sheetId="\d+" r:id="rId\d+"\/>/);
+    const sheet = text(filled["xl/worksheets/sheet3.xml"]);
+    expect(sheet).toContain(">12<");
+    expect(sheet).toContain(">corrected<");
+    expect(sheet).toContain(png);
+    expect(text(filled["[Content_Types].xml"])).toContain('PartName="/xl/worksheets/sheet3.xml"');
+    expect(text(filled["xl/_rels/workbook.xml.rels"])).toContain('Target="worksheets/sheet3.xml"');
+  });
+
+  it("is left out when no box was checked", () => {
+    expect(parts(fillTemplate(template, baseInput))["xl/worksheets/sheet3.xml"]).toBeUndefined();
+  });
+});
