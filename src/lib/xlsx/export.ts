@@ -80,6 +80,26 @@ export interface ExportInput {
   sourcePdfName: string;
   /** Injectable for deterministic tests. */
   generatedAt?: Date;
+  /** Boxes a person checked, with their pictures: the hidden Training sheet. */
+  training?: TrainingBox[];
+}
+
+/**
+ * A box a volunteer was shown and settled, kept to train the digit reader on.
+ *
+ * The typed sheets are wrong for about one box in five, which is why a bigger
+ * reader trained on them learnt nothing more (HANDOFF.md). A value a person
+ * typed or let stand with the picture in front of them is the clean label that
+ * was missing, so the apps put each one in the export, out of sight.
+ */
+export interface TrainingBox {
+  cardNumber: number;
+  row: number;
+  value: number;
+  /** True if the person changed what the tool had read. */
+  corrected: boolean;
+  /** The printed TOTAL box, as a base64 PNG at 200 DPI. */
+  png: string;
 }
 
 function escapeXml(s: string): string {
@@ -298,10 +318,49 @@ function provenanceSheetXml(input: ExportInput): string {
   );
 }
 
-/** Register the provenance worksheet in the workbook, rels, and content types. */
+function trainingSheetXml(boxes: TrainingBox[]): string {
+  const cell = (ref: string, text: string) =>
+    `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(text)}</t></is></c>`;
+  const header = ["Card", "Item row", "Item", "Value", "Checked", "Picture (PNG, base64)"];
+  const rows = [
+    header,
+    ...boxes.map((b) => [
+      String(b.cardNumber),
+      String(b.row),
+      itemForRow(b.row)?.name ?? "?",
+      String(b.value),
+      b.corrected ? "corrected" : "confirmed",
+      b.png,
+    ]),
+  ];
+  const xml = rows
+    .map((cells, i) => `<row r="${i + 1}">${cells.map((c, j) => cell(`${columnName(j + 1)}${i + 1}`, c)).join("")}</row>`)
+    .join("");
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    `<sheetData>${xml}</sheetData></worksheet>`
+  );
+}
+
+/** Register the provenance worksheet, and the hidden training one, in the workbook. */
 function addProvenanceSheet(
   parts: Map<string, string>,
   input: ExportInput,
+): void {
+  addSheet(parts, PROVENANCE_PATH, "Provenance", "visible", provenanceSheetXml(input));
+  // Hidden: it is for the reader's next training run, not for the chapter.
+  if (input.training?.length) {
+    addSheet(parts, "xl/worksheets/sheet3.xml", "Training", "hidden", trainingSheetXml(input.training));
+  }
+}
+
+function addSheet(
+  parts: Map<string, string>,
+  path: string,
+  name: string,
+  state: "visible" | "hidden",
+  xml: string,
 ): void {
   const relsXml = parts.get(RELS_PATH);
   const workbookXml = parts.get(WORKBOOK_PATH);
@@ -317,13 +376,13 @@ function addProvenanceSheet(
   const sheetIds = [...workbookXml.matchAll(/sheetId="(\d+)"/g)].map((m) => Number(m[1]));
   const sheetId = Math.max(0, ...sheetIds) + 1;
 
-  parts.set(PROVENANCE_PATH, provenanceSheetXml(input));
+  parts.set(path, xml);
 
   parts.set(
     RELS_PATH,
     relsXml.replace(
       "</Relationships>",
-      `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>`,
+      `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="${path.replace(/^xl\//, "")}"/></Relationships>`,
     ),
   );
 
@@ -331,7 +390,7 @@ function addProvenanceSheet(
     WORKBOOK_PATH,
     workbookXml.replace(
       "</sheets>",
-      `<sheet state="visible" name="Provenance" sheetId="${sheetId}" r:id="${relId}"/></sheets>`,
+      `<sheet state="${state}" name="${name}" sheetId="${sheetId}" r:id="${relId}"/></sheets>`,
     ),
   );
 
@@ -339,7 +398,7 @@ function addProvenanceSheet(
     CONTENT_TYPES_PATH,
     typesXml.replace(
       "</Types>",
-      '<Override ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" PartName="/xl/worksheets/sheet2.xml"/></Types>',
+      `<Override ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" PartName="/${path}"/></Types>`,
     ),
   );
 }

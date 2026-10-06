@@ -10,6 +10,7 @@ import { unzipSync, zipSync } from "fflate";
 import { fillWorkbookParts, type ExportInput } from "./export";
 
 export type {
+  TrainingBox,
   EventMetadata,
   ExportInput,
   ExtractedCard,
