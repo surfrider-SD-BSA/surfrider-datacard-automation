@@ -11,6 +11,12 @@ count as breaking.
 
 ### Changed
 
+- **Two or three tally strokes in the number box are no longer taken as a 1.** The reader
+  erased strokes near the box's sides as if they were its printed lines, so "||" came out as a
+  confident 1 that nobody saw. Such boxes are now counted (three strokes or more) or shown.
+  Across the 28 scans, 15 fewer wrong numbers reach the spreadsheet unseen; 3 boxes read right
+  are now shown as well.
+
 - **A "1" that is really a pen line or printing is shown, not taken as read.** Two volunteers
   struck out their TOTAL column with a line drawn down it, and every box along it was read as a
   confident 1 that nobody saw. A printed line or band across a box, or a torn patch of card, did
