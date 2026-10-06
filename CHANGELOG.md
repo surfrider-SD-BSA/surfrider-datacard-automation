@@ -11,6 +11,13 @@ count as breaking.
 
 ### Changed
 
+- **The apps show only the least-sure 20% of boxes.** Every box is ranked by how sure the
+  reader is, and only the least confident fifth of a scan goes on the review list, plus any box
+  with nothing read; the rest are taken as read. Before, everything under a fixed 0.45 was shown,
+  about 36%. On Seaport 6.13 the list goes from 31 boxes to 14. Measured on the 28 scans, about
+  440 more numbers that disagree with the typed sheets reach the spreadsheet unchecked. The
+  desktop browser tool still uses the fixed 0.45.
+
 - **Two or three tally strokes in the number box are no longer taken as a 1.** The reader
   erased strokes near the box's sides as if they were its printed lines, so "||" came out as a
   confident 1 that nobody saw. Such boxes are now counted (three strokes or more) or shown.
