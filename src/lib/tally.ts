@@ -1307,6 +1307,9 @@ function countStrokes(
  */
 export const BOX_TALLY_CONFIDENCE = 0.3;
 
+/** Why countBoxTally declines two clean uprights; extract.ts acts on exactly this. */
+export const TWO_UPRIGHTS = "two strokes are an eleven as often as a two";
+
 /**
  * The box's own settings, where they differ from the strip's. Each was
  * measured against the 277 boxes of `eye-labels/box-tallies.json`.
@@ -1438,7 +1441,7 @@ export function countBoxTally(
   if (reading.count === null) return reading;
   if (reading.count < 3) {
     const { strokes, bars, groups, explained } = reading;
-    return DECLINE("two strokes are an eleven as often as a two", { strokes, bars, groups, explained });
+    return DECLINE(TWO_UPRIGHTS, { strokes, bars, groups, explained });
   }
   return { ...reading, confidence: Math.min(reading.confidence, BOX_TALLY_CONFIDENCE) };
 }
