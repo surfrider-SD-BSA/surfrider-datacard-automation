@@ -362,6 +362,40 @@ export function isAutoAccepted(reading: Reading | null | undefined): boolean {
   return reading != null && reading.confidence >= AUTO_ACCEPT;
 }
 
+/**
+ * Share of a scan's boxes a person is shown: the least sure, by confidence.
+ *
+ * The owner's decision (6 October 2026): show only the least-confident 20% and
+ * take the rest as read, rather than everything under a fixed `AUTO_ACCEPT`,
+ * which showed about 36%. Measured on the 28 scans against the typed sheets
+ * (HANDOFF.md), that takes roughly 440 more wrong numbers into the spreadsheet
+ * unseen in exchange for about half the checking. A box with nothing read is
+ * always shown, whatever the share, because there is no number to take.
+ */
+export const SHOW_SHARE = 0.2;
+
+/**
+ * Which of a scan's readings are taken as read: all but the least confident
+ * `SHOW_SHARE` of them. Same order in as out. Ties at the line are broken by
+ * order on the card, so the share is exact and the answer the same everywhere.
+ */
+export function autoAcceptedInScan(readings: (Reading | null | undefined)[]): boolean[] {
+  const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
+  const show = Math.ceil(readings.length * SHOW_SHARE);
+  const ranked = readings
+    .map((r, i) => ({ i, c: empty(r) ? -1 : r!.confidence }))
+    .sort((a, b) => a.c - b.c || a.i - b.i);
+  const accepted = readings.map((r) => !empty(r));
+  let shown = readings.filter(empty).length;
+  for (const { i } of ranked) {
+    if (!accepted[i]) continue;
+    if (shown >= show) break;
+    accepted[i] = false;
+    shown++;
+  }
+  return accepted;
+}
+
 /** The reading to accept outright for this cell, or null if a person should see it. */
 export function autoAcceptFor(cell: ExtractedCell): Reading | null {
   const prefill = prefillFor(cell);
