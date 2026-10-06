@@ -218,15 +218,31 @@ def review_screen() -> list[str]:
 
 
 def pick(name: str) -> None:
-    """Choose the scan in the system file picker, which usually opens on Downloads."""
-    if not wait(name, 10):
+    """Choose the scan in the system file picker, from Downloads.
+
+    The picker usually opens on Downloads already, with a new file below the fold,
+    so it scrolls first. Only when it opened elsewhere is the drawer used -- and its
+    "Downloads" is the last one on screen: the first is the page's own heading.
+    """
+    if not wait("Files in Downloads", 5):
         tap("Show roots")
-        tap("Downloads")
+        time.sleep(1.5)  # the drawer slides in; a tap during it lands nowhere
+        downloads = [n for n in nodes() if n["label"] == "Downloads"]
+        if not downloads:
+            raise SystemExit(f"no Downloads in the picker's drawer\n{texts()}")
+        tap_at(*downloads[-1]["c"])
+        time.sleep(1.5)
     _, h = size()
+    last = None
     for _ in range(30):
-        if wait(name, 3):
-            tap(name)
+        n = wait(name, 2)
+        if n:
+            tap_at(*n["c"])
             return
+        seen = texts()
+        if seen == last:
+            break
+        last = seen
         swipe(h * 0.75, h * 0.35, 600)
     raise SystemExit(f"{name} is not in the picker's Downloads\n{texts()}")
 
@@ -245,8 +261,10 @@ def main() -> None:
     remote = f"/sdcard/Download/{scan.name}"
     already = adb("shell", "ls", remote).strip() == remote
     adb("push", str(scan), remote)
-    adb("shell", "content", "call", "--method", "scan_volume", "--uri", "content://media",
-        "--arg", "external_primary")  # fmt: skip
+    # Indexed by name, so the picker lists it at once: a scan of the whole volume
+    # had not reached a newly pushed file by the time the picker opened.
+    adb("shell", "content", "call", "--method", "scan_file", "--uri", "content://media",
+        "--arg", remote)  # fmt: skip
 
     try:
         run(check, scan, targets)
