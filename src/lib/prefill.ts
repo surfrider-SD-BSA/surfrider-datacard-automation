@@ -375,6 +375,20 @@ export function isAutoAccepted(reading: Reading | null | undefined): boolean {
 export const SHOW_SHARE = 0.2;
 
 /**
+ * How sure a reading is, for choosing which to show. A longer number is
+ * likelier wrong at the same confidence -- across the 28 scans, readings of two
+ * digits disagree with the typed sheets 51% of the time and of three 85%,
+ * against 28% for one -- because each extra digit is one more chance to misread
+ * or to cut a stray mark as a digit. Weighted, the least-sure 20% catches more
+ * of the mistakes: 848 left unseen against 858. Only the ranking uses this; the
+ * confidence a reading carries is unchanged.
+ */
+function rankingConfidence(r: Reading): number {
+  const digits = String(Math.abs(Math.round(r.value))).length;
+  return r.confidence * (digits >= 3 ? 0.5 : digits === 2 ? 0.8 : 1);
+}
+
+/**
  * Which of a scan's readings are taken as read: all but the least confident
  * `SHOW_SHARE` of them. Same order in as out. Ties at the line are broken by
  * order on the card, so the share is exact and the answer the same everywhere.
@@ -383,7 +397,7 @@ export function autoAcceptedInScan(readings: (Reading | null | undefined)[]): bo
   const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
   const show = Math.ceil(readings.length * SHOW_SHARE);
   const ranked = readings
-    .map((r, i) => ({ i, c: empty(r) ? -1 : r!.confidence }))
+    .map((r, i) => ({ i, c: empty(r) ? -1 : rankingConfidence(r!) }))
     .sort((a, b) => a.c - b.c || a.i - b.i);
   const accepted = readings.map((r) => !empty(r));
   let shown = readings.filter(empty).length;

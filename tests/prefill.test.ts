@@ -153,3 +153,10 @@ describe("autoAcceptedInScan", () => {
     expect(got).toEqual([false, false, true, false, true]);
   });
 });
+
+describe("autoAcceptedInScan ranking", () => {
+  it("shows a long number before a short one of the same confidence", () => {
+    const at = (value: number) => ({ value, confidence: 0.7, source: "digits", tally: null, digits: value }) as Reading;
+    expect(autoAcceptedInScan([at(4), at(4), at(4), at(4), at(123)])).toEqual([true, true, true, true, false]);
+  });
+});
