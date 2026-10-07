@@ -49,7 +49,8 @@ import { PAGES, scanPages } from "./lib/pages.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REF = join(ROOT, "assets", "reference");
-const FOLDS = join(ROOT, "out", "models", "cnn");
+// FOLDS_DIR measures a second set of per-event models, as train_digits_cnn.py writes them.
+const FOLDS = join(ROOT, process.env.FOLDS_DIR ?? join("out", "models", "cnn"));
 
 const arg = (name) => {
   const i = process.argv.indexOf(name);
