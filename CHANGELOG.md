@@ -191,6 +191,14 @@ count as breaking.
 
 ### Fixed
 
+- **The Training sheet only holds boxes a person actually looked at.** It used to take every
+  box on the review list, so a volunteer who went straight to "Make the spreadsheet" sent the
+  reader's own unchecked guesses as "confirmed" labels. Each app now notes a box once its picture
+  is on the review screen, and only those boxes go in. Checked by exporting from both apps on
+  Seaport 6.13 after opening two boxes: both sheets hold the same three boxes, with identical
+  pictures, where before they held seven. `scripts/app-check/` takes `EXPORT=1` to make the
+  spreadsheet at the end of a check and copy it out.
+
 - **The totals column read 0 on a phone.** Column B holds `SUM(Cn:BZn)` and, in
   the blank template, a cached `<v>0</v>` from when it was saved. Desktop Excel
   recalculates on open — `fullCalcOnLoad` was already set for exactly this — but

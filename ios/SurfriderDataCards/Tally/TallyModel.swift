@@ -146,6 +146,14 @@ final class TallyModel: ObservableObject {
     /// Touching a box takes its cell out of here.
     @Published private(set) var untouched: [CellKey: ScanCell.Prefill] = [:]
 
+    /// The boxes whose pictures were on the review screen. Only these go into
+    /// the export's Training sheet: a number left as the tool read it is a
+    /// person's answer only if they were shown the box -- otherwise it is the
+    /// reader's own guess, and training on it teaches the reader nothing.
+    private(set) var seen: Set<CellKey> = []
+
+    func markSeen(_ key: CellKey) { seen.insert(key) }
+
     /// Where the reviewer is, and what is on the keypad.
     @Published var index = 0
     @Published var entry = ""
@@ -348,6 +356,7 @@ final class TallyModel: ObservableObject {
         cells = []
         values = [:]
         untouched = [:]
+        seen = []
         index = 0
         entry = ""
         exportedFile = nil
@@ -550,6 +559,7 @@ final class TallyModel: ObservableObject {
             "values": byCard.map { [$0.key, $0.value.sorted { $0[0] < $1[0] }] as [Any] },
             "prefilled": untouched.keys.map { [$0.card, $0.row] },
             "confidences": untouched.map { [$0.key.card, $0.key.row, $0.value.confidence] as [Any] },
+            "seen": seen.map { [$0.card, $0.row] },
         ]
 
         do {

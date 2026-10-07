@@ -355,6 +355,7 @@ struct ReviewScreen: View {
         // to has its own load running; this one just stops talking.
         guard model.current?.key == flat.key else { return }
         revision &+= 1
+        model.markSeen(flat.key)
 
         // The cells they are about to reach, while they are still reading this
         // one. This is the part that makes "Next" instant: by the time the tap
