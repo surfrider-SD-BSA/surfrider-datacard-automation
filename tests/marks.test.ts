@@ -262,4 +262,14 @@ describe("tallestMark", () => {
     ink(img, 148, 110, 151, 150, PAPER - 40);
     expect(tallestMark(img, BOX)).toBeGreaterThan(0.8);
   });
+
+  it("reads a crease across a tally strip as nothing, and tally strokes as tall", () => {
+    const strip = { x: 20, y: 100, width: 220, height: 60 };
+    const creased = page();
+    ink(creased, 22, 126, 230, 127, PAPER - 60);
+    expect(tallestMark(creased, strip)).toBeLessThan(0.15);
+    const tallied = page();
+    for (const x of [40, 50, 60]) ink(tallied, x, 110, x + 2, 150);
+    expect(tallestMark(tallied, strip)).toBeGreaterThan(0.8);
+  });
 });

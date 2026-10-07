@@ -195,10 +195,11 @@ count as breaking.
   thirds of what the apps showed were boxes the digit reader found nothing in, and by eye nearly
   all of them are empty or hold a dash, the volunteer's mark for none. A box the reader found
   nothing in, holding nothing taller than a dash, is now left blank like any box nobody wrote in,
-  or offered as a tally where the strip beside it is marked. Across the 28 scans the apps show
-  1,428 boxes instead of 1,611, and 1,033 of them are real readings to check instead of 599. On
-  5 scans no real reading used to be shown at all; now 1. Numbers taken as read that disagree with
-  the typed sheets fall from 1,433 to 1,234. Of the 106 boxes no longer offered where a sheet has
+  or offered as a tally where the strip beside it is marked. A tally strip holding nothing taller
+  than a crease, a tear or the printed ruling no longer counts as marked either. Across the 28
+  scans the apps show 1,404 boxes instead of 1,611, and 1,126 of them are real readings to check
+  instead of 599. On 5 scans no real reading used to be shown at all; now 1. Numbers taken as read
+  that disagree with the typed sheets fall from 1,433 to 1,179. Of the 106 boxes no longer offered where a sheet has
   a number, all but one are a dash or empty by eye. The 144 read to set the line are in
   `eye-labels/placeholders.json`.
 
