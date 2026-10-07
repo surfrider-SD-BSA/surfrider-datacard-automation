@@ -1455,6 +1455,38 @@ either way. No real phone has been timed.
 
 ## What to do next
 
+**Start here (6 October 2026).** What changed this session, and what it showed:
+
+- **Most of what the apps showed was empty.** Under the apps' rule (the least-sure 20%,
+  with "nothing read" boxes counted inside it), 1,012 of the 1,611 boxes shown across the 28
+  scans were "nothing read: type it". By eye nearly all were empty or held a dash, the
+  volunteer's mark for none (`eye-labels/placeholders.json`, 144 boxes). On 5 scans no real
+  reading was ever shown. `tallestMark` in `marks.ts` now drops a box the reader found nothing
+  in when nothing in it is taller than a dash, and a tally strip holding only creases or ruling
+  (#98). Shown 1,611 -> 1,404, real readings checked 599 -> 1,126, taken as read and
+  disagreeing with the sheets 1,433 -> 1,179. The instrument for this is the apps' rule, not
+  `AUTO_ACCEPT` 0.45: `out/exp/appshare.mjs` was the throwaway version; making it a script
+  under `scripts/` is worth doing.
+- **"3" in the strip, "|||" in the box** is read from the strip (#96). 9 boxes, all on
+  imperial-3.15, all right.
+- **The Training sheet takes only boxes a person was shown** (#94). Before, an export made
+  without opening the list sent the reader's own guesses as "confirmed" labels.
+  `EXPORT=1 scripts/app-check/ios.sh` / `android.py` make the spreadsheet and copy it out.
+- **Rebuild `out/cells` before measuring.** The cache here was from 29 Sept, PDFKit pixels.
+  On those a strip read 4 at 0.99 that reads 11 on the apps' pixels. Never run the two app
+  checks at once: both rebuild `dist/`.
+
+Next, in order:
+
+1. **Retrain the net on digits cut from the apps' pixels.** It was trained on digits cut from
+   PDFKit renders (`out/pages`), which no app reads. Regenerate `out/training/` from
+   `out/pages-js` with `label-from-spreadsheet.mjs`, retrain the folds, and compare with
+   `reading-accuracy --cache`. Needs torch, which is not installed on this Mac now.
+2. **The 278 "nothing read" boxes still shown** are mostly real tallies the counter declines
+   (long runs of crossed fives, write-ins on the "Other" rows like "chain saw blade 11").
+3. **11 taken as read**: 73 left, right by the sheets about 3 times in 38. Ranking them lower
+   gains little, because the shown readings they would displace are mostly wrong too.
+
 **Start here (30 September 2026).** Three things came after the list below was
 written, and they go first.
 
