@@ -240,12 +240,12 @@ describe("a 1 made of printing or a pen line, not a digit", () => {
     expect(isAutoAccepted(reading)).toBe(true);
   });
 
-  it("shows a 1 that is one stretch of a line drawn down the column", () => {
+  it("leaves out a 1 that is one stretch of a line drawn down the column", () => {
     // Two volunteers struck out their TOTAL column like this, and every box
-    // along it read as a confident 1.
-    const reading = read(page(1, total.y - total.height, total.y + 2 * total.height));
-    expect(reading.value).toBe(1);
-    expect(isAutoAccepted(reading)).toBe(false);
+    // along it read as a confident 1. With nothing in the strip it is no number.
+    const img = page(1, total.y - total.height, total.y + 2 * total.height);
+    const found = cellsForSide(img, 1, map, "front", readsOnes).filter((c) => c.row === row);
+    expect(found).toHaveLength(0);
   });
 
   it("shows a 1 that is a solid block of ink", () => {
