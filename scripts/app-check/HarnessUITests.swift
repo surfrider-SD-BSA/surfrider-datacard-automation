@@ -163,6 +163,19 @@ final class HarnessUITests: XCTestCase {
             XCTAssertTrue(app.buttons["Make the spreadsheet"].waitForExistence(timeout: 10))
             scrollToTop(app)
         }
+
+        // EXPORT: make the spreadsheet as the list stands. ios.sh copies the file out of
+        // the app's temporary directory afterwards.
+        if env["EXPORT"] == "1" {
+            app.buttons["Make the spreadsheet"].tap()
+            let make = app.buttons["Make the spreadsheet"]
+            XCTAssertTrue(make.waitForExistence(timeout: 10), "no finish screen")
+            make.tap()
+            let ready = app.staticTexts["Ready to send"]
+            XCTAssertTrue(ready.waitForExistence(timeout: 120), "no spreadsheet: \(texts(app))")
+            note("exported: \(texts(app))")
+            shot("exported")
+        }
     }
 
     /// Where the row for this card and item is on screen, scrolling the list until it shows.

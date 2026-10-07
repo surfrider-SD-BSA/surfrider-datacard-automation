@@ -147,6 +147,16 @@ class TallyModel(application: Application) : AndroidViewModel(application) {
     private val machine = mutableStateMapOf<CellKey, Prefill>()
     val untouched: Map<CellKey, Prefill> get() = machine
 
+    /**
+     * The boxes whose pictures were on the review screen. Only these go into
+     * the export's Training sheet: a number left as the tool read it is a
+     * person's answer only if they were shown the box -- otherwise it is the
+     * reader's own guess, and training on it teaches the reader nothing.
+     */
+    private val seen = mutableSetOf<CellKey>()
+
+    fun markSeen(key: CellKey) { seen += key }
+
     /** Where the reviewer is, and what is on the keypad. */
     var index by mutableIntStateOf(0)
     var entry by mutableStateOf("")
@@ -361,6 +371,7 @@ class TallyModel(application: Application) : AndroidViewModel(application) {
         cells = emptyList()
         typed.clear()
         machine.clear()
+        seen.clear()
         index = 0
         entry = ""
         exportedFile = null
@@ -578,6 +589,14 @@ class TallyModel(application: Application) : AndroidViewModel(application) {
             }
             putJsonArray("prefilled") {
                 for (key in machine.keys) {
+                    addJsonArray {
+                        add(key.card)
+                        add(key.row)
+                    }
+                }
+            }
+            putJsonArray("seen") {
+                for (key in seen) {
                     addJsonArray {
                         add(key.card)
                         add(key.row)

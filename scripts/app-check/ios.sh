@@ -12,7 +12,8 @@
 # Writes out/app-check/ios-<scan>/log.txt and a screenshot of each box, and
 # prints the log. A box that is not on the review list is logged as NOT ON THE
 # LIST -- taken as read, or never offered -- which is an answer, not a failure.
-# Exits non-zero when the UI test itself fails.
+# Exits non-zero when the UI test itself fails. With EXPORT=1 it then makes the
+# spreadsheet and copies it into the same directory.
 #
 # It needs no `xcode-select` switch, which needs the owner's password: every
 # command is given DEVELOPER_DIR. And it never touches a simulator it did not
@@ -27,7 +28,7 @@
 set -euo pipefail
 
 if [ $# -lt 2 ]; then
-  sed -n '3,14p' "$0" >&2
+  sed -n '3,16p' "$0" >&2
   exit 2
 fi
 # Made absolute before the cd below, so a path relative to wherever this was run
@@ -112,9 +113,17 @@ mkdir -p "$out"
 
 boot
 status=0
-TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" \
+TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPORT:-0}" \
   xcodebuild test-without-building -project ios/build-uitest/Harness.xcodeproj -scheme Harness \
   -destination "id=$udid" -derivedDataPath "$dd" > "$out/xcodebuild.log" 2>&1 || status=$?
+
+# EXPORT=1: the spreadsheet the app made, from its temporary directory.
+if [ "${EXPORT:-0}" = 1 ]; then
+  # The newest: each export gets a fresh directory, and earlier runs' are kept.
+  made="$(ls -t "$(xcrun simctl get_app_container "$udid" "$bundle" data)"/tmp/*/*.xlsx 2>/dev/null | head -1)"
+  if [ -n "$made" ]; then cp "$made" "$out/"; fi
+  ls "$out"/*.xlsx 2>/dev/null || echo "no spreadsheet came out" >&2
+fi
 
 # The log as far as it got, then the verdict: a run cut short is not a result.
 if [ -f "$out/log.txt" ]; then cat "$out/log.txt"; fi
