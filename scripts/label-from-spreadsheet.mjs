@@ -63,7 +63,25 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REF = join(ROOT, "assets", "reference");
-const OUT = join(ROOT, "out", "training");
+// TRAINING_OUT keeps a second set beside the first, to compare two before choosing.
+const OUT = process.env.TRAINING_OUT ? join(ROOT, process.env.TRAINING_OUT) : join(ROOT, "out", "training");
+
+/** A binary greyscale PGM, as out/exp/render-js-pages.mjs writes the apps' pixels. */
+function decodePgm(path) {
+  const b = readFileSync(path);
+  const fields = [];
+  let i = 0;
+  while (fields.length < 4) {
+    while (b[i] === 0x20 || b[i] === 0x0a || b[i] === 0x0d || b[i] === 0x09) i++;
+    let f = "";
+    while (b[i] !== 0x20 && b[i] !== 0x0a && b[i] !== 0x0d && b[i] !== 0x09) f += String.fromCharCode(b[i++]);
+    fields.push(f);
+  }
+  i++;
+  const width = Number(fields[1]);
+  const height = Number(fields[2]);
+  return { width, height, gray: new Uint8Array(b.subarray(i, i + width * height)) };
+}
 
 /** Ink coverage above which a TOTAL box is treated as written in. */
 const INK_PRESENT = 0.025;
@@ -184,7 +202,7 @@ function main() {
   console.log(`spreadsheet: ${dataCols.length} volunteer columns with data`);
 
   const files = readdirSync(pagesDir)
-    .filter((f) => /\.jpe?g$/i.test(f))
+    .filter((f) => /\.(jpe?g|pgm)$/i.test(f))
     .sort((a, b) => (parseInt(a.replace(/\D/g, ""), 10) || 0) - (parseInt(b.replace(/\D/g, ""), 10) || 0));
   console.log(`scan: ${files.length} pages -> ${files.length / 2} cards`);
 
@@ -196,7 +214,7 @@ function main() {
 
   const pages = [];
   files.forEach((f, i) => {
-    const page = decodeGray(join(pagesDir, f));
+    const page = f.endsWith(".pgm") ? decodePgm(join(pagesDir, f)) : decodeGray(join(pagesDir, f));
     const { side, image, bannerOverlap, trusted } = registerBestSide(page, targets);
     pages.push({ index: i, side, image, bannerOverlap, trusted });
     if ((i + 1) % 20 === 0) process.stdout.write(`\r  registered ${i + 1}/${files.length}   `);
