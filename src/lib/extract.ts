@@ -11,7 +11,7 @@
 import type { CellMap, Rect } from "./cells";
 import { inkThreshold, OVERSEGMENTED_CONFIDENCE, readDigits, type DigitBox, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
-import { boxMarked, cropGray, stripMarked } from "./marks";
+import { boxMarked, cropGray, stripMarked, tallestMark } from "./marks";
 import { countBoxTally, countTally, salvageCount, TWO_UPRIGHTS } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
 import { itemForRow, type CardSide } from "./taxonomy";
@@ -297,6 +297,13 @@ function readingCrop(image: GrayImage, total: Rect): { crop: GrayImage; box: Rec
 }
 
 /**
+ * How tall, as a share of the box, the tallest mark in a box must be for a box
+ * the digit reader found nothing in to count as written. Empty boxes and dashes
+ * measured 0.25 at most, numbers 0.8 or more (`tallestMark` in marks.ts).
+ */
+const NUMBER_HEIGHT = 0.35;
+
+/**
  * Reading the number written in the tally strip, where the tally itself was
  * drawn in the TOTAL box ("3" in the strip, "|||" in the box).
  *
@@ -389,8 +396,40 @@ export function cellsForSide(
     // region on its own ink and lost a "7" over it: the box held a faint one at
     // 0.0074, just under, and the cell only survived the floor at all because
     // its tally strip did.
-    const hasValue = boxMarked(cropGray(image, cell.total));
+    const boxInked = boxMarked(cropGray(image, cell.total));
     const tallyMarked = stripMarked(cropGray(image, cell.tally));
+
+    // Read the number, where there is a number to read.
+    //
+    // The mirror of the tally below: that one only runs where the box is
+    // EMPTY, this one only where it holds something. No cell is ever read
+    // twice by the same reader, and a cell with both is what reconcile() is
+    // for.
+    const read = model && boxInked ? readingCrop(image, cell.total) : null;
+    const readHere = model && read ? readDigits(read.crop, model, read.box) : null;
+
+    // A box the digit reader found nothing in, holding nothing taller than a
+    // dash, has no number in it: it is empty, or a volunteer's dash for none.
+    // Offered, it reached the reviewer as "nothing read: type it" with a 1 in
+    // it -- about two thirds of the boxes the apps showed across the 28 scans,
+    // so a volunteer's checking went mostly on boxes with nothing to type, and
+    // a tap on Next recorded debris that was not there. Taken out, it is left
+    // blank like any box nobody wrote in, or, where the strip beside it holds
+    // marks, offered as the tally it is. See `tallestMark` in marks.ts.
+    const onlyADash =
+      read !== null &&
+      readHere === null &&
+      tallestMark(image, {
+        // The same room to the left the digit reader is given: a number is
+        // often written against the printed column line, short of the box.
+        x: cell.total.x - cell.total.width * READ_MARGIN.left,
+        y: cell.total.y,
+        width: cell.total.width * (1 + READ_MARGIN.left),
+        height: cell.total.height,
+      }) < NUMBER_HEIGHT;
+    const hasValue = boxInked && !onlyADash;
+    const reading = hasValue ? read : null;
+    const digits = hasValue ? readHere : null;
     const tallyOnly = !hasValue && tallyMarked;
     if (!hasValue && !tallyOnly) continue;
 
@@ -415,17 +454,6 @@ export function cellsForSide(
         })
       : null;
 
-    // Take the row's pixels now and let the page go. Everything the reviewer
-    // is shown comes out of this crop, so nothing else about the page has to
-    // stay in memory once every cell on it has been cut out.
-    // Read the number, where there is a number to read.
-    //
-    // The mirror of the tally above: that one only runs where the box is
-    // EMPTY, this one only where it holds something. No cell is ever read
-    // twice by the same reader, and a cell with both is what reconcile() is
-    // for.
-    const reading = model && hasValue ? readingCrop(image, cell.total) : null;
-    const digits = model && reading ? readDigits(reading.crop, model, reading.box) : null;
 
     // Tally marks drawn in the box itself. The digit reader sees each stroke as
     // a perfectly good 1 and reads "|||" as 111, so where it read nothing but

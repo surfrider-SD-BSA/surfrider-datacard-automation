@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxMarked, cropGray, findMarks, stripMarked, type MarkImage } from "../src/lib/marks";
+import { boxMarked, cropGray, findMarks, stripMarked, tallestMark, type MarkImage } from "../src/lib/marks";
 
 /**
  * Synthetic cells, drawn the way the card is printed and the way volunteers
@@ -216,5 +216,50 @@ describe("findMarks and cropGray", () => {
     expect(c.width).toBe(10);
     expect(c.height).toBe(10);
     expect(c.data[1 * 10 + 1]).toBe(0);
+  });
+});
+
+describe("tallestMark", () => {
+  // A page of ruled rows: the TOTAL box at x 100..200, y 100..160, its printed
+  // sides carried on through the rows above and below, as on the card.
+  const BOX = { x: 100, y: 100, width: 100, height: 60 };
+  function page(): MarkImage {
+    const width = 260;
+    const height = 260;
+    const data = new Uint8Array(width * height).fill(PAPER);
+    for (const x of [BOX.x, BOX.x + BOX.width]) for (let y = 0; y < height; y++) data[y * width + x] = 90;
+    for (const y of [BOX.y, BOX.y + BOX.height]) for (let x = 0; x < width; x++) data[y * width + x] = 90;
+    return { width, height, data };
+  }
+  function ink(img: MarkImage, x0: number, y0: number, x1: number, y1: number, value = 60) {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) img.data[y * img.width + x] = value;
+  }
+
+  it("finds nothing in an empty box, printed sides and rules left out", () => {
+    expect(tallestMark(page(), BOX)).toBeLessThan(0.1);
+  });
+
+  it("reads a dash for none as short", () => {
+    const img = page();
+    ink(img, 130, 128, 170, 131);
+    expect(tallestMark(img, BOX)).toBeLessThan(0.25);
+  });
+
+  it("reads a written 1 as tall", () => {
+    const img = page();
+    ink(img, 148, 110, 151, 150);
+    expect(tallestMark(img, BOX)).toBeGreaterThan(0.8);
+  });
+
+  it("counts a 1 written against the printed side, which does not carry on above and below", () => {
+    const img = page();
+    ink(img, 102, 112, 105, 148);
+    expect(tallestMark(img, BOX)).toBeGreaterThan(0.8);
+  });
+
+  it("counts light pencil, against the box's own paper", () => {
+    const img = page();
+    ink(img, 148, 110, 151, 150, PAPER - 40);
+    expect(tallestMark(img, BOX)).toBeGreaterThan(0.8);
   });
 });
