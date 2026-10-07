@@ -303,6 +303,9 @@ function readingCrop(image: GrayImage, total: Rect): { crop: GrayImage; box: Rec
  */
 const NUMBER_HEIGHT = 0.35;
 
+/** The same for a tally strip: real tallies measured 0.25 or more, empty strips under 0.15. */
+const STRIP_HEIGHT = 0.15;
+
 /**
  * Reading the number written in the tally strip, where the tally itself was
  * drawn in the TOTAL box ("3" in the strip, "|||" in the box).
@@ -397,7 +400,14 @@ export function cellsForSide(
     // 0.0074, just under, and the cell only survived the floor at all because
     // its tally strip did.
     const boxInked = boxMarked(cropGray(image, cell.total));
-    const tallyMarked = stripMarked(cropGray(image, cell.tally));
+    // The same height test for the strip: one the mark test passed on a crease
+    // in the paper, a tear, the printed ruling or the tail of a neighbouring
+    // row's number holds nothing a tenth as tall as a tally stroke. Of the 323
+    // strips the apps offered as "nothing read" across the 28 scans, 72 read by
+    // eye were half empty in this way; every real tally and written-in item
+    // measured 0.25 or more, every empty strip under 0.15 but those where a
+    // printed edge or a smudge stood tall, which stay. See `tallestMark`.
+    const tallyMarked = stripMarked(cropGray(image, cell.tally)) && tallestMark(image, cell.tally) >= STRIP_HEIGHT;
 
     // Read the number, where there is a number to read.
     //
