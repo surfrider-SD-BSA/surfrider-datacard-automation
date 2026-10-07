@@ -120,7 +120,8 @@ TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPO
 # EXPORT=1: the spreadsheet the app made, from its temporary directory.
 if [ "${EXPORT:-0}" = 1 ]; then
   # The newest: each export gets a fresh directory, and earlier runs' are kept.
-  made="$(ls -t "$(xcrun simctl get_app_container "$udid" "$bundle" data)"/tmp/*/*.xlsx 2>/dev/null | head -1)"
+  made="$(find "$(xcrun simctl get_app_container "$udid" "$bundle" data)/tmp" -name '*.xlsx' \
+    -exec stat -f '%m %N' {} + 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
   if [ -n "$made" ]; then cp "$made" "$out/"; fi
   ls "$out"/*.xlsx 2>/dev/null || echo "no spreadsheet came out" >&2
 fi
