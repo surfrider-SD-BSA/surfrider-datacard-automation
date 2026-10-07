@@ -191,6 +191,15 @@ count as breaking.
 
 ### Fixed
 
+- **"|||" in the box beside a "3" in the strip is now read as 3, not 111.** Where a volunteer
+  wrote the number in the tally strip and drew the strokes in the TOTAL box, the box read as 11
+  or 111. The number in the strip is now read too. Where it agrees with the count of strokes in
+  the box, the box is taken as read; where the box cannot be counted but the strip reads clearly,
+  the strip's number is shown for checking. Measured on the apps' pixels over the 28 scans: 9
+  boxes change, all on Imperial Beach 3.15, all right by eye and by the typed sheet, and no box
+  goes wrong. Seen in both apps' exports: card 6 Plastic Straws is 3 and card 10 Plastic Bottle
+  Caps is 4, where both used to say 11 and 111.
+
 - **The Training sheet only holds boxes a person actually looked at.** It used to take every
   box on the review list, so a volunteer who went straight to "Make the spreadsheet" sent the
   reader's own unchecked guesses as "confirmed" labels. Each app now notes a box once its picture
