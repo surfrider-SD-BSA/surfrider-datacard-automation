@@ -98,6 +98,13 @@ count as breaking.
 
 ### Added
 
+- **Exports carry the boxes volunteers checked, to train a better reader.** Each spreadsheet
+  from the apps now has a hidden "Training" sheet: every box a person was shown and settled, its
+  final number, and a picture of the box. `scripts/training-from-exports.mjs` turns collected
+  exports into training digits for `scripts/train_digits_cnn.py`. The chapter's typed sheets are
+  wrong for about one box in five, which is what stopped a bigger reader from learning more;
+  numbers settled with the picture in view are the clean labels that were missing.
+
 - **`scripts/cell-cache.mjs` and `reading-accuracy.mjs --cache`.** The end-to-end measure spent
   almost all of its eight minutes registering pages that do not change between two versions of a
   reader. The cache registers every matched scan once and keeps each offered cell with a margin

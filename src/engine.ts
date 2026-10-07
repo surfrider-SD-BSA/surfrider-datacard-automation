@@ -49,7 +49,7 @@ import {
   type PairingProblem,
 } from "./lib/register";
 import { fillTemplate, suggestFilename } from "./lib/xlsx";
-import type { ExtractedCard as ExportCard } from "./lib/xlsx";
+import type { ExtractedCard as ExportCard, TrainingBox } from "./lib/xlsx";
 
 // ---------------------------------------------------------------------------
 // The bridge
@@ -380,6 +380,42 @@ interface ExportParams {
   confidences: [number, number, number][];
 }
 
+/**
+ * The boxes a person was shown and settled, with their pictures, for the hidden
+ * Training sheet of the export (see TrainingBox in lib/xlsx/export.ts). Only
+ * boxes with writing in them, not tally-only rows: it is the digit reader that
+ * needs them. The picture is the printed box at the scan's own 200 DPI.
+ */
+function trainingBoxes(values: ExportParams["values"], untouched: Set<string>): TrainingBox[] {
+  const all = state.cards.flatMap((card) => card.cells.map((cell) => ({ card, cell })));
+  const accepted = autoAcceptedInScan(all.map(({ cell }) => prefillFor(cell)));
+  const shown = new Set<string>();
+  all.forEach(({ card, cell }, i) => {
+    if (!accepted[i] && cell.hasValue && !cell.tallyOnly) shown.add(`${card.cardNumber}:${cell.row}`);
+  });
+
+  const out: TrainingBox[] = [];
+  for (const [cardNumber, rows] of values) {
+    for (const [row, value] of rows) {
+      const key = `${cardNumber}:${row}`;
+      const cell = shown.has(key) ? findCell(cardNumber, row) : null;
+      if (!cell) continue;
+      // The printed box exactly, as scripts/label-from-spreadsheet.mjs cuts
+      // its training digits from, so the same cutting applies to both.
+      const r = cell.rect;
+      const canvas = cropToCanvas(cell.image, r.x, r.y, r.width, r.height, 1.0);
+      out.push({
+        cardNumber,
+        row,
+        value,
+        corrected: !untouched.has(key),
+        png: canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, ""),
+      });
+    }
+  }
+  return out;
+}
+
 async function exportWorkbook(params: ExportParams) {
   const res = await fetch("template/data-entry-template.xlsx");
   if (!res.ok) throw new Error("could not load the chapter's Excel template");
@@ -412,6 +448,7 @@ async function exportWorkbook(params: ExportParams) {
     sourcePdfName: state.fileName,
     event: params.event,
     cards,
+    training: trainingBoxes(params.values, untouched),
   });
 
   let binary = "";
