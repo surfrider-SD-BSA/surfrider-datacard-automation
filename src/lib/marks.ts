@@ -405,3 +405,112 @@ export function stripMarked(img: MarkImage, options: Partial<MarkOptions> = {}):
   }
   return marks.some((m) => m.count >= STRIP.soloMass);
 }
+
+/**
+ * How tall the tallest thing written in a TOTAL box is, as a share of the box's
+ * height -- for telling a box with a number in it from one holding only a dash,
+ * or nothing.
+ *
+ * Measured on the apps' pixels over the 28 matched scans (6 October 2026): of
+ * the 746 boxes offered as "nothing read: type it" with nothing in the strip,
+ * 144 read by eye (`eye-labels/placeholders.json`) held 113 empty boxes -- a
+ * neighbouring row's ink reaching in, specks, printed edges -- 21 dashes, the
+ * volunteer's mark for none, 2 pen lines struck through the row, 1 tally and 7
+ * numbers, mostly a lone 1. Every empty box and dash measures 0.25 or less;
+ * every number 0.8 or more, but one stroke at the box's bottom edge that belongs
+ * to the row below.
+ *
+ * Ink is anything `depth` below the box's own paper, so light pencil counts:
+ * a fixed threshold lost a "14" in faint pencil. The box is cut 12% short top
+ * and bottom, so the printed rules there stay out, and only two pixels short at
+ * the sides, because a 1 written against the printed side is common. That side
+ * is told apart by what only it does: its column carries on, inked, through the
+ * rows above and below the box. A mark spanning nearly the whole width is a
+ * printed rule and is not counted.
+ */
+export const TALLEST_MARK = { depth: 24, insetY: 0.12, insetX: 2, minPixels: 4, sideWidth: 6 };
+
+export function tallestMark(
+  img: MarkImage,
+  box: { x: number; y: number; width: number; height: number },
+): number {
+  const o = TALLEST_MARK;
+  const x0 = Math.max(0, Math.round(box.x) + o.insetX);
+  const x1 = Math.min(img.width, Math.round(box.x + box.width) - o.insetX);
+  const y0 = Math.max(0, Math.round(box.y + box.height * o.insetY));
+  const y1 = Math.min(img.height, Math.round(box.y + box.height * (1 - o.insetY)));
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (w <= 0 || h <= 0) return 0;
+
+  const values = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) values.set(img.data.subarray((y0 + y) * img.width + x0, (y0 + y) * img.width + x1), y * w);
+  const threshold = Uint8Array.from(values).sort()[values.length >> 1]! - o.depth;
+  const ink = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < img.width && y < img.height && img.data[y * img.width + x]! <= threshold;
+
+  // A column printed down the page: inked in most rows of the bands above and below the box.
+  const band = Math.round(box.height * 0.5);
+  const top = Math.round(box.y);
+  const bottom = Math.round(box.y + box.height);
+  const printed = (x: number) => {
+    let inked = 0;
+    let rows = 0;
+    for (const [a, b] of [
+      [top - band, top - 3],
+      [bottom + 3, bottom + band],
+    ] as const) {
+      for (let y = a; y < b; y++) {
+        rows++;
+        if (ink(x - 1, y) || ink(x, y) || ink(x + 1, y)) inked++;
+      }
+    }
+    return rows > 0 && inked >= rows * 0.8;
+  };
+
+  const seen = new Uint8Array(w * h);
+  const stack: number[] = [];
+  let tallest = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (seen[i] || values[i]! > threshold) continue;
+    let n = 0;
+    let mx0 = w;
+    let mx1 = 0;
+    let my0 = h;
+    let my1 = 0;
+    seen[i] = 1;
+    stack.push(i);
+    while (stack.length) {
+      const j = stack.pop()!;
+      n++;
+      const x = j % w;
+      const y = (j / w) | 0;
+      if (x < mx0) mx0 = x;
+      if (x > mx1) mx1 = x;
+      if (y < my0) my0 = y;
+      if (y > my1) my1 = y;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx;
+          const yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          const k = yy * w + xx;
+          if (!seen[k] && values[k]! <= threshold) {
+            seen[k] = 1;
+            stack.push(k);
+          }
+        }
+      }
+    }
+    if (n < o.minPixels) continue;
+    const mw = mx1 - mx0 + 1;
+    if (mw >= 0.85 * w) continue;
+    if (mw <= o.sideWidth) {
+      let side = false;
+      for (let x = mx0; x <= mx1 && !side; x++) side = printed(x0 + x);
+      if (side) continue;
+    }
+    tallest = Math.max(tallest, (my1 - my0 + 1) / h);
+  }
+  return tallest;
+}
