@@ -516,6 +516,12 @@ export function cellsForSide(
         x: Math.round(cell.total.x) - reading.box.x,
         y: Math.round(cell.total.y) - reading.box.y,
       });
+    // Then it is not a number at all. Capping it was enough while everything
+    // under 0.45 was shown; the apps now show the least-sure fifth, and 14 of
+    // the 22 across the 28 scans went into the spreadsheet unseen as 1. The
+    // chapter's sheet has 0 for 21 of the 22. With nothing in the strip
+    // beside it, the box is left blank like any box nobody wrote in.
+    if (struck && !tallyMarked) continue;
     const digitReading = stripAgrees
       ? stripNumber
       : stripAlone

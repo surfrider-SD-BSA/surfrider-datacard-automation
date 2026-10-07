@@ -191,6 +191,13 @@ count as breaking.
 
 ### Fixed
 
+- **A printed line or a pen line down the column is no longer exported as 1.** The reader
+  already recognised these and capped them so a person would see them, but under the apps'
+  least-sure-20% rule a capped reading can still go in unseen: across the 28 scans 14 of 22 went
+  into the spreadsheet as 1, where the chapter's sheet has 0 for 21 of the 22. With nothing in
+  the tally strip beside it, such a box is now left blank. Numbers taken as read that disagree
+  with the typed sheets fall from 1,179 to 1,162.
+
 - **Volunteers are no longer shown empty boxes and dashes as "nothing read: type it".** Two
   thirds of what the apps showed were boxes the digit reader found nothing in, and by eye nearly
   all of them are empty or hold a dash, the volunteer's mark for none. A box the reader found
