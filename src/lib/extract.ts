@@ -296,6 +296,55 @@ function readingCrop(image: GrayImage, total: Rect): { crop: GrayImage; box: Rec
   };
 }
 
+/**
+ * Reading the number written in the tally strip, where the tally itself was
+ * drawn in the TOTAL box ("3" in the strip, "|||" in the box).
+ *
+ * The box counter is kept away from boxes beside a marked strip, because there
+ * the box is as often a tally run on from the strip, or a number, as a tally of
+ * its own. But mostly the strip holds the NUMBER, so it is read with the digit
+ * reader. Measured with `reading-accuracy.mjs --cache` on the apps' pixels, 28
+ * scans, every changed box read by eye (`eye-labels/box-tallies.json`):
+ *
+ *   - 9 boxes change, all of them from 11 or 111, all right by eye and by the
+ *     typed sheet. Hidden and wrong: unchanged at 781.
+ *   - 5 where the strip's number and the box's stroke count agree. Two
+ *     independent readers agreeing: taken as read (reconcile's "agreed").
+ *   - 4 where the box would not count but the strip read at 0.9 or more. Shown,
+ *     never taken as read: it replaces a 111 that is always wrong.
+ *
+ * All 9 are on imperial-3.15, one volunteer's habit. The reading is sensitive
+ * to the rendering: on the PDFKit pages the offline tools once used, a strip on
+ * the same scan read 4 at 0.99 that reads 11 on the apps' pixels.
+ *
+ * A strip read as nothing but 1s is a tally of its own and is left alone.
+ */
+const STRIP_NUMBER = {
+  /** The strip's confidence at which its number replaces the box's 1s alone. */
+  alone: 0.9,
+  /** How far above and below the strip to look, as a fraction of its height. */
+  vertical: 0.15,
+};
+
+function readStripNumber(image: GrayImage, tally: Rect, model: DigitModel) {
+  const rect = {
+    x: tally.x,
+    y: tally.y - tally.height * STRIP_NUMBER.vertical,
+    width: tally.width,
+    height: tally.height * (1 + 2 * STRIP_NUMBER.vertical),
+  };
+  const x0 = Math.max(0, Math.round(rect.x));
+  const y0 = Math.max(0, Math.round(rect.y));
+  const read = readDigits(cropGray(image, rect), model, {
+    x: Math.round(tally.x) - x0,
+    y: Math.round(tally.y) - y0,
+    width: Math.round(tally.width),
+    height: Math.round(tally.height),
+  });
+  if (!read || /^1+$/.test(String(read.value))) return null;
+  return { value: read.value, confidence: read.confidence, onlyOnes: false };
+}
+
 export function cellsForSide(
   image: GrayImage,
   pageNumber: number,
@@ -399,6 +448,16 @@ export function cellsForSide(
         ? countBoxTally(reading.crop, reading.box)
         : null;
     const boxCount = boxTally?.count != null ? boxTally : null;
+
+    // The number written in the strip, where the tally is in the box ("3" in
+    // the strip, "|||" in the box). Only where the box read as nothing but 1s
+    // and the strip holds marks -- the population the box counter is kept away
+    // from above. See `STRIP_NUMBER`.
+    const stripNumber =
+      model && reading && digits?.onlyOnes && tallyMarked ? readStripNumber(image, cell.tally, model) : null;
+    const boxOfStrokes = stripNumber ? countBoxTally(reading!.crop, reading!.box) : null;
+    const stripAgrees = stripNumber !== null && boxOfStrokes?.count === stripNumber.value;
+    const stripAlone = stripNumber !== null && !stripAgrees && stripNumber.confidence >= STRIP_NUMBER.alone;
     // Two clean uprights the counter will not call a two -- they are an eleven
     // as often -- are not a 1 either, so a lone 1 beside them is shown. Only
     // when that is the counter's one objection: a 1 with a flag, a curl from
@@ -419,8 +478,13 @@ export function cellsForSide(
         x: Math.round(cell.total.x) - reading.box.x,
         y: Math.round(cell.total.y) - reading.box.y,
       });
-    const digitReading =
-      kept && (struck || twoUprights) ? { ...kept, confidence: Math.min(kept.confidence, OVERSEGMENTED_CONFIDENCE) } : kept;
+    const digitReading = stripAgrees
+      ? stripNumber
+      : stripAlone
+        ? { ...stripNumber!, confidence: Math.min(stripNumber!.confidence, OVERSEGMENTED_CONFIDENCE) }
+        : kept && (struck || twoUprights)
+          ? { ...kept, confidence: Math.min(kept.confidence, OVERSEGMENTED_CONFIDENCE) }
+          : kept;
 
     // A strip the counter refused, counted anyway where there were strokes to
     // count. The instruction is that every box arrives filled in; `salvageCount`
@@ -441,12 +505,14 @@ export function cellsForSide(
       tallyOnly,
       digitValue: digitReading?.value ?? null,
       digitConfidence: digitReading?.confidence ?? 0,
-      tallyCount: boxCount?.count ?? tallyReading?.count ?? salvaged?.value ?? null,
-      tallyConfidence: boxCount
-        ? boxCount.confidence
-        : tallyReading?.count !== null && tallyReading?.count !== undefined
-          ? tallyReading.confidence
-          : (salvaged?.confidence ?? 0),
+      tallyCount: stripAgrees ? boxOfStrokes!.count : (boxCount?.count ?? tallyReading?.count ?? salvaged?.value ?? null),
+      tallyConfidence: stripAgrees
+        ? boxOfStrokes!.confidence
+        : boxCount
+          ? boxCount.confidence
+          : tallyReading?.count !== null && tallyReading?.count !== undefined
+            ? tallyReading.confidence
+            : (salvaged?.confidence ?? 0),
       rect: rebase(cell.total, region),
       tallyRect: rebase(cell.tally, region),
       // The tally run beside the number, so the reviewer can sanity-check one
