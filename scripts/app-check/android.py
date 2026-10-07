@@ -10,7 +10,8 @@ or "card|item|section" for the six "Other" rows, which share a name. targets.py 
 them all before anything is built. Writes out/app-check/android-<scan>/log.txt and a
 screenshot of each box, and prints the log as it goes. A box that is not on the review
 list -- taken as read, or never offered -- is logged as NOT ON THE LIST, which is an
-answer, not a failure. A read the app refuses ends the run with an error.
+answer, not a failure. A read the app refuses ends the run with an error. With EXPORT=1
+it then makes the spreadsheet and copies it into the same directory.
 
 What it reads with is this checkout: `android/sync-web.sh` rebuilds the bundle from src/
 and `gradlew installDebug` puts it on the device. With no device attached it boots the
@@ -331,6 +332,25 @@ def run(check: Check, scan: Path, targets: list[tuple[int, str, str]]) -> None:
         tap("Back")
         time.sleep(1.5)
         to_top()
+
+    # EXPORT=1: make the spreadsheet as the list stands, and copy it out of the app.
+    if os.environ.get("EXPORT") == "1":
+        tap("Make the spreadsheet")
+        time.sleep(1.5)
+        tap("Make the spreadsheet")
+        if not wait("Ready to send", 120):
+            raise SystemExit(f"no spreadsheet: {texts()}")
+        check.log(f"exported: {texts()}")
+        check.shot("exported")
+        # The app keeps only the latest export, in a fresh directory of its own.
+        made = adb("shell", "run-as", PACKAGE, "find", ".", "-name", "*.xlsx").split()
+        if not made:
+            raise SystemExit("no spreadsheet came out")
+        data = subprocess.run(
+            [ADB, "exec-out", "run-as", PACKAGE, "cat", made[0]], check=True, capture_output=True
+        ).stdout
+        (check.out / Path(made[0]).name).write_bytes(data)
+        check.log(f"spreadsheet: {check.out.relative_to(ROOT) / Path(made[0]).name}")
 
 
 if __name__ == "__main__":

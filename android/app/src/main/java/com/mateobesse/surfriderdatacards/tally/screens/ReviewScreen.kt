@@ -136,6 +136,7 @@ fun ReviewScreen(model: TallyModel) {
             }
             // Somebody who taps faster than the engine answers has already moved on.
             if (model.current?.key != flat.key) return@LaunchedEffect
+            model.markSeen(flat.key)
             // The cells they are about to reach, while they are still reading
             // this one. This is what makes "Next" paint in the frame it lands.
             model.crops.prefetch(cropsAhead(model, showWholeRow))

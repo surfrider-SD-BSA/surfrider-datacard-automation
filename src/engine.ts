@@ -378,20 +378,33 @@ interface ExportParams {
    */
   prefilled: [number, number][];
   confidences: [number, number, number][];
+  /**
+   * The boxes whose pictures a person had on the review screen, as [card, row]
+   * pairs. Without it nothing tells a number somebody looked at and kept from
+   * one nobody opened: both are still as the tool put them.
+   */
+  seen?: [number, number][];
 }
 
 /**
  * The boxes a person was shown and settled, with their pictures, for the hidden
  * Training sheet of the export (see TrainingBox in lib/xlsx/export.ts). Only
  * boxes with writing in them, not tally-only rows: it is the digit reader that
- * needs them. The picture is the printed box at the scan's own 200 DPI.
+ * needs them. And only boxes a person was shown: the review list can be left
+ * unfinished, and a box nobody opened still holds the reader's own guess,
+ * which is no label. The picture is the printed box at the scan's own 200 DPI.
  */
-function trainingBoxes(values: ExportParams["values"], untouched: Set<string>): TrainingBox[] {
+function trainingBoxes(
+  values: ExportParams["values"],
+  untouched: Set<string>,
+  seen: Set<string>,
+): TrainingBox[] {
   const all = state.cards.flatMap((card) => card.cells.map((cell) => ({ card, cell })));
   const accepted = autoAcceptedInScan(all.map(({ cell }) => prefillFor(cell)));
   const shown = new Set<string>();
   all.forEach(({ card, cell }, i) => {
-    if (!accepted[i] && cell.hasValue && !cell.tallyOnly) shown.add(`${card.cardNumber}:${cell.row}`);
+    const key = `${card.cardNumber}:${cell.row}`;
+    if (!accepted[i] && cell.hasValue && !cell.tallyOnly && seen.has(key)) shown.add(key);
   });
 
   const out: TrainingBox[] = [];
@@ -448,7 +461,11 @@ async function exportWorkbook(params: ExportParams) {
     sourcePdfName: state.fileName,
     event: params.event,
     cards,
-    training: trainingBoxes(params.values, untouched),
+    training: trainingBoxes(
+      params.values,
+      untouched,
+      new Set((params.seen ?? []).map(([card, row]) => `${card}:${row}`)),
+    ),
   });
 
   let binary = "";
