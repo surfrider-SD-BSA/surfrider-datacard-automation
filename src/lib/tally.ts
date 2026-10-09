@@ -1238,7 +1238,7 @@ function countStrokes(
   // rather than a hundred and seventy-six.
   const tilts = strokes.map((s) => (s.angle > 0 ? s.angle - 90 : s.angle + 90));
   if (Math.max(...tilts) - Math.min(...tilts) > o.maxAngleSpread) {
-    return DECLINE("strokes not parallel", state());
+    return DECLINE(NOT_PARALLEL, state());
   }
 
   // Strokes stand on the row's line. Feet at unrelated heights are two tallies
@@ -1545,8 +1545,20 @@ export function salvageCount(reading: TallyReading): { value: number; confidence
   // Strokes plus crossbars: a bar IS the fifth stroke of its group, so it is
   // one more mark and not a decoration. Same arithmetic the accepted path does
   // through `groups`.
+  //
+  // Except that a strip refused as not parallel never reached the crossbar
+  // pass, so it has none. On a long tally of crossed fives that is a fifth of
+  // the count missing: one bar per four uprights is put back.
+  // Measured 9 October 2026 on the 129 such strips with a sheet value: 13
+  // exact rather than 12, 52 within two rather than 45. Below eight uprights
+  // it was worse, a short run being as likely bare strokes as crossed groups.
+  if (reading.reason === NOT_PARALLEL && reading.bars === 0 && reading.strokes >= 8) {
+    return { value: reading.strokes + Math.floor(reading.strokes / 4), confidence: SALVAGE_CONFIDENCE };
+  }
   return { value: reading.strokes + reading.bars, confidence: SALVAGE_CONFIDENCE };
 }
+
+const NOT_PARALLEL = "strokes not parallel";
 
 /** Internal, so a diagnostic can sweep the overrun bar against real cells. */
 export { rowOverrun as _rowOverrun, type Frame as _Frame };
