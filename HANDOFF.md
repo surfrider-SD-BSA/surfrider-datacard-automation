@@ -1476,12 +1476,41 @@ either way. No real phone has been timed.
   On those a strip read 4 at 0.99 that reads 11 on the apps' pixels. Never run the two app
   checks at once: both rebuild `dist/`.
 
+- **A struck or printed line read as 1 is left blank** (#102). Under the 20% rule its 0.3 cap
+  no longer guaranteed a person saw it: 14 of 22 went in unseen as 1, against a sheet that has 0
+  for 21. The lesson generalises: every cap written to mean "a person sees this" (0.3 for box
+  tallies, salvage at 0.1-0.3) was written for the fixed 0.45 line, and under the 20% rule it is
+  only a rank.
+
+Measured and NOT worth doing, 7 October 2026 (`train_digits_cnn.py` now takes `TRAINING_DIR`
+and `FOLDS_DIR`, `reading-accuracy.mjs` takes `FOLDS_DIR`, and `label-from-spreadsheet.mjs`
+takes `TRAINING_OUT` and reads the `.pgm` pages `out/exp/render-js-pages.mjs` writes; torch
+installs from PyPI into a scratch venv and trains a full set of folds in about 4 minutes on
+this Mac's GPU):
+
+- **Retraining on digits cut from the apps' pixels.** 3,365 digits against 3,325; per-digit
+  accuracy against the labels 72.4% -> 75.3%, but end to end on the apps' pixels it is worse:
+  equal to the sheet 2,224 -> 2,214, hidden and wrong 781 -> 809. The baseline retrained the
+  same night reproduces the shipped figures exactly, so training is deterministic and the
+  comparison fair.
+- **Teaching the net lone zeros from cells the sheet types as an explicit 0.** Written "0"s
+  are read as 2, 4, 5 or 8 and go in unseen; the net has only ever seen a 0 inside "10" or
+  "100" (179 zeros), because the labelling skips cells the sheet leaves at 0. Taking explicit
+  zeros gives 934. End to end it looks like a gain (hidden and wrong 781 -> 731), but read by eye
+  the 45 readings it broke include clean, legible digits now read with confidence as 0: a 5, a 6,
+  a 2, "20" as 10. The explicit-zero labels are too noisy as they are. Lone zeros are still
+  the next digit problem worth solving, from cleaner labels: the Training sheet in app
+  exports (#92, #94) records what a person settled with the picture in view.
+- **`tallestMark` as a test on every box, not only where the reader found nothing.** Read by
+  eye it drops real numbers: where the cell map's box is taller than the printed row, a digit
+  resting on the row's rule joins it into one full-width mark, which is excluded as a rule.
+  Clearing rule rows first fixes that and breaks the test where it is used now (slightly
+  tilted rules come apart into marks). As used in #98, only where the reader found nothing, it
+  was checked by eye and is sound.
+
 Next, in order:
 
-1. **Retrain the net on digits cut from the apps' pixels.** It was trained on digits cut from
-   PDFKit renders (`out/pages`), which no app reads. Regenerate `out/training/` from
-   `out/pages-js` with `label-from-spreadsheet.mjs`, retrain the folds, and compare with
-   `reading-accuracy --cache`. Needs torch, which is not installed on this Mac now.
+1. **Lone zeros, from clean labels.** See above.
 2. **The 278 "nothing read" boxes still shown** are mostly real tallies the counter declines
    (long runs of crossed fives, write-ins on the "Other" rows like "chain saw blade 11").
 3. **11 taken as read**: 73 left, right by the sheets about 3 times in 38. Ranking them lower
