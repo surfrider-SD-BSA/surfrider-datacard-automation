@@ -381,6 +381,15 @@ describe("salvageCount", () => {
     expect(got).toEqual({ value: 8, confidence: SALVAGE_CONFIDENCE });
   });
 
+  it("puts back the crossbars a long strip refused as not parallel never looked for", () => {
+    // Sixteen uprights of crossed fives are four groups: twenty marks, not sixteen.
+    expect(salvageCount(declined({ strokes: 16, reason: "strokes not parallel" }))?.value).toBe(20);
+    // A short run is as likely bare strokes, and is left as it is.
+    expect(salvageCount(declined({ strokes: 7, reason: "strokes not parallel" }))?.value).toBe(7);
+    // Where the bars were found, they are what is counted.
+    expect(salvageCount(declined({ strokes: 16, bars: 3, reason: "unexplained ink" }))?.value).toBe(19);
+  });
+
   it("salvages the other structural declines too", () => {
     for (const reason of ["unexplained ink", "strokes not parallel", "no common baseline"]) {
       expect(salvageCount(declined({ strokes: 3, reason }))?.value).toBe(3);
