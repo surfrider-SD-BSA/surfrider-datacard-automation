@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AUTO_ACCEPT } from "../src/lib/prefill";
 import {
+  CLIPPED_CONFIDENCE,
   BOX_TALLY_CONFIDENCE,
   SALVAGE_CONFIDENCE,
   countBoxTally,
@@ -170,13 +171,16 @@ describe("countTally", () => {
     expect(count(img).count).toBeNull();
   });
 
-  it("declines a tally that runs off the end of the strip", () => {
+  it("counts a tally that runs off the end of the strip, but never trusts it", () => {
     // The part outside the crop cannot be counted, and a clipped tally looks
-    // exactly like a shorter one that happens to sit at the edge.
+    // exactly like a shorter one that happens to sit at the edge -- so the
+    // count fills the box and stays below auto-accept, in front of a person.
     const img = blank(200);
     uprights(img, 1, 5);
-    expect(count(img).count).toBeNull();
-    expect(count(img).reason).toBe("runs off the strip");
+    const r = count(img);
+    expect(r.count).not.toBeNull();
+    expect(r.confidence).toBeLessThanOrEqual(CLIPPED_CONFIDENCE);
+    expect(CLIPPED_CONFIDENCE).toBeLessThan(AUTO_ACCEPT);
   });
 
   it("declines when a group in the middle does not hold five", () => {
@@ -384,7 +388,7 @@ describe("salvageCount", () => {
   });
 
   it("refuses a strip where no strokes were found", () => {
-    for (const reason of ["no ink", "no strokes", "too dense", "runs off the strip"]) {
+    for (const reason of ["no ink", "no strokes", "too dense"]) {
       expect(salvageCount(declined({ strokes: 0, reason }))).toBeNull();
     }
   });

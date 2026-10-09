@@ -1132,7 +1132,6 @@ export function countTally(
   const { o, mask, width, height, raw, clipped, whole, frame } = prepare(img, options);
   if (raw === 0) return DECLINE("no ink");
   if (raw > o.maxInk) return DECLINE("too dense");
-  if (clipped) return DECLINE("runs off the strip");
 
   // Does any of this belong to a neighbouring row?
   //
@@ -1141,11 +1140,31 @@ export function countTally(
   // the card, a word written above -- and what is left after dropping it is not
   // a smaller tally, it is the remains of something else. See `rowEscape`.
   const escape = Math.round((frame.stripBottom - frame.stripTop) * o.rowEscape);
-  return countStrokes(mask, width, height, o, {
+  const reading = countStrokes(mask, width, height, o, {
     escapes: escape > 0 ? (s) => rowOverrun(s, whole, frame, o) >= escape : null,
     barNeedsFour: false,
   });
+
+  // A tally that runs off the strip is counted, and never trusted.
+  //
+  // It used to be declined outright: 184 of 520 strip rows on the apps' pixels,
+  // mostly long tallies whose volunteer wrote over the caption, and every one
+  // of them reached a reviewer as "nothing read" even where the TOTAL box was
+  // empty and the strokes were the only count on the card. Counted anyway
+  // (9 October 2026, `CELL_CACHE=out/cells-app`): 120 fewer "nothing read"
+  // boxes, 9 more pre-filled with the sheet's number. A short count is exactly
+  // what clipping produces, so it is trusted no more than a salvaged guess and
+  // ranks among the boxes a person is shown. One gets through unseen and wrong
+  // anyway: pacific-5.21:1:39, a word written at the caption ("|Cup") counted
+  // as 5, on a scan of 11 cells where even the least-sure fifth is two boxes.
+  if (clipped && reading.count !== null) {
+    return { ...reading, confidence: Math.min(reading.confidence, CLIPPED_CONFIDENCE) };
+  }
+  return reading;
 }
+
+/** The most a count of a strip that runs off its edge is trusted: a salvaged guess's worth. */
+export const CLIPPED_CONFIDENCE = 0.1;
 
 /**
  * The counting itself, on a mask that holds only the marks to be counted.
@@ -1508,9 +1527,9 @@ export const SALVAGE_CONFIDENCE = 0.1;
  *
  * Two declines are NOT salvaged, and the difference matters:
  *
- *   - Anything with no strokes at all -- "no ink", "no strokes", "too dense",
- *     "runs off the strip". There is no count to hand over, only a number
- *     somebody would have to invent.
+ *   - Anything with no strokes at all -- "no ink", "no strokes", "too dense".
+ *     There is no count to hand over, only a number somebody would have to
+ *     invent.
  *   - "ink continues past the row", which is not a weak reading of THIS row. A
  *     stroke that runs past the row boundary says the crop is showing
  *     something else -- a diagonal across the card, the descenders of a word
