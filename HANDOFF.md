@@ -1664,6 +1664,18 @@ work turned up. Every figure below that compares versions came from
    sheet puts at 6 or more are exact for 20 of 86 and within two for 42. So the
    next work here is counting long, crowded tallies within the row -- touching
    groups, wavy crossbars -- not following ink across rows.
+
+   **Strips that run off the edge are counted now (9 October 2026).** An
+   option sweep showed the edge test was the cheapest lever: switched off, 15
+   more strips agree with the sheets for 3 more that disagree (two of those 3
+   are the sheet's, by eye). Loosening `maxAngleSpread`, `lengthTolerance` or
+   `minExplained`, or widening `insetLeft`, did worse. So `countTally` counts a
+   clipped strip and caps its confidence at `CLIPPED_CONFIDENCE` (0.1, a
+   salvaged guess's worth) so it ranks among the boxes shown. On the apps'
+   pixels: 278 -> 158 "nothing read" boxes shown, 31 -> 40 strip boxes
+   pre-filled with the sheet's number, unseen-and-wrong 17 -> 18 (a word at the
+   caption, pacific-5.21:1:39, counted as 5). "Strokes not parallel" (67) and
+   "no strokes" (72) on long tallies are still open.
 8. **The empty boxes the review list still offers.** Measured 30 September
    2026 on the test scan: 104 of the 261 boxes a volunteer is shown hold
    nothing, 103 of them as "nothing read" -- two in five of what a volunteer
