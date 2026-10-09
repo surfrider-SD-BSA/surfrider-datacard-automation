@@ -1648,6 +1648,22 @@ work turned up. Every figure below that compares versions came from
    three remaining wrong pre-fills are this. One mechanism answers both: follow
    each stroke's own line into the context above and below and refuse the
    reading where the ink carries on.
+
+   **Checked again 9 October 2026, apps' pixels: this is no longer where the
+   loss is.** `escapesRow` already refuses ink that carries past the row, and
+   only 17 of the 278 "nothing read" boxes shown are refused for it. Of the 39
+   clean strip counts the sheets can score, 11 disagree, and rendered the two
+   that looked like a carried-on tally (seaport-6.13:5:25 counted 5, sheet 19;
+   oceanbeach-9.06:31:31 counted 3, sheet 30) are counted right: the strip holds
+   exactly that and the sheet is wrong. The 143 strips refused as "runs off the
+   strip" are, rendered, mostly long tallies of five groups or more inside
+   their own row, written from the end of the printed caption
+   (moonlight-7.05:2:31, imperial-1.18:14:30, moonlight-7.05:23:27); one in the
+   sample spills UP into the section header (imperial-6.06:1:18, 26 in the row
+   and 11 in the header, sheet 37). The counter's rough guesses on strips the
+   sheet puts at 6 or more are exact for 20 of 86 and within two for 42. So the
+   next work here is counting long, crowded tallies within the row -- touching
+   groups, wavy crossbars -- not following ink across rows.
 8. **The empty boxes the review list still offers.** Measured 30 September
    2026 on the test scan: 104 of the 261 boxes a volunteer is shown hold
    nothing, 103 of them as "nothing read" -- two in five of what a volunteer
