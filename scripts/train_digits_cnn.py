@@ -90,6 +90,7 @@ import copy
 import gzip
 import json
 import math
+import os
 import pathlib
 import sys
 import time
@@ -100,8 +101,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TRAINING = ROOT / "out" / "training"
-FOLDS = ROOT / "out" / "models" / "cnn"
+# TRAINING_DIR and FOLDS_DIR train a second set beside the first, to compare the two.
+TRAINING = ROOT / os.environ.get("TRAINING_DIR", "out/training")
+FOLDS = ROOT / os.environ.get("FOLDS_DIR", "out/models/cnn")
 REF = ROOT / "assets" / "reference"
 
 SIDE = 28
