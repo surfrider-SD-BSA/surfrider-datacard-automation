@@ -1513,6 +1513,12 @@ Next, in order:
 1. **Lone zeros, from clean labels.** See above.
 2. **The 278 "nothing read" boxes still shown** are mostly real tallies the counter declines
    (long runs of crossed fives, write-ins on the "Other" rows like "chain saw blade 11").
+   206 are strips, and 143 of those are declined as "runs off the strip": long tallies
+   starting hard against the strip's left edge. **Recounting them on a strip widened to the
+   left does not help** (9 October 2026, apps' pixels, a cache with 200 px of paper left of
+   each strip): widened by 15%, 30% or 50%, clean counts stay at 62 (28 right by the sheets)
+   and the only change is up to 73 placeholders turned into salvaged guesses, not one of
+   them equal to the sheet. What these tallies need is the row-crossing work of item 7.
 3. **11 taken as read**: 73 left, right by the sheets about 3 times in 38. Ranking them lower
    gains little, because the shown readings they would displace are mostly wrong too.
 
