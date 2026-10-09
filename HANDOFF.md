@@ -1676,6 +1676,17 @@ work turned up. Every figure below that compares versions came from
    pre-filled with the sheet's number, unseen-and-wrong 17 -> 18 (a word at the
    caption, pacific-5.21:1:39, counted as 5). "Strokes not parallel" (67) and
    "no strokes" (72) on long tallies are still open.
+
+   **Looked at the same day.** "No strokes" is mostly empty strips the sheet
+   has as 0: declining is right there. "Strokes not parallel" is long, dense
+   tallies whose groups run into each other (imperial-1.18:14:31). Letting a
+   quarter of the uprights lean and handing them to the crossbar pass counts
+   one more strip right, but the strips it lets through then fail as ragged or
+   unexplained with worse guesses (3 fewer right): not shipped. What did ship:
+   a not-parallel strip never reached the crossbar pass, so its guess counted
+   no bars; with 8 or more uprights, `salvageCount` now adds one per four.
+   Strip guesses matching the sheet 40 -> 41; at 10 or more, 5 newly exact
+   and 3 no longer.
 8. **The empty boxes the review list still offers.** Measured 30 September
    2026 on the test scan: 104 of the 261 boxes a volunteer is shown hold
    nothing, 103 of them as "nothing read" -- two in five of what a volunteer
