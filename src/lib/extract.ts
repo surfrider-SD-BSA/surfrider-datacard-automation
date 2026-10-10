@@ -464,6 +464,25 @@ export function cellsForSide(
         })
       : null;
 
+    // A strip the shape test called marked, with nothing in it the counter can
+    // call a stroke, beside an empty TOTAL box: left blank, like any box nobody
+    // wrote in. Measured 10 October 2026 on the apps' pixels: 46 of the 160
+    // "nothing read" boxes still shown were these, 42 of them blank or 0 on the
+    // chapter's sheet, and rendered they are the dark section band above rows
+    // 44 to 47, creases and struck lines, and a neighbouring row's writing
+    // reaching in. Of the 4 the sheet has a number for, 3 are empty strips (the
+    // number is not about them) and one is a single faint stroke, a 1, that
+    // goes blank. The write-in "Other" rows are kept: there a word sits beside
+    // the tally and is what the counter cannot make strokes of.
+    //
+    // NOT "too dense", which also reports no strokes: that is a heavy tally.
+    if (
+      tallyReading &&
+      (tallyReading.reason === "no strokes" || tallyReading.reason === "no ink") &&
+      !item.name.startsWith("Other")
+    ) {
+      continue;
+    }
 
     // Tally marks drawn in the box itself. The digit reader sees each stroke as
     // a perfectly good 1 and reads "|||" as 111, so where it read nothing but
