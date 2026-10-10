@@ -220,7 +220,15 @@ export interface TallyOptions {
   barGap: number;
   /** Segments shorter than this are not pen strokes. */
   minLength: number;
-  /** A segment within this many degrees of vertical is an upright stroke. */
+  /**
+   * A segment within this many degrees of vertical is an upright stroke.
+   *
+   * 30, down from 36 on 9 October 2026. Where a crossbar runs low through
+   * short uprights, the upright pass found zig-zags -- from the foot of one
+   * stroke, along the bar, to the top of the next -- leaning 22 to 34 degrees,
+   * and they sank long tallies as "strokes not parallel" (imperial-6.06:1:27).
+   * Real strokes on the measured cards lean far less than that.
+   */
   uprightDegrees: number;
   /**
    * How far apart, in degrees, the most and least slanted strokes may be.
@@ -233,6 +241,22 @@ export interface TallyOptions {
    * was added.
    */
   maxAngleSpread: number;
+  /**
+   * Hold `maxAngleSpread` within each group rather than across the strip, and
+   * let neighbouring groups' slant differ by at most this many degrees. 0 holds
+   * it across the strip.
+   *
+   * A long tally is written over several seconds and its slant drifts, so a
+   * strip of six neat groups could fail a test any one of them passes. Each
+   * group is still held to the full test, which is what refuses handwriting.
+   *
+   * With `uprightDegrees` at 30, measured 9 October 2026 on the apps' pixels
+   * (`CELL_CACHE=out/cells-app`): strips counted and agreeing with the sheet
+   * 34 -> 42, disagreeing 14 -> 15, and the one new disagreement is a clean
+   * group of five the sheet has as 0 (pacific-3.22:48:88). Every count of 6
+   * or more agrees. 15 was too tight to help; 40 and 60 changed nothing more.
+   */
+  groupTiltStep: number;
   /** Strokes must fall within this factor of the typical stroke length. */
   lengthTolerance: number;
   /** Feet may sit this far off the common baseline, as a share of stroke length. */
@@ -438,8 +462,9 @@ export const TALLY_DEFAULTS: TallyOptions = {
   maxGap: 8,
   barGap: 16,
   minLength: 11,
-  uprightDegrees: 36,
+  uprightDegrees: 30,
   maxAngleSpread: 30,
+  groupTiltStep: 25,
   lengthTolerance: 1.9,
   baselineTolerance: 0.85,
   rejoinGap: 14,
@@ -1236,8 +1261,12 @@ function countStrokes(
   // Near-parallel, or it is not a tally. Tilt is measured from vertical so that
   // a stroke leaning one way and one leaning the other are two degrees apart
   // rather than a hundred and seventy-six.
-  const tilts = strokes.map((s) => (s.angle > 0 ? s.angle - 90 : s.angle + 90));
-  if (Math.max(...tilts) - Math.min(...tilts) > o.maxAngleSpread) {
+  const tiltOf = (s: Segment) => (s.angle > 0 ? s.angle - 90 : s.angle + 90);
+  const spreadOf = (ss: Segment[]) => {
+    const t = ss.map(tiltOf);
+    return Math.max(...t) - Math.min(...t);
+  };
+  if (o.groupTiltStep === 0 && spreadOf(strokes) > o.maxAngleSpread) {
     return DECLINE(NOT_PARALLEL, state());
   }
 
@@ -1254,6 +1283,15 @@ function countStrokes(
     strokes.map((s) => s.midX),
     o.groupGapRatio,
   );
+
+  if (o.groupTiltStep > 0) {
+    const members = groups.map((g) => g.map((i) => strokes[i]!));
+    if (members.some((m) => spreadOf(m) > o.maxAngleSpread)) return DECLINE(NOT_PARALLEL, state());
+    const slants = members.map((m) => median(m.map(tiltOf)));
+    for (let i = 1; i < slants.length; i++) {
+      if (Math.abs(slants[i]! - slants[i - 1]!) > o.groupTiltStep) return DECLINE(NOT_PARALLEL, state());
+    }
+  }
 
   // A crossbar is the fifth stroke of a group, so it must cross a group: at
   // least two of that group's strokes, and no other group's. A long mark that
@@ -1573,5 +1611,5 @@ export function _debugSegments(
   let ink = 0;
   for (const v of skeleton) ink += v;
   const { upright, rest } = decomposeStrip(skeleton, width, height, o);
-  return { raw, ink, width, segments: [...upright, ...rest] };
+  return { raw, ink, width, height, mask, skeleton, segments: [...upright, ...rest] };
 }
