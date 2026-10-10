@@ -1687,6 +1687,17 @@ work turned up. Every figure below that compares versions came from
    no bars; with 8 or more uprights, `salvageCount` now adds one per four.
    Strip guesses matching the sheet 40 -> 41; at 10 or more, 5 newly exact
    and 3 no longer.
+
+   **Then the real cause (same day).** Rendering the segments
+   (`out/exp/zoom.mjs`) showed two things behind "not parallel" on long
+   tallies. Where the crossbar runs low through short uprights, the upright
+   pass took zig-zags from the foot of one stroke, along the bar, to the top of
+   the next, leaning 22-34 degrees; and the writer's slant drifts across a long
+   row. `uprightDegrees` 36 -> 30 and a new `groupTiltStep` 25 (parallel
+   within each group, neighbouring groups within 25 degrees) fix both. Strips
+   counted right 34 -> 42 for 14 -> 15 wrong (the new one is the sheet's
+   mistake); under the apps' rule, confident counts right 28 -> 34 with none
+   more wrong, guesses right 41 -> 39, net +4 right pre-fills.
 8. **The empty boxes the review list still offers.** Measured 30 September
    2026 on the test scan: 104 of the 261 boxes a volunteer is shown hold
    nothing, 103 of them as "nothing read" -- two in five of what a volunteer
