@@ -1709,6 +1709,21 @@ work turned up. Every figure below that compares versions came from
    right guesses for the 4 confident counts it gains, and it takes 3 more
    boxes unseen. A wash, so left out. 80% and 90% were no better. The next
    lever is the decomposition itself, not a filter on its output.
+
+   **The decomposition itself, tried the same day, not shipped.** Each
+   skeleton pixel was given its own direction (second moment of the skeleton
+   within 3-4 px) and the upright pass was let use only upright ink or
+   junctions, leaving bar ink to the bar pass. It does stop the corner-cutting
+   -- drawn with `OPTS='{"directionRadius":4}' out/exp/zoom.mjs`, the
+   uprights come out upright -- but it fixes none of the four target strips:
+   in imperial-6.06:1:27 the strokes of groups 3 and 4 are stubs a few pixels
+   above a low crossbar, shorter than `minLength`, and nothing is left to
+   count. Meanwhile it reads numbers written in the strip as tallies, with
+   confidence: "10" as 4 and "15" as 5 (oceanside-9.06:19:26, :19:30), because
+   with the curves held back a 0 or 5 breaks into neat straight pieces.
+   Agreements 42 -> 43, disagreements 15 -> 22. What still fails on long
+   tallies is mostly handwriting a person would slow down on too; the
+   remaining gain is small for the work.
 8. **The empty boxes the review list still offers.** Measured 30 September
    2026 on the test scan: 104 of the 261 boxes a volunteer is shown hold
    nothing, 103 of them as "nothing read" -- two in five of what a volunteer
