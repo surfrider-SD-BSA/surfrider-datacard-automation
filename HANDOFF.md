@@ -1732,6 +1732,21 @@ work turned up. Every figure below that compares versions came from
    empty boxes are taken as read with a number in them (a dark printed band
    read as 1), which is worse and smaller: start there.
 
+
+   **10 October 2026: 160 -> 114 "nothing read" boxes shown.** Of the 160
+   still shown, 58 were tally strips the counter found no stroke in at all
+   ("no strokes" / "no ink") beside an empty TOTAL box. Rendered, they are
+   the dark "Personal Care" band above rows 44-47, creases and struck lines,
+   and a neighbouring row's writing reaching in. They are now left blank,
+   except on the six write-in "Other" rows, where a word beside a tally is
+   what the counter cannot make strokes of. 46 boxes off the list: 42 blank or
+   0 on the sheet, 3 empty strips the sheet has a number for elsewhere, and
+   one faint single stroke (imperial-3.15:20:51, a 1) that now goes blank.
+   With the freed slots (`out/exp/appshare.mjs` + `assum.mjs`): real
+   readings shown 1,239 -> 1,278, taken unseen and disagreeing with the sheet
+   1,159 -> 1,137. Of the 114 left, 72 are TOTAL boxes the reader read nothing
+   in, 37 of which the sheet has a number for: real faint writing, keep them.
+
 Measured that week and not worth repeating: three nets averaged, a net twice as
 wide, twice the epochs, retraining on digits cut the new way, more room to read
 than `READ_MARGIN`, and cleaning labels by the net's own disagreement. The
