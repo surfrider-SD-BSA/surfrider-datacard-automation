@@ -129,6 +129,18 @@ describe("countTally", () => {
     expect(r.groups).toEqual([5, 5, 3]);
   });
 
+  it("counts a long tally whose slant drifts from group to group", () => {
+    // Each group is parallel; across the row the lean goes from -5 to +28
+    // degrees, which the strip-wide test refused as "strokes not parallel".
+    const img = blank(460);
+    for (const [x, lean] of [[40, -3], [150, 8], [260, 18]] as const) {
+      for (let i = 0; i < 4; i++) stroke(img, x + i * PITCH + lean, 12, x + i * PITCH, 46);
+      stroke(img, x - 18, 36, x + 55, 18);
+    }
+    expect(count(img, { groupTiltStep: 0 }).reason).toBe("strokes not parallel");
+    expect(count(img).count).toBe(15);
+  });
+
   it("declines a strip holding a written number instead of a tally", () => {
     // A "6": a bowl and a tail. Two of its arcs are straight enough to be
     // strokes, so what rules it out has to be the ink they cannot explain.
