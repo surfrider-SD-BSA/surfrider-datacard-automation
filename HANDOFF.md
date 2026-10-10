@@ -1698,6 +1698,17 @@ work turned up. Every figure below that compares versions came from
    counted right 34 -> 42 for 14 -> 15 wrong (the new one is the sheet's
    mistake); under the apps' rule, confident counts right 28 -> 34 with none
    more wrong, guesses right 41 -> 39, net +4 right pre-fills.
+
+   **Tried after that, not shipped (10 October 2026).** What still fails as
+   "not parallel" is lines cutting the corner of a V where the writer joined
+   the crossbar to a stroke's foot (moonlight-7.19:11:27). Requiring an
+   upright's ink to reach 70% of the rows it spans (`rowCover`, tried in the
+   upright pass only) counts 4 more strips right for 3 more the sheet
+   disagrees with -- by eye 3 of those are the sheet's mistake and one is a
+   scribbled-over tally counted as 5 -- but under the apps' rule it costs 4
+   right guesses for the 4 confident counts it gains, and it takes 3 more
+   boxes unseen. A wash, so left out. 80% and 90% were no better. The next
+   lever is the decomposition itself, not a filter on its output.
 8. **The empty boxes the review list still offers.** Measured 30 September
    2026 on the test scan: 104 of the 261 boxes a volunteer is shown hold
    nothing, 103 of them as "nothing read" -- two in five of what a volunteer
