@@ -441,6 +441,34 @@ export function tallestMark(
    */
   minDensity = 0,
 ): number {
+  let tallest = 0;
+  for (const m of marksIn(img, box)) {
+    if (minDensity > 0 && m.density < minDensity) continue;
+    tallest = Math.max(tallest, m.height);
+  }
+  return tallest;
+}
+
+/** One connected mark in a box, as `marksIn` finds it. */
+export interface BoxMark {
+  /** As a share of the box's height, after the inset. */
+  height: number;
+  /** Pixels. */
+  width: number;
+  /** Ink as a share of its own bounding box. */
+  density: number;
+  /** Where its middle sits across the box, 0 at the left to 1 at the right. */
+  across: number;
+}
+
+/**
+ * The marks in a box that `tallestMark` measures: printed rules and the
+ * printed column side left out. See `TALLEST_MARK`.
+ */
+export function marksIn(
+  img: MarkImage,
+  box: { x: number; y: number; width: number; height: number },
+): BoxMark[] {
   const o = TALLEST_MARK;
   const x0 = Math.max(0, Math.round(box.x) + o.insetX);
   const x1 = Math.min(img.width, Math.round(box.x + box.width) - o.insetX);
@@ -448,8 +476,7 @@ export function tallestMark(
   const y1 = Math.min(img.height, Math.round(box.y + box.height * (1 - o.insetY)));
   const w = x1 - x0;
   const h = y1 - y0;
-  if (w <= 0 || h <= 0) return 0;
-
+  if (w <= 0 || h <= 0) return [];
   const values = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) values.set(img.data.subarray((y0 + y) * img.width + x0, (y0 + y) * img.width + x1), y * w);
   const threshold = Uint8Array.from(values).sort()[values.length >> 1]! - o.depth;
@@ -477,7 +504,7 @@ export function tallestMark(
 
   const seen = new Uint8Array(w * h);
   const stack: number[] = [];
-  let tallest = 0;
+  const found: BoxMark[] = [];
   for (let i = 0; i < w * h; i++) {
     if (seen[i] || values[i]! > threshold) continue;
     let n = 0;
@@ -517,8 +544,12 @@ export function tallestMark(
       for (let x = mx0; x <= mx1 && !side; x++) side = printed(x0 + x);
       if (side) continue;
     }
-    if (minDensity > 0 && n < minDensity * mw * (my1 - my0 + 1)) continue;
-    tallest = Math.max(tallest, (my1 - my0 + 1) / h);
+    found.push({
+      height: (my1 - my0 + 1) / h,
+      width: mw,
+      density: n / (mw * (my1 - my0 + 1)),
+      across: (mx0 + mx1 + 1) / 2 / w,
+    });
   }
-  return tallest;
+  return found;
 }
