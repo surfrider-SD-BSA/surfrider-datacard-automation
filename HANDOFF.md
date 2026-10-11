@@ -834,6 +834,7 @@ other digit are outside this population altogether.
 npx vite-node scripts/cell-cache.mjs                        # once: ~6 minutes
 npx vite-node scripts/audit-box-tallies.mjs -- --show       # score, and render the counted boxes
 npx vite-node scripts/reading-accuracy.mjs -- --cache       # the end-to-end figures in under a minute
+npx vite-node scripts/apps-rule.mjs -- --out after.json     # what the apps show and take, against the sheets
 ```
 
 `audit-box-tallies.mjs` lists any all-1s box the labels do not cover. A change to
@@ -1465,8 +1466,8 @@ either way. No real phone has been timed.
   in when nothing in it is taller than a dash, and a tally strip holding only creases or ruling
   (#98). Shown 1,611 -> 1,404, real readings checked 599 -> 1,126, taken as read and
   disagreeing with the sheets 1,433 -> 1,179. The instrument for this is the apps' rule, not
-  `AUTO_ACCEPT` 0.45: `out/exp/appshare.mjs` was the throwaway version; making it a script
-  under `scripts/` is worth doing.
+  `AUTO_ACCEPT` 0.45: it is now `scripts/apps-rule.mjs` (11 October 2026; `--out` one row
+  per offered box, `--compare a.json b.json` lists every box that moved).
 - **"3" in the strip, "|||" in the box** is read from the strip (#96). 9 boxes, all on
   imperial-3.15, all right.
 - **The Training sheet takes only boxes a person was shown** (#94). Before, an export made
