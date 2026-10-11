@@ -1758,6 +1758,18 @@ work turned up. Every figure below that compares versions came from
    faint 1s the digit reader misses -- a digit-reader problem now, not an
    empty-box one.
 
+   **Then 102 -> 72: the faint 1s are read (11 October 2026).** 23 of the
+   remaining boxes are a 1 on the sheet, and every one is a single stroke,
+   mostly against or across the box's left side, where the reader's cutting
+   takes it for the printed column. `faintOne` in extract.ts reads one solid,
+   tall, narrow mark as a 1 at 0.3, where the reader found nothing. It needs
+   the mark to fill 45% of its own bounding box, because the printed column
+   line beside the box is fainter than a pen (0.30-0.40 against 0.49 and up)
+   and without that floor it was read as 1 on three cards. It also needs the
+   mark to sit away from the box's right side, where a dark band is printed.
+   30 boxes become a 1; by eye 28 are plainly a 1, one is a 1 against the edge
+   and one is doubtful. Taken right 2,130 -> 2,140, taken wrong 1,133 -> 1,125.
+
 Measured that week and not worth repeating: three nets averaged, a net twice as
 wide, twice the epochs, retraining on digits cut the new way, more room to read
 than `READ_MARGIN`, and cleaning labels by the net's own disagreement. The
