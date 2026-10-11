@@ -1747,6 +1747,17 @@ work turned up. Every figure below that compares versions came from
    1,159 -> 1,137. Of the 114 left, 72 are TOTAL boxes the reader read nothing
    in, 37 of which the sheet has a number for: real faint writing, keep them.
 
+   **Then 114 -> 102.** In the empty half of those 72, the "tall mark" that
+   kept them was not writing: the edge of the TOTAL column's grey shading, or
+   the shading itself, caught by the threshold on the last row of a section
+   (rows 77, 82, 100, 110). Those are outlines; a pen stroke is solid. The
+   box test now counts only marks filling a quarter of their own bounding box
+   (`SOLID_MARK`, `minDensity` on `tallestMark`). 10 boxes drop out, all empty
+   by eye; 2 become the tally beside them, still shown. Taken unseen and
+   disagreeing 1,137 -> 1,133. The remaining box placeholders are mostly real
+   faint 1s the digit reader misses -- a digit-reader problem now, not an
+   empty-box one.
+
 Measured that week and not worth repeating: three nets averaged, a net twice as
 wide, twice the epochs, retraining on digits cut the new way, more room to read
 than `READ_MARGIN`, and cleaning labels by the net's own disagreement. The

@@ -433,6 +433,13 @@ export const TALLEST_MARK = { depth: 24, insetY: 0.12, insetX: 2, minPixels: 4, 
 export function tallestMark(
   img: MarkImage,
   box: { x: number; y: number; width: number; height: number },
+  /**
+   * Leave out marks whose ink fills less than this share of their own bounding
+   * box. A pen stroke is solid; the edge of the TOTAL column's grey shading, or
+   * the shading itself where the threshold catches it, is an outline. 0 counts
+   * every mark.
+   */
+  minDensity = 0,
 ): number {
   const o = TALLEST_MARK;
   const x0 = Math.max(0, Math.round(box.x) + o.insetX);
@@ -510,6 +517,7 @@ export function tallestMark(
       for (let x = mx0; x <= mx1 && !side; x++) side = printed(x0 + x);
       if (side) continue;
     }
+    if (minDensity > 0 && n < minDensity * mw * (my1 - my0 + 1)) continue;
     tallest = Math.max(tallest, (my1 - my0 + 1) / h);
   }
   return tallest;
