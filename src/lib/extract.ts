@@ -11,7 +11,7 @@
 import type { CellMap, Rect } from "./cells";
 import { inkThreshold, OVERSEGMENTED_CONFIDENCE, readDigits, type DigitBox, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
-import { boxMarked, cropGray, stripMarked, tallestMark } from "./marks";
+import { boxMarked, cropGray, marksIn, stripMarked, tallestMark } from "./marks";
 import { countBoxTally, countTally, salvageCount, TWO_UPRIGHTS } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
 import { itemForRow, type CardSide } from "./taxonomy";
@@ -317,6 +317,44 @@ const NUMBER_HEIGHT = 0.35;
  */
 const SOLID_MARK = 0.25;
 
+/**
+ * A lone "1" the digit reader cannot cut out.
+ *
+ * Measured 10 October 2026: of the "nothing read" boxes the apps still showed,
+ * 23 the chapter's sheet has as 1, and every one of them is a single stroke,
+ * mostly written against or across the box's left side -- where the reader's
+ * cutting takes it for the printed column and finds nothing. The box test
+ * above already saw it as a solid mark taller than a dash; this is that mark,
+ * read. Only one solid mark of any size, tall and narrow: a dash is flat, "||"
+ * is two, a neighbour's number reaching in is short or wide.
+ *
+ * On the apps' pixels: 30 "nothing read" boxes become a 1, and read by eye 28
+ * are plainly a 1, one a 1 written against the box's edge, and one doubtful
+ * (imperial-4.16:8:20, a stroke against the column beside a strip holding a
+ * "1"). Taken as read and agreeing with the sheet 2,130 -> 2,140, disagreeing
+ * 1,133 -> 1,125. Without the density floor the printed column line got in,
+ * and boxes on three cards went in unseen as 1.
+ */
+const FAINT_ONE = { minHeight: 0.6, maxWidth: 0.3, minDensity: 0.45, speck: 0.25, rightEdge: 0.8, confidence: 0.3 };
+
+function faintOne(
+  image: GrayImage,
+  box: Rect,
+  rowHeight: number,
+): { value: number; confidence: number; onlyOnes: boolean; piece?: DigitBox } | null {
+  const marks = marksIn(image, box).filter((m) => m.density >= SOLID_MARK && m.height >= FAINT_ONE.speck);
+  if (marks.length !== 1) return null;
+  const m = marks[0]!;
+  if (m.height < FAINT_ONE.minHeight || m.width > rowHeight * FAINT_ONE.maxWidth) return null;
+  // The printed column line beside the box, a little wider than `tallestMark`
+  // takes for a printed side, is fainter than a pen: 0.30 to 0.40 of its own
+  // bounding box against 0.49 and up for the 1s.
+  if (m.density < FAINT_ONE.minDensity) return null;
+  // The box's printed right side, or a dark band printed against it.
+  if (m.across > FAINT_ONE.rightEdge) return null;
+  return { value: 1, confidence: FAINT_ONE.confidence, onlyOnes: false };
+}
+
 /** The same for a tally strip: real tallies measured 0.25 or more, empty strips under 0.15. */
 const STRIP_HEIGHT = 0.15;
 
@@ -440,20 +478,18 @@ export function cellsForSide(
     // a tap on Next recorded debris that was not there. Taken out, it is left
     // blank like any box nobody wrote in, or, where the strip beside it holds
     // marks, offered as the tally it is. See `tallestMark` in marks.ts.
-    const onlyADash =
-      read !== null &&
-      readHere === null &&
-      tallestMark(image, {
-        // The same room to the left the digit reader is given: a number is
-        // often written against the printed column line, short of the box.
-        x: cell.total.x - cell.total.width * READ_MARGIN.left,
-        y: cell.total.y,
-        width: cell.total.width * (1 + READ_MARGIN.left),
-        height: cell.total.height,
-      }, SOLID_MARK) < NUMBER_HEIGHT;
+    // The same room to the left the digit reader is given: a number is often
+    // written against the printed column line, short of the box.
+    const widened = {
+      x: cell.total.x - cell.total.width * READ_MARGIN.left,
+      y: cell.total.y,
+      width: cell.total.width * (1 + READ_MARGIN.left),
+      height: cell.total.height,
+    };
+    const onlyADash = read !== null && readHere === null && tallestMark(image, widened, SOLID_MARK) < NUMBER_HEIGHT;
     const hasValue = boxInked && !onlyADash;
     const reading = hasValue ? read : null;
-    const digits = hasValue ? readHere : null;
+    const digits = hasValue ? (readHere ?? faintOne(image, widened, cell.total.height)) : null;
     const tallyOnly = !hasValue && tallyMarked;
     if (!hasValue && !tallyOnly) continue;
 
