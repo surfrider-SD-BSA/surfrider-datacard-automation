@@ -1771,6 +1771,16 @@ work turned up. Every figure below that compares versions came from
    30 boxes become a 1; by eye 28 are plainly a 1, one is a 1 against the edge
    and one is doubtful. Taken right 2,130 -> 2,140, taken wrong 1,133 -> 1,125.
 
+**Lone zeros by shape, 11 October 2026, not shipped.** A written 0 read as 8, 4,
+3, 2 or 5 has one hole near its middle -- once the ink is thickened 2 px, because
+pencil zeros are rarely closed at the reader's threshold. Capping the confidence
+of single digits 2-9 shaped like that moves 36 boxes from taken to shown under the
+apps' rule (`scripts/apps-rule.mjs -- --compare`), but only 9 are zeros on the
+sheet; real 8s, 6s, 9s and 4s are caught too, and the readings they displace into
+"taken" are mostly 11s that are no better. Taken right 2,173 -> 2,176, taken wrong
+1,143 -> 1,144: a wash. Setting the value to 0 instead, for flagged 2s, 3s and 5s,
+is right 5 times in 9. Lone zeros still want the net to have seen them.
+
 Measured that week and not worth repeating: three nets averaged, a net twice as
 wide, twice the epochs, retraining on digits cut the new way, more room to read
 than `READ_MARGIN`, and cleaning labels by the net's own disagreement. The
