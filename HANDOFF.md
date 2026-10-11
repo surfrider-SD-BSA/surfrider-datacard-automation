@@ -1780,6 +1780,14 @@ halves only where both read at 0.83 or better. 12 boxes change, all right by she
 eye ("20", "30", "25", "22", "140" from 2, 5, 1, 16). Taken right 2,173 -> 2,176, taken
 wrong 1,143 -> 1,139 by the sheets, which have no value for 8 of the 12.
 
+**Faint pencil cut short, 11 October 2026: look again.** Otsu's threshold keeps only
+the darkest dots of faint pencil, so a "77" was read as 7 and a "35" as 5. `LIGHT_PENCIL`
+looked again only where nothing was found; `FAINT_LOOK` in `readDigits` looks again where
+the first reading was weak (under 0.6), and takes the second only where every digit reads
+at 0.83 or better, two digits at most. 66 values change: 41 fixed by the sheets, 16 more
+right by eye with no sheet value, 1 broken (a "13" read 3). Taken right 2,176 -> 2,211,
+taken wrong 1,139 -> 1,113 -- the biggest single move of the week.
+
 **Lone zeros by shape, 11 October 2026, not shipped.** A written 0 read as 8, 4,
 3, 2 or 5 has one hole near its middle -- once the ink is thickened 2 px, because
 pencil zeros are rarely closed at the reader's threshold. Capping the confidence
