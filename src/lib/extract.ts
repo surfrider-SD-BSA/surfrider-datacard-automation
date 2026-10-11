@@ -303,6 +303,20 @@ function readingCrop(image: GrayImage, total: Rect): { crop: GrayImage; box: Rec
  */
 const NUMBER_HEIGHT = 0.35;
 
+/**
+ * How solid a mark has to be to count as writing in a box the reader found
+ * nothing in. See `minDensity` on `tallestMark`.
+ *
+ * Measured 10 October 2026 on the 72 "nothing read" TOTAL boxes the apps still
+ * showed: at 0.25, 10 drop out, and read by eye all are empty -- the edge of
+ * the column's shading on the last row of a section (rows 77, 82, 100, 110), a
+ * crease, a neighbour's number just outside the box. Two more become the tally
+ * beside them, still shown. The real writing in the rest measures 0.3 to 0.8:
+ * a 1 against the column line, a circled 1. At 0.3 a circled 1
+ * (seaport-7.05:16:32) goes.
+ */
+const SOLID_MARK = 0.25;
+
 /** The same for a tally strip: real tallies measured 0.25 or more, empty strips under 0.15. */
 const STRIP_HEIGHT = 0.15;
 
@@ -436,7 +450,7 @@ export function cellsForSide(
         y: cell.total.y,
         width: cell.total.width * (1 + READ_MARGIN.left),
         height: cell.total.height,
-      }) < NUMBER_HEIGHT;
+      }, SOLID_MARK) < NUMBER_HEIGHT;
     const hasValue = boxInked && !onlyADash;
     const reading = hasValue ? read : null;
     const digits = hasValue ? readHere : null;
