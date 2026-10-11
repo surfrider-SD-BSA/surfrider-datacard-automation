@@ -299,7 +299,8 @@ export function components(
  * and the total from 72.8% to 68.5%: single digits are wider than tall often
  * enough -- a 4, a 7 with a bar, anything written in a hurry -- that the rule
  * cuts more real digits than joined pairs. Whatever fixes touching digits has
- * to recognise the join, not just the width.
+ * to recognise the join, not just the width. `JOINED` in readDigits does it by
+ * asking the net, after the cutting.
  */
 
 /**
@@ -1088,11 +1089,25 @@ export function readDigits(
 
   let text = "";
   let worst = 1;
+  let split = false;
   for (const box of use) {
-    const { label, confidence } = classifyDigit(normalizeDigit(img, box, light), model);
-    if (label === null) return null;
-    text += String(label);
-    worst = Math.min(worst, confidence);
+    const whole = classifyDigit(normalizeDigit(img, box, light), model);
+    // Two digits written touching, read both ways: see `JOINED`.
+    const halves =
+      use.length < 3 && JOINED.aspect > 0 && whole.confidence < JOINED.wholeBelow ? splitJoined(img, box, light) : null;
+    if (halves) {
+      const reads = halves.map((h) => classifyDigit(normalizeDigit(img, h, light), model));
+      const weaker = Math.min(...reads.map((r) => r.confidence));
+      if (reads.every((r) => r.label !== null) && weaker >= JOINED.confidence && weaker > whole.confidence) {
+        text += reads.map((r) => String(r.label)).join("");
+        worst = Math.min(worst, weaker);
+        split = true;
+        continue;
+      }
+    }
+    if (whole.label === null) return null;
+    text += String(whole.label);
+    worst = Math.min(worst, whole.confidence);
   }
 
   const value = Number(text);
@@ -1118,8 +1133,71 @@ export function readDigits(
     value,
     confidence: tooMany || allOnes || light !== undefined || solid ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
     onlyOnes: allOnes,
-    piece: use.length === 1 ? use[0] : undefined,
+    piece: use.length === 1 && !split ? use[0] : undefined,
   };
+}
+
+/**
+ * Two digits written touching -- "20" with the nought joined to the two -- come
+ * out of `segmentDigits` as one piece, and are read as one digit.
+ *
+ * Cutting every wide piece at its thinnest column was tried and made things
+ * worse (see `segmentDigits`): single digits are wide often enough. So the cut
+ * is only a question put to the net. A piece at least `aspect` times as wide
+ * as it is tall is cut at the emptiest column in its middle, each side keeping
+ * at least `minHeight` of the piece's height, and the two halves are kept only
+ * where both read at `confidence` or better and better than the whole did --
+ * and only where the whole read under `wholeBelow`, because a confident wide
+ * "2" split into "23" is the failure this has to avoid.
+ *
+ * Measured 11 October 2026 on the apps' pixels (`scripts/apps-rule.mjs`): 12
+ * boxes change, every one right by the sheet or by eye -- "20", "30", "25",
+ * "22" and "140" that were read as 2, 5, 1 or 16. At `confidence` 0.8 and no
+ * `wholeBelow` it also split a lone "2" into 23 and two slashed or slanted
+ * noughts into 63 and 62 (their weaker halves read 0.81). 0 for `aspect`
+ * turns it off.
+ */
+export const JOINED = { aspect: 1.15, middle: 0.3, minHeight: 0.6, wholeBelow: 0.6, confidence: 0.83 };
+
+function splitJoined(img: DigitImage, box: DigitBox, threshold?: number): [DigitBox, DigitBox] | null {
+  const w = box.maxX - box.minX + 1;
+  const h = box.maxY - box.minY + 1;
+  if (w < h * JOINED.aspect) return null;
+  const t = threshold ?? inkThreshold(img);
+  const inked = (x: number, y: number) => img.data[y * img.width + x]! <= t;
+  let cut = -1;
+  let least = Infinity;
+  for (let x = box.minX + Math.round(w * JOINED.middle); x <= box.maxX - Math.round(w * JOINED.middle); x++) {
+    let n = 0;
+    for (let y = box.minY; y <= box.maxY; y++) if (inked(x, y)) n++;
+    if (n < least) {
+      least = n;
+      cut = x;
+    }
+  }
+  if (cut < 0) return null;
+  const side = (x0: number, x1: number): DigitBox | null => {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let count = 0;
+    for (let y = box.minY; y <= box.maxY; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (!inked(x, y)) continue;
+        count++;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    if (count === 0 || maxY - minY + 1 < h * JOINED.minHeight) return null;
+    return { minX, maxX, minY, maxY, count };
+  };
+  const left = side(box.minX, cut);
+  const right = side(cut + 1, box.maxX);
+  return left && right ? [left, right] : null;
 }
 
 /**
