@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxMarked, cropGray, findMarks, stripMarked, tallestMark, type MarkImage } from "../src/lib/marks";
+import { boxMarked, cropGray, findMarks, marksIn, stripMarked, tallestMark, type MarkImage } from "../src/lib/marks";
 
 /**
  * Synthetic cells, drawn the way the card is printed and the way volunteers
@@ -261,6 +261,26 @@ describe("tallestMark", () => {
     const img = page();
     ink(img, 148, 110, 151, 150, PAPER - 40);
     expect(tallestMark(img, BOX)).toBeGreaterThan(0.8);
+  });
+
+  it("leaves out an outline when asked for solid marks only", () => {
+    // The edge of shading: a rectangle's outline, as tall as the box.
+    const img = page();
+    ink(img, 120, 108, 180, 108);
+    ink(img, 120, 152, 180, 152);
+    ink(img, 120, 108, 120, 152);
+    ink(img, 180, 108, 180, 152);
+    expect(tallestMark(img, BOX)).toBeGreaterThan(0.8);
+    expect(tallestMark(img, BOX, 0.25)).toBe(0);
+  });
+
+  it("says how solid a mark is and where it sits across the box", () => {
+    const img = page();
+    ink(img, 118, 110, 121, 150);
+    const [m] = marksIn(img, BOX);
+    expect(m!.density).toBeGreaterThan(0.9);
+    expect(m!.across).toBeLessThan(0.3);
+    expect(m!.height).toBeGreaterThan(0.8);
   });
 
   it("reads a crease across a tally strip as nothing, and tally strokes as tall", () => {
