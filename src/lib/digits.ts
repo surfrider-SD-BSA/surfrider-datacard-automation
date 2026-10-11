@@ -1041,11 +1041,7 @@ function classifyWithNet(
  * unless all of its digits are answered. The confidence returned is the WORST
  * of them for the same reason.
  */
-export function readDigits(
-  img: DigitImage,
-  model: DigitModel,
-  box?: Area,
-): {
+type DigitReading = {
   value: number;
   confidence: number;
   /**
@@ -1056,12 +1052,61 @@ export function readDigits(
   onlyOnes: boolean;
   /** Where the digit sits in `img`, when the number is one piece. */
   piece?: DigitBox;
-} | null {
-  let boxes = segmentDigits(img, box);
+};
+
+export function readDigits(img: DigitImage, model: DigitModel, box?: Area): DigitReading | null {
+  const first = readOnce(img, model, box);
+  // A weak reading may be a faint number of which only the darkest strokes
+  // were cut out: look again at the light-pencil threshold. See `FAINT_LOOK`.
+  if (!first || first.light || first.worst >= FAINT_LOOK.below || FAINT_LOOK.below === 0) return first && strip(first);
+  const sorted = Uint8Array.from(img.data).sort();
+  const again = readOnce(img, model, box, sorted[sorted.length >> 1]! - LIGHT_PENCIL.depth);
+  if (
+    again &&
+    again.digits <= LIGHT_PENCIL.maxDigits &&
+    again.value !== first.value &&
+    again.worst >= FAINT_LOOK.confidence &&
+    again.worst > first.worst
+  ) {
+    return strip({ ...again, confidence: again.worst });
+  }
+  return strip(first);
+}
+
+/**
+ * When the first look at a box read weakly, how a second look at the
+ * light-pencil threshold (`LIGHT_PENCIL`) may replace it: only where every
+ * digit of the second reading is at `confidence` or better, there are at most
+ * `LIGHT_PENCIL.maxDigits` of them, and it says something else. 0 for `below`
+ * turns it off.
+ *
+ * The first look cuts at Otsu's threshold, which on faint pencil keeps only the
+ * darkest dots: a "77" comes out as part of one 7, a "35" as the 5, a "4" as
+ * two strokes read 11. `LIGHT_PENCIL` already looked again where nothing at
+ * all was found; this looks again where what was found read badly.
+ *
+ * Measured 11 October 2026 on the apps' pixels (`scripts/apps-rule.mjs`): 66
+ * values change. Against the sheets 41 are fixed, 2 broken and 7 wrong either
+ * way; of the 2, one is the sheet's mistake (a plain 7 typed 1) and one real
+ * (a "13" read 3, its 1 against the box's edge). The 16 the sheets have no
+ * value for are all right by eye. Taken right 2,176 -> 2,211, taken wrong
+ * 1,139 -> 1,113.
+ */
+export const FAINT_LOOK = { below: 0.6, confidence: 0.83 };
+
+const strip = ({ worst: _w, digits: _d, light: _l, ...r }: DigitReading & { worst: number; digits: number; light: boolean }) => r;
+
+function readOnce(
+  img: DigitImage,
+  model: DigitModel,
+  box?: Area,
+  threshold?: number,
+): (DigitReading & { worst: number; digits: number; light: boolean }) | null {
+  let boxes = segmentDigits(img, box, threshold);
 
   // Nothing found: look again for light pencil. See `LIGHT_PENCIL`.
-  let light: number | undefined;
-  if (boxes.length === 0) {
+  let light: number | undefined = threshold;
+  if (boxes.length === 0 && threshold === undefined) {
     const sorted = Uint8Array.from(img.data).sort();
     light = sorted[sorted.length >> 1]! - LIGHT_PENCIL.depth;
     boxes = segmentDigits(img, box, light);
@@ -1134,6 +1179,9 @@ export function readDigits(
     confidence: tooMany || allOnes || light !== undefined || solid ? Math.min(worst, OVERSEGMENTED_CONFIDENCE) : worst,
     onlyOnes: allOnes,
     piece: use.length === 1 && !split ? use[0] : undefined,
+    worst,
+    digits: text.length,
+    light: light !== undefined,
   };
 }
 
