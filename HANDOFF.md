@@ -1771,6 +1771,15 @@ work turned up. Every figure below that compares versions came from
    30 boxes become a 1; by eye 28 are plainly a 1, one is a 1 against the edge
    and one is doubtful. Taken right 2,130 -> 2,140, taken wrong 1,133 -> 1,125.
 
+**Touching digits, 11 October 2026: read both ways.** Of 30 numbers taken as read and
+wrong on cards whose sheet is trustworthy, read by eye, about 5 were cutting: a whole
+digit lost, "20" read as 2 because the nought touches the two. Splitting every wide
+piece was tried long ago and made things worse; `JOINED` in `readDigits` instead cuts a
+wide piece the net read weakly (under 0.6) at its emptiest middle column and keeps the
+halves only where both read at 0.83 or better. 12 boxes change, all right by sheet or by
+eye ("20", "30", "25", "22", "140" from 2, 5, 1, 16). Taken right 2,173 -> 2,176, taken
+wrong 1,143 -> 1,139 by the sheets, which have no value for 8 of the 12.
+
 **Lone zeros by shape, 11 October 2026, not shipped.** A written 0 read as 8, 4,
 3, 2 or 5 has one hole near its middle -- once the ink is thickened 2 px, because
 pencil zeros are rarely closed at the reader's threshold. Capping the confidence
