@@ -271,8 +271,10 @@ export function components(
   width: number,
   height: number,
   minPixels = 12,
+  reach = 1,
+  labels = new Int32Array(width * height),
 ): DigitBox[] {
-  const labels = new Int32Array(width * height).fill(-1);
+  labels.fill(-1);
   const out = [];
   const stack: number[] = [];
 
@@ -298,8 +300,8 @@ export function components(
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
 
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -reach; dy <= reach; dy++) {
+        for (let dx = -reach; dx <= reach; dx++) {
           const nx = x + dx;
           const ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
@@ -377,10 +379,65 @@ const FRAGMENT_GAP = 0.18;
  */
 const LEFT_ONE = { reach: 0.1, gap: 0.2, tall: 0.4 };
 
+/**
+ * Pencil that broke up, put back together before anything is measured.
+ *
+ * Light pencil comes through the threshold as a dotted line, and a digit drawn
+ * in it falls into fragments a pixel apart. Each fragment is shorter than half
+ * the other digit, so the speck filter in `segmentDigits` threw it away before
+ * `FRAGMENT_GAP` could join it: "33" read as 3, "46" as 6, "20" as 2. So pieces
+ * that come within one pixel of each other (`components` with a reach of 2) are
+ * joined -- unless two or more of them are each `whole` the height of the lot,
+ * which is two digits written close, kept apart as before. Pencil dust (bits
+ * under 12 pixels) can join a group but never make one, or a faint box would be
+ * read from its dust instead of getting `FAINT_LOOK`'s second look.
+ *
+ * Measured under the apps' rule (`scripts/apps-rule.mjs`, 11 October 2026),
+ * from taken right 2,238 and taken wrong 1,085:
+ *
+ *                                         right    wrong
+ *   every pair within a pixel joined      2,260    1,068   but 32 broken by the sheets,
+ *                                                           mostly faint boxes read from dust
+ *   dust may not start a group, whole 0.75  2,258    1,067   12 broken
+ *   ... whole 0.6                           2,258    1,066   10 broken
+ *   ... whole 0.5                           2,259    1,066   10 broken
+ *   ... never join two pieces over whole    2,248    1,074
+ */
+const BRIDGE = { whole: 0.5 };
+
+function bridgeBreaks(mask: Uint8Array, width: number, height: number): DigitBox[] {
+  const pieceAt = new Int32Array(width * height);
+  const groupAt = new Int32Array(width * height);
+  const all = components(mask, width, height, 0, 1, pieceAt);
+  const groups = components(mask, width, height, 0, 2, groupAt);
+  // Which group each piece fell in: any one of its pixels says.
+  const groupOf = new Int32Array(all.length).fill(-1);
+  for (let i = 0; i < pieceAt.length; i++) if (pieceAt[i]! >= 0 && groupOf[pieceAt[i]!]! < 0) groupOf[pieceAt[i]!] = groupAt[i]!;
+  const out: DigitBox[] = [];
+  for (let g = 0; g < groups.length; g++) {
+    const members = all.filter((p, k) => groupOf[k] === g && p.count >= 12);
+    if (members.length === 0) continue;
+    const gh = Math.max(...members.map((p) => p.maxY)) - Math.min(...members.map((p) => p.minY)) + 1;
+    const whole = members.filter((p) => p.maxY - p.minY + 1 >= gh * BRIDGE.whole);
+    if (whole.length >= 2) {
+      out.push(...members);
+      continue;
+    }
+    out.push({
+      minX: Math.min(...members.map((p) => p.minX)),
+      maxX: Math.max(...members.map((p) => p.maxX)),
+      minY: Math.min(...members.map((p) => p.minY)),
+      maxY: Math.max(...members.map((p) => p.maxY)),
+      count: members.reduce((n, p) => n + p.count, 0),
+    });
+  }
+  return out;
+}
+
 export function segmentDigits(img: DigitImage, box?: Area, threshold?: number): DigitBox[] {
   const mask = inkMask(img, box, threshold);
   if (!mask.some((v) => v)) return [];
-  let boxes = components(mask, img.width, img.height);
+  let boxes = bridgeBreaks(mask, img.width, img.height);
   if (boxes.length === 0) return [];
 
   // Reject anything shaped like a rule rather than a digit. A leftover slice of

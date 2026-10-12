@@ -1803,6 +1803,17 @@ a box width of the box when a digit inside the box starts right after it: taken 
 a written total ("|||| 24" read 124 -- the other strokes are outside the crop). Wrong readings that
 are the sheet less a trailing digit are mostly lone zeros (2 for 20), the net's problem.
 
+**Broken-up pencil, 11 October 2026: joined before the speck filter.** After the two
+fixes for a lost 1, the wrong readings still missing a first digit were mostly whole,
+legible digits in light pencil ("33" read 3, "46" read 6). The threshold leaves such a
+digit as fragments a pixel apart, each shorter than half the other digit, and the speck
+filter dropped them before anything joined them. `bridgeBreaks` joins pieces within one
+pixel of each other unless two of them are each half the height of the lot (two digits
+written close). Pencil dust may join a group but not start one: letting it do so read
+faint boxes from their dust and skipped `FAINT_LOOK`. Taken right 2,238 -> 2,259, taken
+wrong 1,085 -> 1,066. A faint "20" whose 2 is mostly above the threshold is a different
+problem, still open.
+
 **Lone zeros by shape, 11 October 2026, not shipped.** A written 0 read as 8, 4,
 3, 2 or 5 has one hole near its middle -- once the ink is thickened 2 px, because
 pencil zeros are rarely closed at the reader's threshold. Capping the confidence
