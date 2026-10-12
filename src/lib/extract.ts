@@ -14,6 +14,7 @@ import { inkFraction, type GrayImage } from "./image";
 import { boxMarked, cropGray, marksIn, stripMarked, tallestMark } from "./marks";
 import { countBoxTally, countTally, salvageCount, TWO_UPRIGHTS } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
+import { RECONCILE_DEFAULTS } from "./reading";
 import { itemForRow, type CardSide } from "./taxonomy";
 
 /**
@@ -407,6 +408,48 @@ function readStripNumber(image: GrayImage, tally: Rect, model: DigitModel) {
   return { value: read.value, confidence: read.confidence, onlyOnes: false };
 }
 
+/**
+ * The tally strip beside a box, counted. The context is a taller slice of the
+ * SAME COLUMNS, and is not optional: it is the only way to tell a printed rule
+ * down the page from a stroke a volunteer made. See `ruleCoverage` in tally.ts.
+ */
+function countStrip(image: GrayImage, tally: Rect) {
+  return countTally(cropGray(image, tally), {
+    context: cropGray(image, { x: tally.x, y: tally.y - tally.height * 0.6, width: tally.width, height: tally.height * 2.2 }),
+  });
+}
+
+/**
+ * Where a volunteer wrote a number AND kept a tally beside it, the two are
+ * read separately and checked against each other.
+ *
+ * Until 11 October 2026 the strip was only counted when the TOTAL box was
+ * empty, so of 6,878 boxes 5 had both readings. Counting it beside every
+ * written number gives 1,494 pairs on the 27 trustworthy scans. Where the two
+ * agree, the sheet has the same number 594 times in 673 (88%), against about
+ * 75% for the digit reader alone, so the reading is raised to `agreed`.
+ *
+ * Where one is `far` times the other, the lower one is taken and the box is
+ * shown (`splitConfidence`): it is nearly always the digit reader that is
+ * high -- a tally drawn in the box read as 111, a stray stroke read as a
+ * leading digit -- and of the 60 such pairs with a sheet value, the lower one
+ * is right 16 times against 6 for the digits. Closer than that, the lower one
+ * is no better than the digits, so they stand.
+ *
+ * Measured under the apps' rule (`scripts/apps-rule.mjs`), from taken right
+ * 2,265 and taken wrong 1,057, with `agreed` at 0.9:
+ *
+ *   far    right    wrong
+ *   2      2,261    1,067
+ *   3      2,273    1,052
+ *   5      2,273    1,050
+ *
+ * With no person checking anything, the items counted come to 48% over the
+ * sheets instead of 53%. Most of what is left is numbers of 100 and more read
+ * where the strip holds nothing to count, so there is no second reading.
+ */
+const TWO_READERS = { far: 5, agreed: 0.9 };
+
 export function cellsForSide(
   image: GrayImage,
   pageNumber: number,
@@ -503,16 +546,7 @@ export function cellsForSide(
     // The context is a taller slice of the SAME COLUMNS, and is not optional:
     // it is the only way to tell a printed rule down the page from a stroke a
     // volunteer made. See `ruleCoverage` in tally.ts.
-    const tallyReading = tallyOnly
-      ? countTally(cropGray(image, cell.tally), {
-          context: cropGray(image, {
-            x: cell.tally.x,
-            y: cell.tally.y - cell.tally.height * 0.6,
-            width: cell.tally.width,
-            height: cell.tally.height * 2.2,
-          }),
-        })
-      : null;
+    const tallyReading = tallyOnly ? countStrip(image, cell.tally) : null;
 
     // A strip the shape test called marked, with nothing in it the counter can
     // call a stroke, beside an empty TOTAL box: left blank, like any box nobody
@@ -604,6 +638,22 @@ export function cellsForSide(
     // is where the line is drawn between a guess made of something and a number
     // made up, and it declines the second. Worth a tenth of a real reading, so
     // it fills the box and never clears the auto-accept threshold.
+    // The strip counted as a check on the number, where both were written.
+    // See `TWO_READERS`.
+    let checked = digitReading;
+    if (checked && !tallyOnly && tallyMarked) {
+      const strip = countStrip(image, cell.tally).count;
+      if (strip !== null) {
+        const lo = Math.min(strip, checked.value);
+        const hi = Math.max(strip, checked.value);
+        if (strip === checked.value) {
+          checked = { ...checked, confidence: Math.max(checked.confidence, TWO_READERS.agreed) };
+        } else if (hi >= TWO_READERS.far * Math.max(1, lo)) {
+          checked = { ...checked, value: lo, confidence: Math.min(checked.confidence, RECONCILE_DEFAULTS.splitConfidence) };
+        }
+      }
+    }
+
     const salvaged = tallyReading ? salvageCount(tallyReading) : null;
 
     const region = cropRegion(cell.total, cell.tally, image);
@@ -616,8 +666,8 @@ export function cellsForSide(
       tallyInk,
       hasValue,
       tallyOnly,
-      digitValue: digitReading?.value ?? null,
-      digitConfidence: digitReading?.confidence ?? 0,
+      digitValue: checked?.value ?? null,
+      digitConfidence: checked?.confidence ?? 0,
       tallyCount: stripAgrees ? boxOfStrokes!.count : (boxCount?.count ?? tallyReading?.count ?? salvaged?.value ?? null),
       tallyConfidence: stripAgrees
         ? boxOfStrokes!.confidence
