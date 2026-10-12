@@ -315,3 +315,16 @@ describe("segmentDigits on a digit in broken-up pencil", () => {
     expect(boxes).toHaveLength(2);
   });
 });
+
+describe("segmentDigits on a stroke standing on a scrap of the printed line", () => {
+  it("does not glue the stroke to the scrap and lose both outside the box", () => {
+    const box = { x: 20, y: 12, width: 70, height: 36 };
+    const boxes = segmentDigits(crop((set) => {
+      for (let y = 14; y < 47; y++) for (let x = 18; x < 24; x++) set(x, y); // a stroke over the box's left side
+      for (let y = 47; y < 49; y++) for (let x = 3; x < 17; x++) set(x, y); // what striking left of the bottom rule, a pixel off
+      nought(set, 60);
+    }), box);
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]!.minX).toBe(18);
+  });
+});
