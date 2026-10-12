@@ -286,3 +286,32 @@ describe("segmentDigits on a 1 written close to the next digit", () => {
     expect(boxes).toHaveLength(1);
   });
 });
+
+describe("segmentDigits on a digit in broken-up pencil", () => {
+  /** A stroke from y=14 to 45 that the threshold left in three pieces, a pixel apart. */
+  const dotted = (set: (x: number, y: number) => void, x0: number) => {
+    for (let y = 14; y < 46; y++) {
+      if (y === 24 || y === 35) continue;
+      set(x0, y);
+      set(x0 + 1, y);
+    }
+  };
+
+  it("puts the pieces back together instead of dropping each as a speck", () => {
+    const boxes = segmentDigits(crop((set) => {
+      dotted(set, 30);
+      nought(set, 60);
+    }));
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]!.minY).toBe(14);
+    expect(boxes[0]!.maxY).toBe(45);
+  });
+
+  it("still keeps two digits written a pixel apart as two", () => {
+    const boxes = segmentDigits(crop((set) => {
+      one(set, 30); // x 30..37
+      nought(set, 47); // x 38..56: one blank column between them
+    }));
+    expect(boxes).toHaveLength(2);
+  });
+});
