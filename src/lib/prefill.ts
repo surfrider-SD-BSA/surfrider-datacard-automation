@@ -383,9 +383,24 @@ export const SHOW_SHARE = 0.2;
  * of the mistakes: 848 left unseen against 858. Only the ranking uses this; the
  * confidence a reading carries is unchanged.
  */
+/**
+ * A number made only of 1s ranks at half again. "11" is two strokes, and two
+ * strokes in a TOTAL box are a tally of two as often as the number eleven
+ * (`countBoxTally` in tally.ts), so the reader caps them at
+ * `OVERSEGMENTED_CONFIDENCE` to be shown. But a scan with many low readings
+ * ties them at the line, and card order took them as read: of the "11"s taken,
+ * the sheets agreed with 3 in about 29. Ranked lower, 46 of them are shown in
+ * place of 46 other low readings, and taken unseen and wrong falls 1,066 ->
+ * 1,059 while taken right rises 2,259 -> 2,264 (`scripts/apps-rule.mjs`,
+ * 11 October 2026). 0.1 does no better.
+ */
+const ONES_RANK = 0.5;
+
 function rankingConfidence(r: Reading): number {
-  const digits = String(Math.abs(Math.round(r.value))).length;
-  return r.confidence * (digits >= 3 ? 0.5 : digits === 2 ? 0.8 : 1);
+  const text = String(Math.abs(Math.round(r.value)));
+  const digits = text.length;
+  const ones = digits >= 2 && /^1+$/.test(text) ? ONES_RANK : 1;
+  return r.confidence * (digits >= 3 ? 0.5 : digits === 2 ? 0.8 : 1) * ones;
 }
 
 /**
