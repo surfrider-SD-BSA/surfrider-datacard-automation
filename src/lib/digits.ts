@@ -348,6 +348,35 @@ export function components(
  */
 const FRAGMENT_GAP = 0.18;
 
+/**
+ * A "1" written just left of the TOTAL box, kept as the number's first digit.
+ *
+ * The box filter in `segmentDigits` keeps a piece only if a quarter of it is
+ * inside the box, which is what keeps the tally strip's last strokes out. But
+ * volunteers also start a number left of the box, and a 1 there was lost: 14,
+ * 18 and 12 read as 4, 8 and 2, confidently. A piece outside the box is kept
+ * when it is a straight stroke (`isStraightStroke`) at least `tall` box heights
+ * tall, ending no more than `reach` box widths left of the box, with the first
+ * piece inside the box no more than `gap` box widths to its right. A tally
+ * stroke beside an empty box has nothing to stand in front of, so it stays out.
+ *
+ * Measured under the apps' rule (`scripts/apps-rule.mjs`, 11 October 2026),
+ * from taken right 2,227 and taken wrong 1,100:
+ *
+ *   reach  gap   tall    right    wrong
+ *   0.05   0.2   0.5     2,235    1,092
+ *   0.05   0.2   0.4     2,236    1,088
+ *   0.10   0.2   0.4     2,238    1,085
+ *   0.15   0.2   0.4     2,238    1,085
+ *   0.05   0.3   0.4     2,233    1,090
+ *
+ * What it still gets wrong, by eye: the last tally stroke beside a written
+ * total ("|||| 24" read 124; the other strokes are outside the reading crop),
+ * and tallies drawn in the box ("||", read 1 before and 11 now). Refusing a
+ * stroke with another one just left of it was tried and was a wash.
+ */
+const LEFT_ONE = { reach: 0.1, gap: 0.2, tall: 0.4 };
+
 export function segmentDigits(img: DigitImage, box?: Area, threshold?: number): DigitBox[] {
   const mask = inkMask(img, box, threshold);
   if (!mask.some((v) => v)) return [];
@@ -430,13 +459,32 @@ export function segmentDigits(img: DigitImage, box?: Area, threshold?: number): 
   // quarter inside it across, whose middle is on its row. That takes the digit
   // a volunteer started on the rule, or a 1 leaning out past it, and leaves the
   // last strokes of the tally strip and the next row's numbers where they are.
+  // A 1 written wholly left of the box comes back in front: see `LEFT_ONE`.
   if (box) {
-    boxes = boxes.filter((b) => {
-      const across = Math.min(b.maxX, box.x + box.width - 1) - Math.max(b.minX, box.x) + 1;
+    const onRow = (b: DigitBox) => {
       const middle = (b.minY + b.maxY) / 2;
-      return across >= (b.maxX - b.minX + 1) * 0.25 && middle >= box.y && middle < box.y + box.height;
+      return middle >= box.y && middle < box.y + box.height;
+    };
+    const inside = boxes.filter((b) => {
+      const across = Math.min(b.maxX, box.x + box.width - 1) - Math.max(b.minX, box.x) + 1;
+      return across >= (b.maxX - b.minX + 1) * 0.25 && onRow(b);
     });
-    if (boxes.length === 0) return [];
+    if (inside.length === 0) return [];
+    const first = Math.min(...inside.map((b) => b.minX));
+    const { reach, gap, tall } = LEFT_ONE;
+    const leftOne = boxes
+      .filter(
+        (b) =>
+          !inside.includes(b) &&
+          onRow(b) &&
+          b.maxX < first &&
+          b.maxX >= box.x - box.width * reach &&
+          first - b.maxX - 1 <= box.width * gap &&
+          b.maxY - b.minY + 1 >= box.height * tall &&
+          isStraightStroke(mask, img.width, b),
+      )
+      .sort((a, b) => b.maxX - a.maxX)[0];
+    boxes = leftOne ? [leftOne, ...inside] : inside;
   }
 
   // Drop specks: anything far smaller than the tallest survivor is a stray

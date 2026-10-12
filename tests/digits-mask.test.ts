@@ -234,6 +234,15 @@ describe("segmentDigits with room around the box", () => {
     expect(boxes[0]!.minX).toBeLessThan(box.x);
   });
 
+  it("keeps a 1 written wholly left of the box, just in front of the digit inside it", () => {
+    const boxes = segmentDigits(crop((set) => {
+      one(set, 12); // x=12 to 18, all of it left of the box at 20
+      nought(set, 35);
+    }), box);
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]!.maxX).toBeLessThan(box.x);
+  });
+
   it("leaves out the tally strip's last strokes, which are all outside the box", () => {
     const boxes = segmentDigits(crop((set) => {
       one(set, 2);

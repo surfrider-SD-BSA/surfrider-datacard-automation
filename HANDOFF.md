@@ -1796,9 +1796,11 @@ printed column line, and a firm upright 1 is exactly that. The reader's crop has
 above and below the box, and a printed line runs on into it where a 1 stops, so
 `RULE_THROUGH` spares a run that starts and ends within 0.15 box heights of the box.
 Taken right 2,211 -> 2,227, taken wrong 1,113 -> 1,100 (`scripts/apps-rule.mjs`). The
-other, not touched: a 1 written just LEFT of the box fails the "a quarter inside it"
-test in `segmentDigits` (pacific-3.22:43:22, seaport-6.28:8:19, imperial-6.06:5:27);
-that is where the tally strip's last strokes sit, so it needs care. Wrong readings that
+other: a 1 written just LEFT of the box failed the "a quarter inside it" test in
+`segmentDigits`. `LEFT_ONE` now keeps a straight, tall stroke ending within a tenth of
+a box width of the box when a digit inside the box starts right after it: taken right
+2,227 -> 2,238, wrong 1,100 -> 1,085. Still wrong by eye: the last tally stroke beside
+a written total ("|||| 24" read 124 -- the other strokes are outside the crop). Wrong readings that
 are the sheet less a trailing digit are mostly lone zeros (2 for 20), the net's problem.
 
 **Lone zeros by shape, 11 October 2026, not shipped.** A written 0 read as 8, 4,
