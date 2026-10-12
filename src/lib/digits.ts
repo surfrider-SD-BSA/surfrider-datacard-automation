@@ -402,10 +402,16 @@ const LEFT_ONE = { reach: 0.1, gap: 0.2, tall: 0.4 };
  *   ... whole 0.6                           2,258    1,066   10 broken
  *   ... whole 0.5                           2,259    1,066   10 broken
  *   ... never join two pieces over whole    2,248    1,074
+ *
+ * Then a flat sliver lying along the box's top or bottom stopped joining: what
+ * striking leaves of a printed rule glued a tally stroke to the line it stood
+ * on, and the pair fell outside the box ("|||" read 1). Flat pieces anywhere
+ * else stay in, because they are a 5's bar or a 2's foot -- leaving out every
+ * one cost 6 right readings. Taken right 2,264 -> 2,265, wrong 1,059 -> 1,057.
  */
 const BRIDGE = { whole: 0.5 };
 
-function bridgeBreaks(mask: Uint8Array, width: number, height: number): DigitBox[] {
+function bridgeBreaks(mask: Uint8Array, width: number, height: number, box?: Area): DigitBox[] {
   const pieceAt = new Int32Array(width * height);
   const groupAt = new Int32Array(width * height);
   const all = components(mask, width, height, 0, 1, pieceAt);
@@ -415,7 +421,16 @@ function bridgeBreaks(mask: Uint8Array, width: number, height: number): DigitBox
   for (let i = 0; i < pieceAt.length; i++) if (pieceAt[i]! >= 0 && groupOf[pieceAt[i]!]! < 0) groupOf[pieceAt[i]!] = groupAt[i]!;
   const out: DigitBox[] = [];
   for (let g = 0; g < groups.length; g++) {
-    const members = all.filter((p, k) => groupOf[k] === g && p.count >= 12);
+    // A flat sliver along the box's top or bottom is what striking leaves of a
+    // printed rule: it would glue a stroke to the line it touches. Left on its
+    // own for the bar test to drop. Elsewhere a flat piece is a 5's bar or a 2's foot.
+    const nearRule = (y: number) =>
+      box !== undefined && (Math.abs(y - box.y) <= box.height * 0.1 || Math.abs(y - (box.y + box.height)) <= box.height * 0.1);
+    const bar = (p: DigitBox) =>
+      p.maxX - p.minX + 1 > (p.maxY - p.minY + 1) * 3.5 && nearRule((p.minY + p.maxY) / 2);
+    const inGroup = all.filter((p, k) => groupOf[k] === g && p.count >= 12);
+    out.push(...inGroup.filter(bar));
+    const members = inGroup.filter((p) => !bar(p));
     if (members.length === 0) continue;
     const gh = Math.max(...members.map((p) => p.maxY)) - Math.min(...members.map((p) => p.minY)) + 1;
     const whole = members.filter((p) => p.maxY - p.minY + 1 >= gh * BRIDGE.whole);
@@ -437,7 +452,7 @@ function bridgeBreaks(mask: Uint8Array, width: number, height: number): DigitBox
 export function segmentDigits(img: DigitImage, box?: Area, threshold?: number): DigitBox[] {
   const mask = inkMask(img, box, threshold);
   if (!mask.some((v) => v)) return [];
-  let boxes = bridgeBreaks(mask, img.width, img.height);
+  let boxes = bridgeBreaks(mask, img.width, img.height, box);
   if (boxes.length === 0) return [];
 
   // Reject anything shaped like a rule rather than a digit. A leftover slice of
