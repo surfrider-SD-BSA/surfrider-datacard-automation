@@ -159,4 +159,10 @@ describe("autoAcceptedInScan ranking", () => {
     const at = (value: number) => ({ value, confidence: 0.7, source: "digits", tally: null, digits: value }) as Reading;
     expect(autoAcceptedInScan([at(4), at(4), at(4), at(4), at(123)])).toEqual([true, true, true, true, false]);
   });
+
+  it("shows an 11 before another two-digit number of the same confidence", () => {
+    const at = (value: number) => ({ value, confidence: 0.3, source: "digits", tally: null, digits: value }) as Reading;
+    // Last on the card, where the old tie-break took it as read.
+    expect(autoAcceptedInScan([at(12), at(12), at(12), at(12), at(11)])).toEqual([true, true, true, true, false]);
+  });
 });
