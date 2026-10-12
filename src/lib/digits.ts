@@ -173,20 +173,47 @@ const RULE_BAND = 0.2;
  * [at-1, at+1], bridging breaks of up to RULE_GAP: a printed rule comes through
  * the scanner with the odd pale pixel in it, and one gap must not halve it.
  */
-function longestRun(n: number, at: number, ink: (k: number, j: number) => boolean): number {
-  let best = 0;
+function longestRun(n: number, at: number, ink: (k: number, j: number) => boolean): { length: number; start: number; end: number } {
+  let best = { length: 0, start: 0, end: -1 };
   let start = -1;
   let last = -1;
   for (let k = 0; k < n; k++) {
     if (!(ink(k, at - 1) || ink(k, at) || ink(k, at + 1))) continue;
     if (start < 0 || k - last > RULE_GAP + 1) start = k;
     last = k;
-    best = Math.max(best, last - start + 1);
+    if (last - start + 1 > best.length) best = { length: last - start + 1, start, end: last };
   }
   return best;
 }
 
 const RULE_GAP = 2;
+
+/**
+ * A straight upright run that starts and ends inside the box is a "1", not a rule.
+ *
+ * The span test alone took a tall, upright 1 written near the left side for the
+ * printed column line and erased it, and "18", "16", "13" and "10" were read,
+ * confidently, as 8, 6, 3 and 0. The reader's crop has room above and below the
+ * box (`READ_MARGIN` in extract.ts), and a printed line runs on into that room
+ * where a 1 stops. "Runs on" and not "runs longer than the box": scanned rules
+ * come through broken, often mid-box. So a run is spared when it stays within
+ * `tol` of the box's top and bottom, and only when the crop has `room` (as
+ * shares of the box height) to show a rule running past; without it, as in the
+ * offline scripts' crops, nothing changes.
+ *
+ * Measured under the apps' rule (`scripts/apps-rule.mjs`, 11 October 2026):
+ *
+ *   tol        taken, equal to sheet   taken, not equal
+ *   (before)          2,211                 1,113
+ *   0.05              2,220                 1,106
+ *   0.10              2,222                 1,104
+ *   0.15              2,227                 1,100
+ *   0.20              2,228                 1,098
+ *   0.30              1,878                 1,415   rules escape: tol reaches the crop's room
+ *
+ * 0.15 rather than 0.2 to stay clear of that cliff; `room` is kept a tenth above it.
+ */
+const RULE_THROUGH = { room: 0.25, tol: 0.15 };
 
 /** Erase the printed rules from a mask in place. See `inkMask`. */
 function strikeRules(mask: Uint8Array, w: number, h: number, box: Area): void {
@@ -198,15 +225,22 @@ function strikeRules(mask: Uint8Array, w: number, h: number, box: Area): void {
   const nearY = (y: number) =>
     Math.abs(y - box.y) < box.height * RULE_BAND || Math.abs(y - (box.y + box.height)) <= box.height * RULE_BAND;
 
+  // With room above and below the box, a "1" stops inside it and a printed rule
+  // does not: see `RULE_THROUGH`.
+  const tol = box.height * RULE_THROUGH.tol;
+  const room = Math.min(box.y, h - (box.y + box.height)) >= box.height * RULE_THROUGH.room;
   const columns: number[] = [];
   for (let x = 0; x < w; x++) {
     if (!nearX(x)) continue;
-    if (longestRun(h, x, (y, j) => at(j, y)) >= box.height * RULE_SPAN) columns.push(x);
+    const run = longestRun(h, x, (y, j) => at(j, y));
+    if (run.length < box.height * RULE_SPAN) continue;
+    if (room && run.start >= box.y - tol && run.end <= box.y + box.height - 1 + tol) continue;
+    columns.push(x);
   }
   const rows: number[] = [];
   for (let y = 0; y < h; y++) {
     if (!nearY(y)) continue;
-    if (longestRun(w, y, (x, j) => at(x, j)) >= box.width * RULE_SPAN) rows.push(y);
+    if (longestRun(w, y, (x, j) => at(x, j)).length >= box.width * RULE_SPAN) rows.push(y);
   }
 
   // A pixel either side as well: the run test allows that much wobble, and a

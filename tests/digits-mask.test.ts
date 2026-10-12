@@ -88,6 +88,32 @@ describe("inkMask", () => {
     }));
     expect(boxes).toHaveLength(2);
   });
+
+  describe("with room above and below the box", () => {
+    // Box rows 12-47: 12 rows of room either side, a third of its height.
+    const box = { x: 4, y: 12, width: 92, height: 36 };
+    /** An upright "1", four pixels thick, from the box's top to its bottom. */
+    const upright = (set: (x: number, y: number) => void, x0: number) => {
+      for (let y = 13; y < 47; y++) for (let x = x0; x < x0 + 4; x++) set(x, y);
+    };
+
+    it("keeps a tall upright 1 that stops inside the box", () => {
+      const mask = inkMask(crop((set) => upright(set, 10)), box);
+      for (let y = 15; y < 45; y++) expect(inkAt(mask, 11, y)).toBe(true);
+    });
+
+    it("still strikes a rule that runs on past the box", () => {
+      const mask = inkMask(crop((set) => rule(set, 6)), box);
+      for (let y = 10; y < 50; y++) expect(inkAt(mask, 7, y)).toBe(false);
+    });
+
+    it("still strikes a rule that comes through broken mid-box", () => {
+      // Broken for five rows low in the box: the run above the break ends
+      // inside the box, but it began above it.
+      const mask = inkMask(crop((set) => rule((x, y) => (y < 40 || y >= 45) && set(x, y), 6)), box);
+      for (let y = 2; y < 40; y++) expect(inkAt(mask, 7, y)).toBe(false);
+    });
+  });
 });
 
 describe("readDigits on a number made only of 1s", () => {
