@@ -186,7 +186,10 @@ describe("tally marks drawn in the TOTAL box", () => {
     // a tally of its own; counted anyway, 7 of 20 were wrong or unsettled.
     const [found] = cellsForSide(page(true), 1, map, "front", readsOnes).filter((c) => c.row === row);
     expect(found!.tallyCount).toBeNull();
-    expect(found!.digitValue).toBe(111);
+    // Not 111, though: the strip's 4 is checked against it, and a reading five
+    // times the count beside it gives way to the count, shown (`TWO_READERS`).
+    expect(found!.digitValue).toBe(4);
+    expect(found!.digitConfidence).toBeLessThan(0.2);
   });
 });
 
