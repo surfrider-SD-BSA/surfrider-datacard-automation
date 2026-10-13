@@ -107,6 +107,16 @@ describe("inkMask", () => {
       for (let y = 10; y < 50; y++) expect(inkAt(mask, 7, y)).toBe(false);
     });
 
+    it("strikes a printed line straight through the middle of the box", () => {
+      const mask = inkMask(crop((set) => rule(set, 50)), box);
+      for (let y = 2; y < 58; y++) expect(inkAt(mask, 51, y)).toBe(false);
+    });
+
+    it("keeps a 1 in the middle that stays inside the box", () => {
+      const mask = inkMask(crop((set) => upright(set, 50)), box);
+      for (let y = 15; y < 45; y++) expect(inkAt(mask, 51, y)).toBe(true);
+    });
+
     it("still strikes a rule that comes through broken mid-box", () => {
       // Broken for five rows low in the box: the run above the break ends
       // inside the box, but it began above it.
