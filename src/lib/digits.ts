@@ -212,6 +212,14 @@ const RULE_GAP = 2;
  *   0.30              1,878                 1,415   rules escape: tol reaches the crop's room
  *
  * 0.15 rather than 0.2 to stay clear of that cliff; `room` is kept a tenth above it.
+ *
+ * The same room finds a printed line in the MIDDLE of a box, which the side
+ * band never looked at: on the back of some cards a column line runs straight
+ * through the TOTAL box, and it was read as a confident 1 in a box the sheet
+ * has as 0. A straight run out of both the top and the bottom of the box is
+ * struck wherever it is; a written 1 never does that. Seven boxes go blank (the
+ * sheet has 0 for five, 1 for one), and taken right 2,275 -> 2,276, taken
+ * wrong 1,047 -> 1,044 (12 October 2026).
  */
 const RULE_THROUGH = { room: 0.25, tol: 0.15 };
 
@@ -231,9 +239,14 @@ function strikeRules(mask: Uint8Array, w: number, h: number, box: Area): void {
   const room = Math.min(box.y, h - (box.y + box.height)) >= box.height * RULE_THROUGH.room;
   const columns: number[] = [];
   for (let x = 0; x < w; x++) {
-    if (!nearX(x)) continue;
     const run = longestRun(h, x, (y, j) => at(j, y));
     if (run.length < box.height * RULE_SPAN) continue;
+    if (!nearX(x)) {
+      // Away from the sides only a line straight through the box and out of
+      // both its top and its bottom is printing: see `RULE_THROUGH`.
+      if (room && run.start < box.y - tol && run.end > box.y + box.height - 1 + tol) columns.push(x);
+      continue;
+    }
     if (room && run.start >= box.y - tol && run.end <= box.y + box.height - 1 + tol) continue;
     columns.push(x);
   }
