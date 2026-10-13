@@ -1814,6 +1814,17 @@ faint boxes from their dust and skipped `FAINT_LOOK`. Taken right 2,238 -> 2,259
 wrong 1,085 -> 1,066. A faint "20" whose 2 is mostly above the threshold is a different
 problem, still open.
 
+**Lone zeros taught from clean labels, 13 October 2026: shipped.** `scripts/zero-samples.mjs`
+adds 96 boxes the sheet types as 0, cut into one piece with one hole near its middle (every
+one of a sampled 20 a 0 by eye), to the training set: 179 zeros -> 275. Retrained exactly as
+the shipped model was (torch 2.14.1 in a scratch venv, `--mnist` with the four MNIST idx files
+from ossci-datasets.s3.amazonaws.com/mnist/; without MNIST every model comes out ~180 right
+readings worse, and that, not the torch version, is what made retrains look worse). The same
+recipe without the zeros rebuilds `assets/reference/digit-model.json` byte for byte. Apps'
+rule: taken right 2,276 -> 2,282, taken wrong 1,044 -> 1,032; a second seed agrees (+7 / -2).
+About 300 readings change, mostly ordinary retraining churn; the zero-specific ones are mostly
+right (2 or 4 read as 0 fixed five times, broken twice; 16 -> 10, 65 -> 60).
+
 **Lone zeros by shape, 11 October 2026, not shipped.** A written 0 read as 8, 4,
 3, 2 or 5 has one hole near its middle -- once the ink is thickened 2 px, because
 pencil zeros are rarely closed at the reader's threshold. Capping the confidence
