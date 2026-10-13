@@ -124,6 +124,13 @@ describe("prefillFor", () => {
   it("says what a placeholder is, in the reviewer's words", () => {
     expect(prefillTag("placeholder")).toBe("nothing read: type it");
   });
+
+  it("never puts a four-digit number in the box", () => {
+    expect(prefillFor(cell({ digitValue: 999, digitConfidence: 0.9 })).value).toBe(999);
+    const long = prefillFor(cell({ digitValue: 1112, digitConfidence: 0.9 }));
+    expect(long.source).toBe("placeholder");
+    expect(long.value).toBe(PLACEHOLDER_VALUE);
+  });
 });
 
 describe("autoAcceptFor", () => {
@@ -164,5 +171,31 @@ describe("autoAcceptedInScan ranking", () => {
     const at = (value: number) => ({ value, confidence: 0.3, source: "digits", tally: null, digits: value }) as Reading;
     // Last on the card, where the old tie-break took it as read.
     expect(autoAcceptedInScan([at(12), at(12), at(12), at(12), at(11)])).toEqual([true, true, true, true, false]);
+  });
+});
+
+describe("autoAcceptedInScan on three-digit readings", () => {
+  const at = (value: number, confidence: number) =>
+    ({ value, confidence, source: "digits", tally: null, digits: value }) as Reading;
+
+  it("shows one made of 1s however sure the reader was", () => {
+    // 112 is "|| 2" or a tally read as digits far more often than a hundred and twelve.
+    expect(autoAcceptedInScan([at(4, 0.3), at(4, 0.3), at(4, 0.3), at(4, 0.3), at(112, 0.99)])).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
+  });
+
+  it("leaves a real hundred to its confidence", () => {
+    expect(autoAcceptedInScan([at(4, 0.3), at(4, 0.3), at(4, 0.3), at(4, 0.3), at(100, 0.99)])).toEqual([
+      false,
+      true,
+      true,
+      true,
+      true,
+    ]);
   });
 });

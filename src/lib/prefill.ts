@@ -338,9 +338,18 @@ export const PLACEHOLDER_VALUE = 1;
  * real reading of 12 becomes a 1. Raising the gate without changing this is
  * almost certainly not what you want.
  */
+/**
+ * No count on a card reaches four digits that the reader can be trusted with.
+ * One box in 3,821 with a sheet value is over 999, and the reader cuts at most
+ * three digits today; a longer reading would be strokes and stray marks read as
+ * digits, and one of them would swamp a scan's total. So it is never put in the
+ * box: the box comes up "nothing read" for a person to type.
+ */
+export const MAX_READ = 999;
+
 export function prefillFor(cell: ExtractedCell): Reading {
   const reading = readingFor(cell);
-  if (reading && reading.confidence >= PREFILL_GATE) return reading;
+  if (reading && reading.confidence >= PREFILL_GATE && Math.abs(reading.value) <= MAX_READ) return reading;
   return {
     value: PLACEHOLDER_VALUE,
     confidence: 0,
@@ -396,10 +405,28 @@ export const SHOW_SHARE = 0.2;
  */
 const ONES_RANK = 0.5;
 
+/**
+ * A three-digit reading with two or more 1s in it is always shown.
+ *
+ * Numbers of 100 and more are rare on a card -- 52 of 3,821 boxes with a sheet
+ * value -- and the digit reader's three-digit readings are mostly something
+ * else: of 143 with a sheet value, 22 are right and the sheet is under 100 for
+ * 115. The ones taken unseen were half right, and the split is clean: the right
+ * ones were real hundreds (100, 200, 218, 668), and the wrong ones were made of
+ * 1s -- "112" for 2, "113" for 3, "411" for 21 -- tally strokes in the box read
+ * as digits. None of the right ones had two 1s; 9 of the 12 wrong ones did.
+ * Ranked at 0, 13 of them are shown in place of 13 small low readings: taken
+ * right 2,273 -> 2,275, taken wrong 1,050 -> 1,047 (`scripts/apps-rule.mjs`,
+ * 12 October 2026). Ranking every three-digit reading lower instead pushed
+ * real hundreds out for nothing (2,267 / 1,054).
+ */
+const THREE_DIGIT_ONES = 2;
+
 function rankingConfidence(r: Reading): number {
   const text = String(Math.abs(Math.round(r.value)));
   const digits = text.length;
   const ones = digits >= 2 && /^1+$/.test(text) ? ONES_RANK : 1;
+  if (digits >= 3 && (text.match(/1/g) ?? []).length >= THREE_DIGIT_ONES) return 0;
   return r.confidence * (digits >= 3 ? 0.5 : digits === 2 ? 0.8 : 1) * ones;
 }
 
