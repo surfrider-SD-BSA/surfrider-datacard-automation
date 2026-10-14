@@ -16,6 +16,7 @@
  *   CELL_CACHE=out/cells-app npx vite-node scripts/apps-rule.mjs
  *   ... -- --out after.json                     one row per offered box
  *   npx vite-node scripts/apps-rule.mjs -- --compare before.json after.json
+ *   ... -- --jobs 4                             the scans split over 4 processes
  *
  * --compare needs no cache: it reads two --out files and lists every box that
  * left, arrived, or changed value, source, or shown/taken, with its sheet value.
@@ -71,8 +72,41 @@ const modelFor = (scan) =>
     JSON.parse(readFileSync(existsSync(join(FOLDS, `${scan}.json`)) ? join(FOLDS, `${scan}.json`) : join(FOLDS, "_all.json"), "utf8")),
   );
 
+// --jobs N: the same run split over N processes, a share of the scans each,
+// merged in scan order. Every scan is scored on its own (the 20% is per
+// scan), so the result is the same as one process gives, in a fraction of the time.
+const jobs = flag("--jobs");
+if (jobs && !process.env.SCANS) {
+  const { spawn } = await import("node:child_process");
+  const { tmpdir } = await import("node:os");
+  const scans = cachedScans();
+  const n = Math.max(1, Math.min(scans.length, Number(jobs[0])));
+  const groups = Array.from({ length: n }, (_, i) => scans.filter((_, k) => k % n === i));
+  const parts = await Promise.all(
+    groups.map(
+      (group, i) =>
+        new Promise((done, fail) => {
+          const part = join(tmpdir(), `apps-rule-${process.pid}-${i}.json`);
+          const child = spawn("npx", ["vite-node", "scripts/apps-rule.mjs", "--", "--out", part], {
+            env: { ...process.env, SCANS: group.join(",") },
+            stdio: ["ignore", "ignore", "inherit"],
+          });
+          child.on("exit", (code) => (code === 0 ? done(JSON.parse(readFileSync(part, "utf8"))) : fail(new Error(`job ${i} exited ${code}`))));
+        }),
+    ),
+  );
+  const byScan = new Map(parts.flat().map((r) => [r.key, r]));
+  const merged = scans.flatMap((scan) => [...byScan.values()].filter((r) => r.scan === scan));
+  const out = flag("--out");
+  if (out) writeFileSync(out[0], JSON.stringify(merged));
+  console.log(summarise(merged));
+  process.exit(0);
+}
+const only = process.env.SCANS ? new Set(process.env.SCANS.split(",")) : null;
+
 const rows = [];
 for (const scan of cachedScans()) {
+  if (only && !only.has(scan)) continue;
   const model = modelFor(scan);
   const { records, page, map } = loadCells(scan);
   const cells = [];
