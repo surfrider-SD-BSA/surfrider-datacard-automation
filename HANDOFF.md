@@ -1825,6 +1825,20 @@ rule: taken right 2,276 -> 2,282, taken wrong 1,044 -> 1,032; a second seed agre
 About 300 readings change, mostly ordinary retraining churn; the zero-specific ones are mostly
 right (2 or 4 read as 0 fixed five times, broken twice; 16 -> 10, 65 -> 60).
 
+**Measured on the digit reader, 13 October 2026, and NOT worth doing.** Retrains differ by
+about +/-10 on each count from the seed alone, so each was tried on at least two seeds:
+- *Averaging three nets (seeds 0-2) in the app:* taken right 2,295 / wrong 1,021, against
+  2,278-2,282 / 1,029-1,033 for any one net. Seeds 3-5 averaged: 2,280 / 1,030. Luck.
+- *Reading each digit at 1 px shifts (and +/-8 deg) and averaging:* +8 / -8 on one seed's
+  folds, -4 / +3 on another's. Noise.
+- *Cleaning the training labels by eye:* the 3s looked 35% wrong (tally strokes, 2s, 1s),
+  so 141 were dropped and 61 relabelled. Worse on both seeds (2,275 / 1,035 and
+  2,268 / 1,033). What looks wrong is often the sheet's own meaning: "|||" in a box IS 3
+  on the sheet, and teaching the net that is what makes it agree with the sheet.
+- *Regenerating the labels with today's cutting:* fewer digits (2,940 against 3,325).
+- *More scans:* the chapter's Drive has two unentered scans (1.24.26 Tamarack,
+  2.21.26 Moonlight) and no sheets for them.
+
 **Lone zeros by shape, 11 October 2026, not shipped.** A written 0 read as 8, 4,
 3, 2 or 5 has one hole near its middle -- once the ink is thickened 2 px, because
 pencil zeros are rarely closed at the reader's threshold. Capping the confidence
