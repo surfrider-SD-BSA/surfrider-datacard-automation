@@ -7,9 +7,11 @@
  * convolution flipped (PyTorch's is a cross-correlation) or a flatten in the
  * wrong order. Either still returns ten numbers that look like logits.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { classifyDigit, decodeModel, netLogits, type CnnModel } from "../src/lib/digits";
+import { classifyDigit, decodeModel, netLogits, netLogitsReference, type CnnModel } from "../src/lib/digits";
 
 const b64 = (values: number[]) => {
   const bytes = new Uint8Array(new Float32Array(values).buffer);
@@ -114,5 +116,44 @@ describe("decodeModel for a net", () => {
         ],
       }),
     ).toThrow(/has 3 weights, expected 9/);
+  });
+});
+
+/** `netLogits` is laid out for speed; it must give what `netLogitsReference` gives. */
+const shipped = decodeModel(JSON.parse(readFileSync(join(__dirname, "../assets/reference/digit-model.json"), "utf8"))) as CnnModel;
+
+/** A stroke-like bitmap: mostly blank, with a few runs of ink, as a cut digit is. */
+function digit(seed: number): Uint8Array {
+  let s = seed;
+  const rand = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const b = new Uint8Array(28 * 28);
+  for (let n = 0; n < 6; n++) {
+    let x = 6 + Math.floor(rand() * 16);
+    let y = 4 + Math.floor(rand() * 4);
+    for (let t = 0; t < 18; t++) {
+      b[y * 28 + x] = 255;
+      b[y * 28 + x + 1] = 180;
+      y = Math.min(27, y + 1);
+      x = Math.max(0, Math.min(26, x + Math.round(rand() * 2 - 1)));
+    }
+  }
+  return b;
+}
+
+describe("netLogits against the net as trained", () => {
+  it("gives the trained net's logits, to float precision", () => {
+    for (let seed = 1; seed <= 5; seed++) {
+      const b = digit(seed);
+      const fast = netLogits(b, shipped);
+      const ref = netLogitsReference(b, shipped);
+      for (let i = 0; i < 10; i++) expect(Math.abs(fast[i]! - ref[i]!)).toBeLessThan(1e-4);
+    }
+  });
+
+  it("reads a blank square the same way too", () => {
+    const blank = new Uint8Array(28 * 28);
+    const fast = netLogits(blank, shipped);
+    const ref = netLogitsReference(blank, shipped);
+    for (let i = 0; i < 10; i++) expect(Math.abs(fast[i]! - ref[i]!)).toBeLessThan(1e-4);
   });
 });

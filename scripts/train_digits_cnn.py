@@ -416,7 +416,7 @@ def main() -> int:
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
-        "--width", type=float, default=2.0, help="channel multiplier (2 since 13 Oct 2026)"
+        "--width", type=float, default=4.0, help="channel multiplier (4 since 14 Oct 2026)"
     )
     parser.add_argument(
         "--folds", action="store_true", help="write a model per held-out event to out/models/cnn/"
