@@ -415,7 +415,9 @@ def main() -> int:
         help="write the held-out predictions here (.npz), for scoring by eye",
     )
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--width", type=float, default=2.0, help="channel multiplier for the net (2 since 13 Oct 2026)")
+    parser.add_argument(
+        "--width", type=float, default=2.0, help="channel multiplier for the net (2 since 13 Oct 2026)"
+    )
     parser.add_argument(
         "--folds", action="store_true", help="write a model per held-out event to out/models/cnn/"
     )
