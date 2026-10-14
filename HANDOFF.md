@@ -1825,6 +1825,13 @@ rule: taken right 2,276 -> 2,282, taken wrong 1,044 -> 1,032; a second seed agre
 About 300 readings change, mostly ordinary retraining churn; the zero-specific ones are mostly
 right (2 or 4 read as 0 fixed five times, broken twice; 16 -> 10, 65 -> 60).
 
+**A digit reader twice as wide, 13 October 2026: shipped.** `--width 2` (now the default in
+`train_digits_cnn.py`), same data and recipe as #142. Apps' rule, held-out folds: taken right
+2,289 -> 2,291 (seed 0) and 2,309 (seed 1), taken wrong 1,024 -> 1,008 and 998. The model file
+is 5.5 MB against 1.4 MB, and the net costs about three times the arithmetic per digit (25 ms
+against 8 ms in node on this Mac). 3x, 4x and 8x were being trained and scored to see whether
+the gain keeps growing; 8x would be ~90 MB and well over half an hour a scan.
+
 **Measured on the digit reader, 13 October 2026, and NOT worth doing.** Retrains differ by
 about +/-10 on each count from the seed alone, so each was tried on at least two seeds:
 - *Averaging three nets (seeds 0-2) in the app:* taken right 2,295 / wrong 1,021, against

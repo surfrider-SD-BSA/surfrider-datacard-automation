@@ -152,6 +152,12 @@ class Net(nn.Module):
     multiply-adds a digit, which is the same order as the nearest-neighbour
     search it replaces, and every layer is one `src/lib/digits.ts` can run in a
     few lines -- no batch norm, nothing that needs a runtime.
+
+    Shipped at width 2 since 13 October 2026 (about 1 million weights, 5.5 MB,
+    three times the arithmetic). Twice the width was dropped once as not worth
+    its cost on a phone; measured end to end under the apps' rule it is, on
+    both seeds tried: taken right 2,289 -> 2,291 and 2,309, taken wrong
+    1,024 -> 1,008 and 998, against width 1's ~2,289 / ~1,024.
     """
 
     def __init__(self, width: float = 1.0) -> None:
@@ -409,7 +415,9 @@ def main() -> int:
         help="write the held-out predictions here (.npz), for scoring by eye",
     )
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--width", type=float, default=1.0, help="channel multiplier for the net")
+    parser.add_argument(
+        "--width", type=float, default=2.0, help="channel multiplier (2 since 13 Oct 2026)"
+    )
     parser.add_argument(
         "--folds", action="store_true", help="write a model per held-out event to out/models/cnn/"
     )
