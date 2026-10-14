@@ -1225,8 +1225,25 @@ export function readDigits(img: DigitImage, model: DigitModel, box?: Area): Digi
   const first = readOnce(img, model, box);
   // A weak reading may be a faint number of which only the darkest strokes
   // were cut out: look again at the light-pencil threshold. See `FAINT_LOOK`.
-  if (!first || first.light || first.worst >= FAINT_LOOK.below || FAINT_LOOK.below === 0) return first && strip(first);
+  if (!first || first.light) return first && strip(first);
   const sorted = Uint8Array.from(img.data).sort();
+  if (first.worst >= FAINT_LOOK.below || FAINT_LOOK.below === 0) {
+    // A confident single digit may be the dark half of a number whose second
+    // digit is faint pencil. See `FAINT_SECOND`.
+    if (first.digits === 1) {
+      const again = readOnce(img, model, box, sorted[sorted.length >> 1]! - LIGHT_PENCIL.depth);
+      if (
+        again &&
+        again.digits === 2 &&
+        String(again.value).startsWith(String(first.value)) &&
+        again.value !== 11 &&
+        again.worst >= FAINT_SECOND.confidence
+      ) {
+        return strip({ ...again, confidence: Math.min(again.worst, first.worst) });
+      }
+    }
+    return strip(first);
+  }
   const again = readOnce(img, model, box, sorted[sorted.length >> 1]! - LIGHT_PENCIL.depth);
   if (
     again &&
@@ -1260,6 +1277,28 @@ export function readDigits(img: DigitImage, model: DigitModel, box?: Area): Digi
  * 1,139 -> 1,113.
  */
 export const FAINT_LOOK = { below: 0.6, confidence: 0.83 };
+
+/**
+ * A confident single digit, read again at the light-pencil threshold for a
+ * second digit the first look missed.
+ *
+ * `FAINT_LOOK` only looks again where the first reading is weak. But in "12"
+ * or "18" written with a hard 1 and a light second digit, Otsu's threshold
+ * keeps the 1 whole and only dots of the 2 -- its foot goes as a horizontal
+ * bar -- so the box reads as a confident 1, and goes in unseen. Now every
+ * single digit is read again, and the second reading is taken where it is the
+ * same digit followed by one more, each at `confidence` or better. Not where
+ * it is 11: a second faint stroke beside a 1 is "||" for 2 as often as eleven.
+ *
+ * Measured under the apps' rule (`scripts/apps-rule.mjs`, 13 October 2026),
+ * from taken right 2,282 and taken wrong 1,032:
+ *
+ *   confidence   right    wrong   by the sheets
+ *   0.83         2,284    1,029   3 fixed, none broken
+ *   0.70         2,291    1,024   9 fixed, none broken (12, 12, 18, 33, 17, 12, 10, 11, 15)
+ *   0.60         2,291    1,024
+ */
+export const FAINT_SECOND = { confidence: 0.7 };
 
 const strip = ({ worst: _w, digits: _d, light: _l, ...r }: DigitReading & { worst: number; digits: number; light: boolean }) => r;
 

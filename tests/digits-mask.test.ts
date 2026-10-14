@@ -213,6 +213,17 @@ describe("readDigits on a number in light pencil", () => {
     expect(ink(normalizeDigit(faintOne, piece!))).toBe(0);
   });
 
+  it("does not make a confident 1 into 11 because a faint stroke stands beside it", () => {
+    // The second look for a faint second digit (FAINT_SECOND) sees "11" here:
+    // a second faint stroke is "||" as often as eleven, so the 1 stands.
+    const pair = light((set) => {
+      one(set, 60);
+      one(set, 62);
+    });
+    for (let y = 12; y < 48; y++) for (let x = 25; x < 29; x++) pair.data[y * 100 + x] = 20;
+    expect(readDigits(pair, readsOnes)?.value).toBe(1);
+  });
+
   it("refuses three pieces or more, which at this threshold is paper grain", () => {
     const three = light((set) => {
       for (const x of [20, 45, 70]) {
