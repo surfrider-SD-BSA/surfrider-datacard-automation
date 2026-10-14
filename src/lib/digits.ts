@@ -1096,7 +1096,136 @@ export function classifyDigit(
  * most of what makes it fast enough: about six million multiply-adds a digit,
  * the same order as the nearest-neighbour search.
  */
+/**
+ * The same net as `netLogitsReference`, laid out for speed: activations pixel-
+ * major (every channel of a pixel together), weights reordered once per layer
+ * so the innermost loop runs down one contiguous row, and every zero input --
+ * most of a digit's blank paper, about half of what each ReLU passes on --
+ * skipped instead of multiplied. Same arithmetic, summed in a different order,
+ * so a logit can differ in its last float bits and nowhere else (pinned in
+ * tests/digits-net.test.ts).
+ */
+const FAST = new WeakMap<object, Float32Array>();
+
+function convWeights(layer: { in: number; out: number; k: number; w: Float32Array }): Float32Array {
+  let t = FAST.get(layer);
+  if (!t) {
+    const { in: c, out: o, k } = layer;
+    t = new Float32Array(layer.w.length);
+    // [o][i][ky][kx] -> [i][ky][kx][o]
+    for (let oo = 0; oo < o; oo++)
+      for (let i = 0; i < c; i++)
+        for (let q = 0; q < k * k; q++) t[(i * k * k + q) * o + oo] = layer.w[(oo * c + i) * k * k + q]!;
+    FAST.set(layer, t);
+  }
+  return t;
+}
+
+function denseWeights(layer: { in: number; out: number; w: Float32Array }, c: number, h: number, w: number): Float32Array {
+  let t = FAST.get(layer);
+  if (!t) {
+    // Trained against channel-major input ([ch][y][x]); reordered to the pixel-
+    // major input it is now handed ([y][x][ch]), transposed to [in][out].
+    const n = layer.out;
+    t = new Float32Array(layer.w.length);
+    for (let ch = 0; ch < c; ch++)
+      for (let p = 0; p < h * w; p++) {
+        const from = ch * h * w + p;
+        const to = p * c + ch;
+        for (let oo = 0; oo < n; oo++) t[to * n + oo] = layer.w[oo * layer.in + from]!;
+      }
+    FAST.set(layer, t);
+  }
+  return t;
+}
+
 export function netLogits(bitmap: ArrayLike<number>, model: CnnModel): Float32Array {
+  let x = new Float32Array(SIDE * SIDE);
+  for (let i = 0; i < x.length; i++) x[i] = (bitmap[i] ?? 0) / 255;
+  let c = 1;
+  let h = SIDE;
+  let w = SIDE;
+  let flat = { c: 1, h: SIDE, w: SIDE };
+
+  for (const layer of model.layers) {
+    switch (layer.type) {
+      case "conv": {
+        const { k, pad } = layer;
+        const o = layer.out;
+        const wt = convWeights(layer);
+        const out = new Float32Array(h * w * o);
+        for (let p = 0; p < h * w; p++) out.set(layer.b, p * o);
+        for (let y = 0; y < h; y++) {
+          for (let xx = 0; xx < w; xx++) {
+            const base = (y * w + xx) * c;
+            for (let i = 0; i < c; i++) {
+              const v = x[base + i]!;
+              if (v === 0) continue;
+              for (let ky = 0; ky < k; ky++) {
+                const oy = y - (ky - pad);
+                if (oy < 0 || oy >= h) continue;
+                for (let kx = 0; kx < k; kx++) {
+                  const ox = xx - (kx - pad);
+                  if (ox < 0 || ox >= w) continue;
+                  const wr = ((i * k + ky) * k + kx) * o;
+                  const dst = (oy * w + ox) * o;
+                  for (let oo = 0; oo < o; oo++) out[dst + oo]! += wt[wr + oo]! * v;
+                }
+              }
+            }
+          }
+        }
+        x = out;
+        c = o;
+        break;
+      }
+      case "relu":
+        for (let i = 0; i < x.length; i++) if (x[i]! < 0) x[i] = 0;
+        break;
+      case "maxpool": {
+        const { k } = layer;
+        const oh = Math.floor(h / k);
+        const ow = Math.floor(w / k);
+        const out = new Float32Array(oh * ow * c).fill(-Infinity);
+        for (let y = 0; y < oh * k; y++)
+          for (let xx = 0; xx < ow * k; xx++) {
+            const src = (y * w + xx) * c;
+            const dst = (Math.floor(y / k) * ow + Math.floor(xx / k)) * c;
+            for (let ch = 0; ch < c; ch++) if (x[src + ch]! > out[dst + ch]!) out[dst + ch] = x[src + ch]!;
+          }
+        x = out;
+        h = oh;
+        w = ow;
+        break;
+      }
+      case "flatten":
+        flat = { c, h, w };
+        c = c * h * w;
+        h = w = 1;
+        break;
+      case "dense": {
+        const n = layer.out;
+        const wt = denseWeights(layer, flat.c, flat.h, flat.w);
+        const out = Float32Array.from(layer.b);
+        for (let i = 0; i < layer.in; i++) {
+          const v = x[i]!;
+          if (v === 0) continue;
+          const row = i * n;
+          for (let oo = 0; oo < n; oo++) out[oo]! += wt[row + oo]! * v;
+        }
+        x = out;
+        c = n;
+        h = w = 1;
+        flat = { c: n, h: 1, w: 1 };
+        break;
+      }
+    }
+  }
+  return x;
+}
+
+/** The net exactly as trained, one loop per formula: what `netLogits` is checked against. */
+export function netLogitsReference(bitmap: ArrayLike<number>, model: CnnModel): Float32Array {
   let x = new Float32Array(SIDE * SIDE);
   for (let i = 0; i < x.length; i++) x[i] = (bitmap[i] ?? 0) / 255;
   let c = 1;

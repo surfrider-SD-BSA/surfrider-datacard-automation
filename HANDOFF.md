@@ -1825,6 +1825,16 @@ rule: taken right 2,276 -> 2,282, taken wrong 1,044 -> 1,032; a second seed agre
 About 300 readings change, mostly ordinary retraining churn; the zero-specific ones are mostly
 right (2 or 4 read as 0 fixed five times, broken twice; 16 -> 10, 65 -> 60).
 
+**Then four times as wide, and twice as fast to run, 14 October 2026.** Width 4, the same
+recipe: taken right 2,297 / 2,304 and taken wrong 1,001 / 992 on two seeds, against width 2's
+2,291 / 2,309 and 1,008 / 998 -- a few fewer wrong, the same right, at four times the
+arithmetic and a 22 MB model. Width 3 (one seed): 2,301 / 1,008. Shipped because the owner put
+accuracy before speed, and with `netLogits` rewritten for speed it costs little: activations
+pixel-major, weights reordered once so the inner loop runs down one row, and zero inputs
+skipped. The same logits to 5e-6, no label changes on 600 training digits, about twice as
+fast at every width (`netLogitsReference` keeps the plain version; tests compare the two).
+3.15 Imperial read in 34 s on iOS with the 4x net, against 94 s before the rewrite.
+
 **A digit reader twice as wide, 13 October 2026: shipped.** `--width 2` (now the default in
 `train_digits_cnn.py`), same data and recipe as #142. Apps' rule, held-out folds: taken right
 2,289 -> 2,291 (seed 0) and 2,309 (seed 1), taken wrong 1,024 -> 1,008 and 998. The model file
