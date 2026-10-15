@@ -22,6 +22,7 @@ if [ -f "$root/ios/.env.local" ]; then
     # shellcheck disable=SC1091
     . "$root/ios/.env.local"
     # In an xcconfig "//" starts a comment, so a URL's is written "/$()/".
+    # shellcheck disable=SC2016 # the $() is meant literally, for Xcode
     setting() { [ -n "$2" ] && printf '%s = %s\n' "$1" "$(printf '%s' "$2" | sed 's#//#/$()/#g')"; true; }
     {
       echo "// Written by ios/sync-web.sh from ios/.env.local. Gitignored; do not commit."
