@@ -389,6 +389,17 @@ const STRIP_NUMBER = {
   vertical: 0.15,
 };
 
+/**
+ * A number of two digits or more written in the tally strip, where the TOTAL
+ * box is empty, is taken as the count. Some volunteers write the total where
+ * the strokes go; the counter can only see strokes, and "137" became 4. Read
+ * at 0.8 or better, two digits or more (a lone digit there is a stroke as
+ * often as a number): of the 244 tally-only boxes with a sheet value, 2 qualify
+ * and both match the sheet ("137", "12"), taking 141 off the error of the
+ * boxes taken unseen. Lower (0.6) lets in 151 for 1 and 291 for 30.
+ */
+const STRIP_WRITTEN = { confidence: 0.8 };
+
 function readStripNumber(image: GrayImage, tally: Rect, model: DigitModel) {
   const rect = {
     x: tally.x,
@@ -656,6 +667,12 @@ export function cellsForSide(
 
     const salvaged = tallyReading ? salvageCount(tallyReading) : null;
 
+    // A number written in the strip, with the TOTAL box left empty: "137" where
+    // the strokes go. The counter can only count it as strokes. See `STRIP_WRITTEN`.
+    const stripRead = tallyOnly && model ? readStripNumber(image, cell.tally, model) : null;
+    const written =
+      stripRead && String(stripRead.value).length >= 2 && stripRead.confidence >= STRIP_WRITTEN.confidence ? stripRead : null;
+
     const region = cropRegion(cell.total, cell.tally, image);
     out.push({
       row: cell.row,
@@ -668,8 +685,14 @@ export function cellsForSide(
       tallyOnly,
       digitValue: checked?.value ?? null,
       digitConfidence: checked?.confidence ?? 0,
-      tallyCount: stripAgrees ? boxOfStrokes!.count : (boxCount?.count ?? tallyReading?.count ?? salvaged?.value ?? null),
-      tallyConfidence: stripAgrees
+      tallyCount: written
+        ? written.value
+        : stripAgrees
+          ? boxOfStrokes!.count
+          : (boxCount?.count ?? tallyReading?.count ?? salvaged?.value ?? null),
+      tallyConfidence: written
+        ? written.confidence
+        : stripAgrees
         ? boxOfStrokes!.confidence
         : boxCount
           ? boxCount.confidence
