@@ -68,6 +68,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AA00000000000000000003F0 /* Drive.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Drive.xcconfig; sourceTree = "<group>"; };
 		AA0000000000000000000005 /* Data Cards.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Data Cards.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000000000000000000000A /* CleanupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupApp.swift; sourceTree = "<group>"; };
 		AA000000000000000000000B /* WebAssetSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAssetSchemeHandler.swift; sourceTree = "<group>"; };
@@ -127,6 +128,7 @@
 		AA0000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
+				AA00000000000000000003F0 /* Drive.xcconfig */,
 				AA0000000000000000000009 /* SurfriderDataCards */,
 				AA0000000000000000000003 /* Products */,
 			);
@@ -352,6 +354,7 @@
 /* Begin XCBuildConfiguration section */
 		AA0000000000000000000016 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AA00000000000000000003F0 /* Drive.xcconfig */;
 			buildSettings = {
 				APP_BUNDLE_ID = com.mateobesse.surfriderdatacards;
 				APP_GROUP_ID = "group.$(APP_BUNDLE_ID)";
@@ -398,6 +401,7 @@
 		};
 		AA0000000000000000000017 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AA00000000000000000003F0 /* Drive.xcconfig */;
 			buildSettings = {
 				APP_BUNDLE_ID = com.mateobesse.surfriderdatacards;
 				APP_GROUP_ID = "group.$(APP_BUNDLE_ID)";

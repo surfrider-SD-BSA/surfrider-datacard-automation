@@ -104,3 +104,6 @@ android/captures/
 *.aab
 *.jks
 *.keystore
+
+# The chapter's Google settings, written from ios/.env.local by ios/sync-web.sh.
+ios/Drive.local.xcconfig

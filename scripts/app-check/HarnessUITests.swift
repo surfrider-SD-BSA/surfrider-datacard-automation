@@ -88,6 +88,9 @@ final class HarnessUITests: XCTestCase {
         let read = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Read '")).firstMatch
         XCTAssertTrue(read.waitForExistence(timeout: 30), "no waiting scan")
         note("capture: \(read.label)")
+        // Whether this build has the chapter's Google settings (ios/Drive.xcconfig).
+        note("capture: Choose from Drive \(app.buttons["Choose from Drive"].exists ? "shown" : "NOT SHOWN")")
+        shot("capture")
         read.tap()
 
         // Screen 4: reading. It ends in "Start checking", or in a scan that could not
