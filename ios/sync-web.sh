@@ -14,6 +14,29 @@ set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
+# The Drive button's settings, for every build and not only TestFlight's: see
+# ios/Drive.xcconfig. Read from the gitignored ios/.env.local, written to the
+# gitignored Drive.local.xcconfig; nothing is written without the file.
+if [ -f "$root/ios/.env.local" ]; then
+  (
+    # shellcheck disable=SC1091
+    . "$root/ios/.env.local"
+    # In an xcconfig "//" starts a comment, so a URL's is written "/$()/".
+    # shellcheck disable=SC2016 # the $() is meant literally, for Xcode
+    setting() { [ -n "$2" ] && printf '%s = %s\n' "$1" "$(printf '%s' "$2" | sed 's#//#/$()/#g')"; true; }
+    {
+      echo "// Written by ios/sync-web.sh from ios/.env.local. Gitignored; do not commit."
+      setting GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-}"
+      setting GOOGLE_API_KEY "${GOOGLE_API_KEY:-}"
+      setting GOOGLE_DRIVE_FOLDER_ID "${GOOGLE_DRIVE_FOLDER_ID:-}"
+      setting GOOGLE_PICKER_URL "${GOOGLE_PICKER_URL:-}"
+      setting GOOGLE_APP_ID "${GOOGLE_APP_ID:-}"
+      setting GOOGLE_SHARED_DRIVES "${GOOGLE_SHARED_DRIVES:-}"
+    } > "$root/ios/Drive.local.xcconfig"
+  )
+  echo "Drive settings written for every build (ios/Drive.local.xcconfig)"
+fi
+
 echo "building the web bundle..."
 npm run build
 

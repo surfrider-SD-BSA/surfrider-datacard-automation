@@ -1,0 +1,11 @@
+// The chapter's Google settings for "Choose from Drive", for EVERY build.
+//
+// The values are not in the repository (see docs/google-drive-ios.md): they
+// live in ios/.env.local, and ios/sync-web.sh writes them into the gitignored
+// Drive.local.xcconfig next to this file. testflight.sh passed them on its
+// own command line, so before this only TestFlight builds had the button; a
+// build from Xcode, or the app checks, had no client ID and drew no button.
+//
+// Optional: a clone without the local file builds exactly as before, with no
+// Drive button and no network call (DriveConfig).
+#include? "Drive.local.xcconfig"
