@@ -192,6 +192,82 @@ function seedFromFilename(name: string): { date: string; shoreline: string } | n
 // Methods
 // ---------------------------------------------------------------------------
 
+/**
+ * A few workers that line pages up and read them (src/lib/read-worker.ts), so
+ * a phone's spare cores read later pages while the first is still going.
+ * Reading and registration are about nine tenths of a scan's time and each
+ * page is read on its own; the answers are the same, only the order the pages
+ * finish in is not, and they are put back in order before pairing.
+ *
+ * Null where workers cannot be started, and the scan is read on this thread
+ * as before. One reader fewer than the cores, at most four: pdf.js decodes on
+ * a core of its own, and each reader holds its own copy of the digit model.
+ */
+type Pool = {
+  submit(pageNumber: number, image: GrayImage, done: (page: PageCells) => void): Promise<void>;
+  drain(): Promise<void>;
+};
+
+let poolPromise: Promise<Pool | null> | null = null;
+
+function readPool(refs: Awaited<ReturnType<typeof loadReferences>>): Promise<Pool | null> {
+  poolPromise ??= (async () => {
+    const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 2 : 2;
+    const n = Math.max(1, Math.min(4, cores - 1));
+    if (n < 2 || typeof Worker === "undefined") return null;
+    try {
+      const workers = await Promise.all(
+        Array.from({ length: n }, () => {
+          const w = new Worker(new URL("./lib/read-worker.ts", import.meta.url), { type: "module" });
+          return new Promise<Worker>((ready, fail) => {
+            w.onmessage = (e) => (e.data?.type === "ready" ? ready(w) : fail(new Error("read worker did not start")));
+            w.onerror = (e) => fail(e.error ?? new Error(e.message));
+            w.postMessage({ type: "init", images: refs.images, maps: refs.maps, digits: refs.digits });
+          });
+        }),
+      );
+      const idle = [...workers];
+      const waiting: (() => void)[] = [];
+      const busy = new Set<Promise<void>>();
+      let failure: Error | null = null;
+      const free = (w: Worker) => {
+        idle.push(w);
+        waiting.shift()?.();
+      };
+      return {
+        async submit(pageNumber, image, done) {
+          if (failure) throw failure;
+          while (idle.length === 0) await new Promise<void>((r) => waiting.push(r));
+          const w = idle.pop()!;
+          const job = new Promise<void>((resolve) => {
+            w.onmessage = (e) => {
+              if (e.data.type === "page") done(e.data.page as PageCells);
+              else failure = new Error(e.data.message ?? "read worker failed");
+              free(w);
+              resolve();
+            };
+            w.onerror = (e) => {
+              failure = e.error ?? new Error(e.message);
+              free(w);
+              resolve();
+            };
+          });
+          busy.add(job);
+          void job.then(() => busy.delete(job));
+          w.postMessage({ type: "page", pageNumber, image }, [image.data.buffer]);
+        },
+        async drain() {
+          await Promise.all([...busy]);
+          if (failure) throw failure;
+        },
+      };
+    } catch {
+      return null;
+    }
+  })();
+  return poolPromise;
+}
+
 interface ProcessParams {
   /** A `cleanup://app/__inbox/…` URL Swift has just made readable. */
   url: string;
@@ -221,9 +297,22 @@ async function process(params: ProcessParams) {
   state.fileSize = params.fileSize;
 
   const pages: PageCells[] = [];
-  const pageCount = await rasterizePdf(file, ({ pageNumber, image, total }) => {
+  const pool = await readPool(refs);
+  let read = 0;
+  const pageCount = await rasterizePdf(file, async ({ pageNumber, image, total }) => {
+    const done = (page: PageCells) => {
+      pages.push(page);
+      read++;
+      progress("reading", (read / total) * 0.98, { pageNumber: read, total });
+    };
+    if (pool) {
+      // Wait for a free reader, not for this page: decoding goes on while the
+      // others read, and at most one page per reader is held at a time.
+      await pool.submit(pageNumber, image, done);
+      return;
+    }
     const registered = registerAgainstBestSide(image, targets, pageNumber);
-    pages.push({
+    done({
       pageNumber,
       side: registered.side,
       trusted: registered.trusted,
@@ -232,8 +321,9 @@ async function process(params: ProcessParams) {
         ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side, refs.digits)
         : [],
     });
-    progress("reading", (pageNumber / total) * 0.98, { pageNumber, total });
   });
+  if (pool) await pool.drain();
+  pages.sort((a, b) => a.pageNumber - b.pageNumber);
 
   if (pageCount === 0) throw new Error("That PDF has no pages.");
 
