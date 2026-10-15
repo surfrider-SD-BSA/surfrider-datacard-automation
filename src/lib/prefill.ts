@@ -384,50 +384,59 @@ export function isAutoAccepted(reading: Reading | null | undefined): boolean {
 export const SHOW_SHARE = 0.2;
 
 /**
- * How sure a reading is, for choosing which to show. A longer number is
- * likelier wrong at the same confidence -- across the 28 scans, readings of two
- * digits disagree with the typed sheets 51% of the time and of three 85%,
- * against 28% for one -- because each extra digit is one more chance to misread
- * or to cut a stray mark as a digit. Weighted, the least-sure 20% catches more
- * of the mistakes: 848 left unseen against 858. Only the ranking uses this; the
- * confidence a reading carries is unchanged.
+ * How far off a reading is likely to be, for choosing which to show.
+ *
+ * The owner's measure, 14 October 2026: what matters is how far the numbers
+ * taken unseen are from the truth, not how many are not exactly right -- "I
+ * would rather have 2000 wrong but they are all only off by 1 than 1000 wrong
+ * but they are all wrong by 5". So the share a person sees goes to the boxes
+ * likely to be furthest off, not the ones likeliest to be wrong at all.
+ *
+ * `EXPECTED_ERROR` is the mean |reading - sheet| of the readings of each kind
+ * across the scans (the two with unreliable sheets left out), by source,
+ * number of digits and confidence band. It is what moved the ranking: a
+ * one-digit reading at 0.3-0.5 is off by 7.8 on average, because it is often
+ * a two-digit number with a digit lost, while a tally count under 0.3 is off
+ * by 5.8 -- so it is the digits a person should see first.
+ *
+ * Against the old ranking (least confident first, longer numbers sooner), under
+ * the apps' rule: total absolute error of the boxes taken unseen 11,558 ->
+ * 10,147, misses of 10 or more 283 -> 263. Exactly right falls 2,264 -> 2,238;
+ * that is the trade asked for.
  */
-/**
- * A number made only of 1s ranks at half again. "11" is two strokes, and two
- * strokes in a TOTAL box are a tally of two as often as the number eleven
- * (`countBoxTally` in tally.ts), so the reader caps them at
- * `OVERSEGMENTED_CONFIDENCE` to be shown. But a scan with many low readings
- * ties them at the line, and card order took them as read: of the "11"s taken,
- * the sheets agreed with 3 in about 29. Ranked lower, 46 of them are shown in
- * place of 46 other low readings, and taken unseen and wrong falls 1,066 ->
- * 1,059 while taken right rises 2,259 -> 2,264 (`scripts/apps-rule.mjs`,
- * 11 October 2026). 0.1 does no better.
- */
+/** "11" is two strokes, a tally of two as often as eleven: its expected error is doubled (#137). */
 const ONES_RANK = 0.5;
 
-/**
- * A three-digit reading with two or more 1s in it is always shown.
- *
- * Numbers of 100 and more are rare on a card -- 52 of 3,821 boxes with a sheet
- * value -- and the digit reader's three-digit readings are mostly something
- * else: of 143 with a sheet value, 22 are right and the sheet is under 100 for
- * 115. The ones taken unseen were half right, and the split is clean: the right
- * ones were real hundreds (100, 200, 218, 668), and the wrong ones were made of
- * 1s -- "112" for 2, "113" for 3, "411" for 21 -- tally strokes in the box read
- * as digits. None of the right ones had two 1s; 9 of the 12 wrong ones did.
- * Ranked at 0, 13 of them are shown in place of 13 small low readings: taken
- * right 2,273 -> 2,275, taken wrong 1,050 -> 1,047 (`scripts/apps-rule.mjs`,
- * 12 October 2026). Ranking every three-digit reading lower instead pushed
- * real hundreds out for nothing (2,267 / 1,054).
- */
+/** A three-digit reading with two or more 1s is nearly always tally strokes read as digits (#140). */
 const THREE_DIGIT_ONES = 2;
 
-function rankingConfidence(r: Reading): number {
+const EXPECTED_ERROR = {
+  //       conf < 0.3   0.3-0.5   0.5-0.7   0.7-0.85   >= 0.85
+  digits: [
+    [13.9, 7.8, 3.1, 2.2, 1.8], // one digit
+    [23.9, 12.2, 7.6, 4.2, 4.9], // two
+    [300, 200, 60, 60, 2], // three
+  ],
+  tally: [
+    [5.8, 3.0, 3.0, 2.9, 2.9],
+    [7.6, 5, 5, 5, 5],
+    [50, 50, 50, 50, 50],
+  ],
+};
+
+function expectedError(r: Reading): number {
   const text = String(Math.abs(Math.round(r.value)));
-  const digits = text.length;
-  const ones = digits >= 2 && /^1+$/.test(text) ? ONES_RANK : 1;
-  if (digits >= 3 && (text.match(/1/g) ?? []).length >= THREE_DIGIT_ONES) return 0;
-  return r.confidence * (digits >= 3 ? 0.5 : digits === 2 ? 0.8 : 1) * ones;
+  const c = r.confidence;
+  const band = c < 0.3 ? 0 : c < 0.5 ? 1 : c < 0.7 ? 2 : c < 0.85 ? 3 : 4;
+  const table = r.source === "tally" ? EXPECTED_ERROR.tally : EXPECTED_ERROR.digits;
+  let e = table[Math.min(3, text.length) - 1]![band]!;
+  // "11" is "||" as often as eleven (ONES_RANK), and a three-digit number made
+  // of 1s is nearly always tally strokes read as digits (THREE_DIGIT_ONES).
+  if (text.length >= 2 && /^1+$/.test(text)) e /= ONES_RANK;
+  if (text.length >= 3 && (text.match(/1/g) ?? []).length >= THREE_DIGIT_ONES) e *= 10;
+  // Both readers on the same number: right 88% of the time (TWO_READERS).
+  if (r.source === "agreed") e = Math.min(e, 1);
+  return e;
 }
 
 /**
@@ -439,7 +448,7 @@ export function autoAcceptedInScan(readings: (Reading | null | undefined)[]): bo
   const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
   const show = Math.ceil(readings.length * SHOW_SHARE);
   const ranked = readings
-    .map((r, i) => ({ i, c: empty(r) ? -1 : rankingConfidence(r!) }))
+    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -expectedError(r!) }))
     .sort((a, b) => a.c - b.c || a.i - b.i);
   const accepted = readings.map((r) => !empty(r));
   let shown = readings.filter(empty).length;
