@@ -1549,7 +1549,19 @@ function readOnce(
  * noughts into 63 and 62 (their weaker halves read 0.81). 0 for `aspect`
  * turns it off.
  */
-export const JOINED = { aspect: 1.15, middle: 0.3, minHeight: 0.6, wholeBelow: 0.6, confidence: 0.75 }; // re-tuned 14 Oct 2026, see FAINT_LOOK
+/**
+ * Since 16 October 2026 a split is TRIED on every piece at least as wide as it
+ * is tall, however surely it reads whole (`wholeBelow` above 1), and kept by the
+ * same rule as before: both halves at `confidence`, and better than the whole.
+ * Two touching digits often read confidently as one -- "20" as 2, "60" as 6,
+ * "49" as 1 -- and a two-digit number read as one digit is the biggest single
+ * source of how far off the numbers taken unseen are. Under the apps' rule:
+ * total absolute error 9,676 -> 9,461, exactly right 2,251 -> 2,258; by the
+ * sheets 8 fixed (48, 49, 20, 30, 60, 20, 15, 65) and none broken. Tried from
+ * 0.85 wide (9,564), from 1.3 (9,677), and keeping halves at 0.5 or 0.6
+ * (9,447 / 9,453, fewer exactly right).
+ */
+export const JOINED = { aspect: 1.0, middle: 0.3, minHeight: 0.6, wholeBelow: 1.01, confidence: 0.75 };
 
 function splitJoined(img: DigitImage, box: DigitBox, threshold?: number): [DigitBox, DigitBox] | null {
   const w = box.maxX - box.minX + 1;
