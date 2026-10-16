@@ -1405,7 +1405,16 @@ export function readDigits(img: DigitImage, model: DigitModel, box?: Area): Digi
  * value for are all right by eye. Taken right 2,176 -> 2,211, taken wrong
  * 1,139 -> 1,113.
  */
-export const FAINT_LOOK = { below: 0.6, confidence: 0.83 };
+/**
+ * Re-tuned on 14 October 2026 for the owner's measure (how far the numbers
+ * taken unseen are off, not how many) and the width-4 reader: this bar, and
+ * JOINED's and FAINT_SECOND's, were set on the width-1 reader by exact matches.
+ * Swept one at a time and then together under the apps' rule: total absolute
+ * error 10,007 -> 9,676 with the three moved (0.83 -> 0.75 here, 0.83 -> 0.75
+ * for JOINED, 0.7 -> 0.6 for FAINT_SECOND), and exactly right 2,241 -> 2,251.
+ * `below` stays at 0.6: 0.5 and 0.7 were both worse.
+ */
+export const FAINT_LOOK = { below: 0.6, confidence: 0.75 };
 
 /**
  * A confident single digit, read again at the light-pencil threshold for a
@@ -1427,7 +1436,7 @@ export const FAINT_LOOK = { below: 0.6, confidence: 0.83 };
  *   0.70         2,291    1,024   9 fixed, none broken (12, 12, 18, 33, 17, 12, 10, 11, 15)
  *   0.60         2,291    1,024
  */
-export const FAINT_SECOND = { confidence: 0.7 };
+export const FAINT_SECOND = { confidence: 0.6 }; // re-tuned 14 Oct 2026, see FAINT_LOOK
 
 const strip = ({ worst: _w, digits: _d, light: _l, ...r }: DigitReading & { worst: number; digits: number; light: boolean }) => r;
 
@@ -1540,7 +1549,7 @@ function readOnce(
  * noughts into 63 and 62 (their weaker halves read 0.81). 0 for `aspect`
  * turns it off.
  */
-export const JOINED = { aspect: 1.15, middle: 0.3, minHeight: 0.6, wholeBelow: 0.6, confidence: 0.83 };
+export const JOINED = { aspect: 1.15, middle: 0.3, minHeight: 0.6, wholeBelow: 0.6, confidence: 0.75 }; // re-tuned 14 Oct 2026, see FAINT_LOOK
 
 function splitJoined(img: DigitImage, box: DigitBox, threshold?: number): [DigitBox, DigitBox] | null {
   const w = box.maxX - box.minX + 1;
