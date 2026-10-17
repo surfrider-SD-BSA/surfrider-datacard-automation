@@ -19,6 +19,8 @@
  * ---------------------------------------------------------------------------
  */
 
+import { wasmNet } from "./net-wasm";
+
 /**
  * A grayscale crop: 0 is black, 255 is paper.
  *
@@ -1139,7 +1141,16 @@ function denseWeights(layer: { in: number; out: number; w: Float32Array }, c: nu
   return t;
 }
 
+/**
+ * The net's ten logits: in WebAssembly with SIMD where the platform has it
+ * (`wasmNet` in net-wasm.ts, about eight times faster), in JS otherwise.
+ */
 export function netLogits(bitmap: ArrayLike<number>, model: CnnModel): Float32Array {
+  return wasmNet(bitmap, model) ?? netLogitsJs(bitmap, model);
+}
+
+/** `netLogits` in plain JS: the fallback, and what the WebAssembly is checked against. */
+export function netLogitsJs(bitmap: ArrayLike<number>, model: CnnModel): Float32Array {
   let x = new Float32Array(SIDE * SIDE);
   for (let i = 0; i < x.length; i++) x[i] = (bitmap[i] ?? 0) / 255;
   let c = 1;

@@ -11,7 +11,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { classifyDigit, decodeModel, netLogits, netLogitsReference, type CnnModel } from "../src/lib/digits";
+import { classifyDigit, decodeModel, netLogits, netLogitsJs, netLogitsReference, type CnnModel } from "../src/lib/digits";
+import { wasmNet } from "../src/lib/net-wasm";
 
 const b64 = (values: number[]) => {
   const bytes = new Uint8Array(new Float32Array(values).buffer);
@@ -155,5 +156,20 @@ describe("netLogits against the net as trained", () => {
     const fast = netLogits(blank, shipped);
     const ref = netLogitsReference(blank, shipped);
     for (let i = 0; i < 10; i++) expect(Math.abs(fast[i]! - ref[i]!)).toBeLessThan(1e-4);
+  });
+});
+
+describe("the net in WebAssembly", () => {
+  it("runs here", () => {
+    expect(wasmNet(digit(1), shipped)).not.toBeNull();
+  });
+
+  it("gives the JS version's logits, to float precision", () => {
+    for (let seed = 1; seed <= 5; seed++) {
+      const b = digit(seed);
+      const wasm = wasmNet(b, shipped)!;
+      const js = netLogitsJs(b, shipped);
+      for (let i = 0; i < 10; i++) expect(Math.abs(wasm[i]! - js[i]!)).toBeLessThan(1e-4);
+    }
   });
 });
