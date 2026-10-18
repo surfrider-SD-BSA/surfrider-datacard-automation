@@ -87,32 +87,18 @@
 	<string>$(GOOGLE_SHARED_DRIVES)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<!-- THERE IS NO NSCameraUsageDescription, AND ITS ABSENCE IS LOAD-BEARING.
-	     Photographing the cards sits behind `Beta.cameraCapture` and does not
-	     ship to the App Store, so the shipped binary never opens a camera. An app
-	     that asks for a permission it does not use is an app that invites the
-	     question why, and a reviewer who cannot find the feature a string is for
-	     is a reviewer who writes to ask.
+	<!-- Photographing the cards: VisionKit's document scanner, which finds the
+	     page's corners and rectifies the perspective before the image reaches
+	     the pipeline. It was behind a BETA build from 1 Sep to 18 Oct 2026 and
+	     is now in every build, so the key ships too; iOS kills the app the
+	     moment the scanner is presented without it. The button still says BETA
+	     because a handheld capture has not been measured against the 200 DPI
+	     the reading wants. See Tally/DocumentScanner.swift.
 
-	     A BETA build needs the key back: iOS kills the app the moment the scanner
-	     is presented without it, rather than refusing the picker. `BETA=1
-	     ios/testflight.sh` adds it to the archive it builds. Belt and braces,
-	     `Beta.cameraCapture` also checks for the key at runtime, so a BETA build
-	     that somehow lacks it hides the button instead of crashing in a
-	     volunteer's hand.
-
-	     The history the old comment here carried, because it is still the reason
-	     any of this exists: image input was deliberately absent until 22 August
-	     2026. The objection that kept it out was that a photograph held at an
-	     angle keystones and registration does not correct for that; what answers
-	     it is that capture goes through VisionKit's document scanner, which
-	     rectifies the perspective before the image reaches the pipeline. What is
-	     still unanswered is resolution -- the reading wants 200 DPI on the card's
-	     short edge -- and that is why the feature is in beta and this key is not
-	     here. See ios/SurfriderDataCards/Tally/DocumentScanner.swift.
-
-	     There is still no NSPhotoLibraryUsageDescription, for the original
-	     reason: nothing here reads the library or writes to it. -->
+	     There is still no NSPhotoLibraryUsageDescription: nothing here reads
+	     the library or writes to it. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Tally photographs the cleanup data cards so it can find the boxes somebody wrote in. The pictures stay on this phone; only the finished spreadsheet is ever shared.</string>
 	<!-- Accept a PDF from any other app: Files, Mail, Messages, AirDrop, the
 	     share sheet. Getting a scan onto a phone is most of the work of using
 	     this thing, and the document picker alone is a thin way to do it -- it

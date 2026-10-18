@@ -18,11 +18,9 @@
 //  the camera gives rather than resampling it, and the screen says plainly that
 //  the scanner is the surer route.
 //
-//  AS OF 1 SEPTEMBER 2026 IT IS A WALL, not a warning, and only for the App
-//  Store. Shipping an unmeasured reading path to volunteers who cannot tell a
-//  bad capture from a good one is how you get wrong numbers into a dataset
-//  nobody re-checks. The button is behind `Beta.cameraCapture`, below; the code
-//  underneath it is untouched and one build flag away.
+//  From 1 September to 18 October 2026 it was behind a BETA build only. It is
+//  back in every build as of 18 October, still tagged BETA on the control
+//  itself, because the resolution question above is still open.
 //
 //  The frame below is drawn rather than live, and is doing real work as a
 //  picture of what a usable page looks like: all four corners in, flat paper,
@@ -49,38 +47,18 @@ import VisionKit
 /// whole concept".
 ///
 /// So the answer is not to throw the path away and not to leave it sitting
-/// beside the scanner as though the two were equal. It is gated, and it says
-/// what it is.
+/// beside the scanner as though the two were equal. It says what it is.
 ///
 /// **Measure it on a real card before this becomes an ordinary button.**
 enum Beta {
     /// Photographing the cards instead of scanning them.
     ///
-    /// A compilation condition rather than a constant, so that turning it on is
-    /// something a build has to ask for and not something a person has to
-    /// remember to turn off. An App Store archive cannot pick it up by
-    /// forgetting something:
-    ///
-    ///     BETA=1 ios/testflight.sh
-    ///
-    /// Use the script, not a bare `SWIFT_ACTIVE_COMPILATION_CONDITIONS=BETA`.
-    /// The flag alone gives a build with the button still hidden, because the
-    /// camera permission it needs is injected by the script and by nothing
-    /// else. NSCameraUsageDescription ships ABSENT: the store build never opens
-    /// a camera, and a reviewer who cannot find the feature a permission string
-    /// is for is a reviewer who writes to ask.
-    ///
-    /// Hence the runtime check, which is not paranoia about a key that is
-    /// normally there -- it is normally not. Presenting the scanner without it
-    /// does not fail politely; iOS terminates the app. A BETA build that missed
-    /// the injection loses a button here instead of dying mid-cleanup in a
-    /// volunteer's hand.
+    /// In every build since 18 October 2026 (it was BETA builds only before).
+    /// Still checks for the camera permission at runtime: presenting the
+    /// scanner without NSCameraUsageDescription does not fail politely, iOS
+    /// terminates the app, so a build missing the key loses a button instead.
     static var cameraCapture: Bool {
-        #if BETA
-        return Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") != nil
-        #else
-        return false
-        #endif
+        Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") != nil
     }
 }
 
@@ -91,6 +69,8 @@ struct CaptureScreen: View {
     @ObservedObject private var drive = DriveFlow.shared
     @State private var scanning = false
     @State private var problem: String?
+    /// How many photographed pages are being bound into a PDF, while they are.
+    @State private var preparing: Int?
 
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: Nocturne.safeTop) {
@@ -155,7 +135,7 @@ struct CaptureScreen: View {
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!CapturedPages.scanningAvailable)
+                    .disabled(!CapturedPages.scanningAvailable || preparing != nil)
                 }
 
                 // Secondary beside the camera, primary when it is the only way
@@ -214,7 +194,14 @@ struct CaptureScreen: View {
                     }
                 }
 
-                if let problem = drive.problem ?? problem {
+                if let preparing {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(Nocturne.accent)
+                        Text("Preparing \(preparing) \(preparing == 1 ? "picture" : "pictures")…")
+                            .font(Nocturne.Face.label(12))
+                            .foregroundStyle(Nocturne.text(60))
+                    }
+                } else if let problem = drive.problem ?? problem {
                     Text(problem)
                         .font(Nocturne.Face.label(12))
                         .multilineTextAlignment(.center)
@@ -246,14 +233,24 @@ struct CaptureScreen: View {
             }
         }
         .fullScreenCover(isPresented: $scanning) {
-            DocumentScanner { pages in
+            DocumentScanner { scan in
                 scanning = false
-                guard !pages.isEmpty else { return }
-                do {
-                    let pdf = try CapturedPages.pdf(from: pages)
-                    Task { await model.read(pdf: pdf) }
-                } catch {
-                    problem = "Those pictures could not be prepared: \(error.localizedDescription)"
+                guard scan.pageCount > 0 else { return }
+                preparing = scan.pageCount
+                problem = nil
+                // Off the main thread: 100+ pages resampled one by one takes
+                // seconds, and the screen should not freeze while it does.
+                Task.detached(priority: .userInitiated) {
+                    let result = Result { try CapturedPages.pdf(from: scan) }
+                    await MainActor.run {
+                        preparing = nil
+                        switch result {
+                        case .success(let pdf):
+                            Task { await model.read(pdf: pdf) }
+                        case .failure(let error):
+                            problem = "Those pictures could not be prepared: \(error.localizedDescription)"
+                        }
+                    }
                 }
             } onCancel: {
                 scanning = false
