@@ -204,6 +204,13 @@ describe("autoAcceptedInScan with the open readers", () => {
     ]);
   });
 
+  it("shows first the flagged box more of them read differently", () => {
+    const sure = Array.from({ length: 5 }, () => at(7, 0.99));
+    // Two flagged, one shown (a fifth of five): the one eight disagree with.
+    const got = autoAcceptedInScan(sure, [], [], [votes(4), votes(8), null, null, null]);
+    expect(got).toEqual([true, false, true, true, true]);
+  });
+
   it("changes nothing where fewer disagree, or they have no reading", () => {
     const fewer = votes(OTHER_READERS_DISAGREE - 1);
     const silent = Array(8).fill(null) as (number | null)[];
