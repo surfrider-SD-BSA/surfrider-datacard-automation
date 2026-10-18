@@ -17,10 +17,21 @@ cd "$root"
 # The Drive button's settings, for every build and not only TestFlight's: see
 # ios/Drive.xcconfig. Read from the gitignored ios/.env.local, written to the
 # gitignored Drive.local.xcconfig; nothing is written without the file.
-if [ -f "$root/ios/.env.local" ]; then
+#
+# A git worktree has no copy of a gitignored file, so a build from one used to
+# lose the Drive button without a word. It falls back to the main checkout's.
+env_local="$root/ios/.env.local"
+if [ ! -f "$env_local" ]; then
+  common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [ -n "$common" ] && [ -f "$(dirname "$common")/ios/.env.local" ]; then
+    env_local="$(dirname "$common")/ios/.env.local"
+    echo "Drive settings from the main checkout ($env_local)"
+  fi
+fi
+if [ -f "$env_local" ]; then
   (
-    # shellcheck disable=SC1091
-    . "$root/ios/.env.local"
+    # shellcheck disable=SC1090
+    . "$env_local"
     # In an xcconfig "//" starts a comment, so a URL's is written "/$()/".
     # shellcheck disable=SC2016 # the $() is meant literally, for Xcode
     setting() { [ -n "$2" ] && printf '%s = %s\n' "$1" "$(printf '%s' "$2" | sed 's#//#/$()/#g')"; true; }

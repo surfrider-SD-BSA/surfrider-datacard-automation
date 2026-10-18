@@ -76,37 +76,6 @@ echo "==> refreshing the web bundle"
 # derives both from this one -- the app is $(APP_BUNDLE_ID) and the extension is
 # $(APP_BUNDLE_ID).Share -- and the App Group with them.
 
-# BETA=1 builds the unproven features in. Today that is photographing the cards
-# instead of scanning them: the reading wants 200 DPI on the card's short edge
-# and nobody has measured a handheld capture against that on a real card, which
-# is a thing you learn by giving it to a few people who can, not by reasoning
-# about it. Off by default, so an App Store archive cannot pick it up by
-# forgetting something.
-#
-# Two things have to agree for that button to appear, and this is the only place
-# they are set together:
-#
-#   BETA, the Swift compilation condition, which is what `Beta.cameraCapture`
-#   reads; and NSCameraUsageDescription, which ships ABSENT because the store
-#   build never opens a camera. Presenting VisionKit's scanner without that key
-#   does not fail politely -- iOS terminates the app.
-#
-# The key is added to a copy of Info.plist rather than the committed file, so an
-# interrupted beta build cannot leave the store build carrying a camera
-# permission it does not use.
-beta_settings=""
-plist="ios/SurfriderDataCards/Info.plist"
-if [ "${BETA:-0}" != "0" ]; then
-  beta_plist="$build_dir/Info-beta.plist"
-  mkdir -p "$build_dir"
-  cp "$plist" "$beta_plist"
-  /usr/libexec/PlistBuddy -c \
-    "Add :NSCameraUsageDescription string Tally photographs the cleanup data cards so it can find the boxes somebody wrote in. The pictures stay on this phone; only the finished spreadsheet is ever shared." \
-    "$beta_plist"
-  beta_settings="SWIFT_ACTIVE_COMPILATION_CONDITIONS=BETA INFOPLIST_FILE=$beta_plist"
-  echo "==> BETA: camera capture is IN this build, and so is the camera permission"
-fi
-
 # The chapter's Google project, if this build is to have the Drive button.
 #
 # Four builds once reached TestFlight without it before anybody noticed, so a
@@ -134,7 +103,7 @@ fi
 echo "==> archiving (build $build_number, team $TEAM_ID, bundle $BUNDLE_ID)"
 rm -rf "$archive" "$export_dir"
 mkdir -p "$build_dir"
-# shellcheck disable=SC2086 # beta_settings and drive_settings are deliberately word-split
+# shellcheck disable=SC2086 # drive_settings is deliberately word-split
 xcodebuild \
   -project ios/SurfriderDataCards.xcodeproj \
   -scheme "Data Cards" \
@@ -145,12 +114,11 @@ xcodebuild \
   DEVELOPMENT_TEAM="$TEAM_ID" \
   APP_BUNDLE_ID="$BUNDLE_ID" \
   CURRENT_PROJECT_VERSION="$build_number" \
-  $beta_settings \
   $drive_settings \
   archive
 
 echo "==> exporting a signed .ipa"
-# The team id goes into a COPY, for the same reason the beta camera key does.
+# The team id goes into a COPY, so an interrupted build cannot leave the committed file dirty.
 # The committed ExportOptions.plist is nine tenths explanatory comment, and
 # PlistBuddy does not edit a plist -- it parses one and writes a new one, which
 # silently drops every comment in the file. Adding the key and deleting it again

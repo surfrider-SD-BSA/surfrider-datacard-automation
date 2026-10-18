@@ -12,17 +12,15 @@
 //  finds the page's corners and rectifies the perspective before handing the
 //  image over, so the pipeline gets a flat page. See DocumentScanner.swift.
 //
-//  WHAT IS STILL UNMEASURED is resolution: the pipeline expects 200 DPI on the
-//  card's short edge, and whether a handheld capture clears that in beach light
-//  has never been tested on a real card. The capture path preserves whatever
-//  the camera gives rather than resampling it, and the screen says plainly that
-//  the scanner is the surer route.
+//  RESOLUTION. The pipeline expects 200 DPI on the card's short edge, and
+//  registration only searches +/-6% around that scale. Every captured page is
+//  laid out 8.5 inches wide and stored at 200 DPI (CapturedPages.pdf), so a
+//  photo reaches the reader at the same scale as the chapter's scanner. On the
+//  1.18 Imperial cards that read as well as the scan did (70 wrong of 728
+//  boxes vs 71). Photos taken by hand in beach light have not been measured.
 //
-//  AS OF 1 SEPTEMBER 2026 IT IS A WALL, not a warning, and only for the App
-//  Store. Shipping an unmeasured reading path to volunteers who cannot tell a
-//  bad capture from a good one is how you get wrong numbers into a dataset
-//  nobody re-checks. The button is behind `Beta.cameraCapture`, below; the code
-//  underneath it is untouched and one build flag away.
+//  It was behind a BETA build from 1 September to 18 October 2026 and is an
+//  ordinary button in every build since.
 //
 //  The frame below is drawn rather than live, and is doing real work as a
 //  picture of what a usable page looks like: all four corners in, flat paper,
@@ -34,53 +32,14 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VisionKit
 
-/// What is here to be tried rather than relied on.
-///
-/// The camera is the only one so far, and it is here rather than deleted
-/// because nothing is wrong with the code. VisionKit rectifies the page and the
-/// pipeline receives a flat one; `CapturedPages.pdf` preserves the capture's
-/// pixels instead of resampling them. Both of those took work and both are
-/// right.
-///
-/// What has never been taken is the one number that decides whether the path is
-/// worth having: the reading wants 200 DPI on the card's short edge, and
-/// whether a handheld capture clears that in beach light has not been measured
-/// on a real card. The design handoff calls that "the biggest open risk in the
-/// whole concept".
-///
-/// So the answer is not to throw the path away and not to leave it sitting
-/// beside the scanner as though the two were equal. It is gated, and it says
-/// what it is.
-///
-/// **Measure it on a real card before this becomes an ordinary button.**
-enum Beta {
-    /// Photographing the cards instead of scanning them.
-    ///
-    /// A compilation condition rather than a constant, so that turning it on is
-    /// something a build has to ask for and not something a person has to
-    /// remember to turn off. An App Store archive cannot pick it up by
-    /// forgetting something:
-    ///
-    ///     BETA=1 ios/testflight.sh
-    ///
-    /// Use the script, not a bare `SWIFT_ACTIVE_COMPILATION_CONDITIONS=BETA`.
-    /// The flag alone gives a build with the button still hidden, because the
-    /// camera permission it needs is injected by the script and by nothing
-    /// else. NSCameraUsageDescription ships ABSENT: the store build never opens
-    /// a camera, and a reviewer who cannot find the feature a permission string
-    /// is for is a reviewer who writes to ask.
-    ///
-    /// Hence the runtime check, which is not paranoia about a key that is
-    /// normally there -- it is normally not. Presenting the scanner without it
-    /// does not fail politely; iOS terminates the app. A BETA build that missed
-    /// the injection loses a button here instead of dying mid-cleanup in a
-    /// volunteer's hand.
-    static var cameraCapture: Bool {
-        #if BETA
-        return Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") != nil
-        #else
-        return false
-        #endif
+/// Photographing the cards instead of scanning them.
+enum Camera {
+    /// Whether to offer the camera at all. Checks for the camera permission at
+    /// runtime: presenting the scanner without NSCameraUsageDescription does not
+    /// fail politely, iOS terminates the app, so a build missing the key loses a
+    /// button instead.
+    static var offered: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") != nil
     }
 }
 
@@ -91,13 +50,15 @@ struct CaptureScreen: View {
     @ObservedObject private var drive = DriveFlow.shared
     @State private var scanning = false
     @State private var problem: String?
+    /// How many photographed pages are being bound into a PDF, while they are.
+    @State private var preparing: Int?
 
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: Nocturne.safeTop) {
             HStack {
                 Button("Cancel") { dismiss() }.buttonStyle(ChromeButtonStyle())
                 Spacer()
-                Text("A scan, front and back, in card order")
+                Text("Front and back, in card order")
                     .font(Nocturne.Face.label(13))
                     .foregroundStyle(Nocturne.text(60))
             }
@@ -109,7 +70,7 @@ struct CaptureScreen: View {
                     .font(Nocturne.Face.title(22))
                     .tracking(-0.22)
                     .foregroundStyle(Nocturne.text)
-                Text("One PDF per cleanup, scanned front-and-back")
+                Text(Camera.offered ? "Photographed or scanned, front and back" : "One PDF per cleanup, scanned front-and-back")
                     .font(Nocturne.Face.body(13))
                     .foregroundStyle(Nocturne.accent300)
             }
@@ -140,29 +101,24 @@ struct CaptureScreen: View {
                     .buttonStyle(PrimaryButtonStyle())
                 }
 
-                if Beta.cameraCapture {
+                if Camera.offered {
                     Button {
                         scanning = true
                     } label: {
                         HStack(spacing: 9) {
                             Image(systemName: Nocturne.Icon.capture)
                             Text("Take pictures of the cards")
-                            // Said on the control itself, not only in the hint
-                            // underneath. Somebody choosing between two buttons
-                            // is entitled to know one of them is unproven at the
-                            // moment they choose.
-                            Tag(text: "BETA", size: 10, tracking: 0.8)
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!CapturedPages.scanningAvailable)
+                    .disabled(!CapturedPages.scanningAvailable || preparing != nil)
                 }
 
                 // Secondary beside the camera, primary when it is the only way
                 // in. Two ButtonStyles are two types, so this is a branch rather
                 // than a ternary.
                 Group {
-                    if Beta.cameraCapture {
+                    if Camera.offered {
                         Button { picking = true } label: { pickLabel }
                             .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
                     } else {
@@ -214,7 +170,14 @@ struct CaptureScreen: View {
                     }
                 }
 
-                if let problem = drive.problem ?? problem {
+                if let preparing {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(Nocturne.accent)
+                        Text("Preparing \(preparing) \(preparing == 1 ? "picture" : "pictures")…")
+                            .font(Nocturne.Face.label(12))
+                            .foregroundStyle(Nocturne.text(60))
+                    }
+                } else if let problem = drive.problem ?? problem {
                     Text(problem)
                         .font(Nocturne.Face.label(12))
                         .multilineTextAlignment(.center)
@@ -246,14 +209,24 @@ struct CaptureScreen: View {
             }
         }
         .fullScreenCover(isPresented: $scanning) {
-            DocumentScanner { pages in
+            DocumentScanner { scan in
                 scanning = false
-                guard !pages.isEmpty else { return }
-                do {
-                    let pdf = try CapturedPages.pdf(from: pages)
-                    Task { await model.read(pdf: pdf) }
-                } catch {
-                    problem = "Those pictures could not be prepared: \(error.localizedDescription)"
+                guard scan.pageCount > 0 else { return }
+                preparing = scan.pageCount
+                problem = nil
+                // Off the main thread: 100+ pages resampled one by one takes
+                // seconds, and the screen should not freeze while it does.
+                Task.detached(priority: .userInitiated) {
+                    let result = Result { try CapturedPages.pdf(from: scan) }
+                    await MainActor.run {
+                        preparing = nil
+                        switch result {
+                        case .success(let pdf):
+                            Task { await model.read(pdf: pdf) }
+                        case .failure(let error):
+                            problem = "Those pictures could not be prepared: \(error.localizedDescription)"
+                        }
+                    }
                 }
             } onCancel: {
                 scanning = false
@@ -271,13 +244,13 @@ struct CaptureScreen: View {
 
     /// What to say under the buttons.
     private var hint: String {
-        guard Beta.cameraCapture else {
+        guard Camera.offered else {
             return "Both sides of every card, in card order, from the chapter's scanner. The reading wants 200 DPI, which is what it produces."
         }
         if !CapturedPages.scanningAvailable {
             return "This device has no document scanner, so the cards have to come from a PDF. Scanned front-and-back, in card order."
         }
-        return "Photograph both sides of every card, in order. The scanner's PDF is the surer route where you have one — the reading wants 200 DPI, and a phone capture has not been measured against that yet."
+        return "Photograph each card front, then back, in card order. Lay it flat in good light, with no shadow across the totals column."
     }
 
     // MARK: - The card guide

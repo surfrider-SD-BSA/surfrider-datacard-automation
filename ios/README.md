@@ -102,18 +102,14 @@ tested on a real card, and the design handoff calls it "the biggest open risk in
 the whole concept". **Measure it on a real card before telling a chapter to rely
 on it.**
 
-**So the button is gated.** `Beta.cameraCapture`, at the top of
-`Tally/Screens/CaptureScreen.swift`, decides whether it is offered at all, and
-it carries a BETA tag on the control itself when it is. Nothing is wrong with
-the code -- the rectification is right and the page-size arithmetic is right --
-so it is not deleted; what is missing is the measurement, and an unmeasured
-input should not sit beside the scanner as though the two were equal. Turn it
-off for a build going to volunteers typing up a real cleanup. With it off, the
-picker becomes the screen's primary action and the hint stops mentioning the
-camera.
-
-When the resolution has been measured on a real card, take the gate out and let
-it be an ordinary button.
+**It is an ordinary button in every build.** From 1 September to 18 October
+2026 it was in `BETA=1` TestFlight builds only. On 18 October it came back for
+every build, App Store included, without the BETA tag, and Info.plist carries
+NSCameraUsageDescription. `Camera.offered`, at the top of
+`Tally/Screens/CaptureScreen.swift`, still hides the button if that key is ever
+missing (iOS kills the app otherwise). Each photo is laid out 8.5 in wide at
+200 DPI so it reaches registration at the scanner's scale; before that fix every
+photographed page was refused.
 
 ## The share sheet
 

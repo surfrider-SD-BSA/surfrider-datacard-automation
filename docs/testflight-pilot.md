@@ -73,12 +73,12 @@ from the start.
 | Testers | 3–5, people building it and the chapter owner | one chapter's data-entry volunteers, 8–15 |
 | Group | Internal (App Store Connect users, up to 100) | External (up to 10,000) |
 | Review | None. Available when processing finishes | Beta App Review on the first build of a version, about a day |
-| Build | `BETA=1 ./ios/testflight.sh` — camera included | `./ios/testflight.sh` — store-shaped, camera absent |
+| Build | `./ios/testflight.sh` — camera included | `./ios/testflight.sh` — the same store-shaped build |
 | Answers | Does it read a card on a phone at all? What DPI does a photograph land at? | Does a real cleanup get filed faster, and correctly? |
 | Length | Until the answer is yes, or a week, whichever is longer | One cleanup each, minimum two cleanups total |
 
-**Round 1 is a camera build on purpose.** `Beta.cameraCapture` gates
-photographing the cards because nobody has measured what resolution a handheld
+**Round 1 is about the camera on purpose.** Since 18 Oct 2026 every build
+has the camera button, and nobody has measured what resolution a handheld
 capture reaches on a real card in beach light, and the handoff calls that the
 biggest open risk in the concept. That is not a question that can be reasoned
 about; it is a question for people who can hold a phone over a card. It is also
