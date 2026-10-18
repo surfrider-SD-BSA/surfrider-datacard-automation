@@ -1667,12 +1667,24 @@ function solidBlock(b: DigitBox): boolean {
  * two faint 1s), 2 wrong numbers, 5 marks from the neighbouring rows read as
  * digits, and 3 empty boxes read from smudges.
  *
- * So it is capped like a guess and always shown: `OVERSEGMENTED_CONFIDENCE`.
+ * So it is capped like a guess: `OVERSEGMENTED_CONFIDENCE`.
  */
 export const LIGHT_PENCIL = { depth: 20, maxDigits: 2 };
 
-/** Ceiling on a reading assembled from more pieces than a number can have, or made only of 1s. */
-export const OVERSEGMENTED_CONFIDENCE = 0.3;
+/**
+ * Ceiling on a reading assembled from more pieces than a number can have, made
+ * only of 1s, read from light pencil, or a solid block.
+ *
+ * It was 0.3, below every band that is taken, so these were always shown. Since
+ * the apps show a fixed share, that spent a person's look on them whatever else
+ * in the scan was likelier to be far off. At 0.7 they rank by their expected
+ * error like any other reading (and "11"/"111" still by `ONES_RANK` and
+ * `THREE_DIGIT_ONES` in prefill.ts). Apps' rule with Apple's second opinion,
+ * total off of the boxes taken unseen: 0.15 8,746; 0.3 8,076; 0.5 8,013;
+ * 0.7 7,910; 0.85 and 1 7,894. Misses of 10 or more 206 -> 193. Keeping
+ * all-1s readings at 0.3 and raising only the rest: 8,013.
+ */
+export const OVERSEGMENTED_CONFIDENCE = 0.7;
 
 /** The shipped model's on-disk shape: raw 0-255 bytes, base64 per exemplar. */
 interface EncodedModel {

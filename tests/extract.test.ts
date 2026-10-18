@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CellMap } from "../src/lib/cells";
-import { decodeModel } from "../src/lib/digits";
+import { decodeModel, OVERSEGMENTED_CONFIDENCE } from "../src/lib/digits";
 import { cellsForSide, viewRect } from "../src/lib/extract";
 import type { GrayImage } from "../src/lib/image";
 import { isAutoAccepted, prefillFor } from "../src/lib/prefill";
@@ -251,10 +251,10 @@ describe("a 1 made of printing or a pen line, not a digit", () => {
     expect(found).toHaveLength(0);
   });
 
-  it("shows a 1 that is a solid block of ink", () => {
+  it("caps a 1 that is a solid block of ink", () => {
     // A printed band at the box's edge, or a torn patch of card.
     const reading = read(page(4, total.y + 8, total.y + total.height - 8));
     expect(reading.value).toBe(1);
-    expect(isAutoAccepted(reading)).toBe(false);
+    expect(reading.confidence).toBeLessThanOrEqual(OVERSEGMENTED_CONFIDENCE);
   });
 });
