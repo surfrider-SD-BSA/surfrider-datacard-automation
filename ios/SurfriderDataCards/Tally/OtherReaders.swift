@@ -32,6 +32,10 @@ enum OtherReaders {
     /// `OTHER_READERS_DISAGREE` in src/lib/prefill.ts.
     static let disagree = 4
 
+    /// The first this many readers -- the fast ones -- read every box; the
+    /// TrOCRs only boxes still undecided. About 45 s of a scan.
+    static let everyBox = 5
+
     /// The most the open readers may take on one scan. A scan has to read in
     /// under 3 min 30 s on the phone (the owner's line, 18 October 2026), and
     /// reading, tiling and Apple's reader take the rest. What is not read by
@@ -45,12 +49,12 @@ enum OtherReaders {
     /// Each box's text from each reader, in `names` order; nil where a reader
     /// is missing, read nothing, or was not needed.
     ///
-    /// A box is settled once `disagree` readers have read another number than
-    /// `values` (ours), or too few readers are left to get there, or Apple
-    /// already disagreed (`flagged`). Readers after that are not asked: the
-    /// engine's count, and so which boxes are shown, comes out exactly as if
-    /// all eight had read every box (measured 18 October 2026: the same 1,035 of
-    /// 6,354 boxes; TrOCR-large reads 6.4% of them, the whole scan ~1.5 min).
+    /// The fast readers (`everyBox`) read every box. A TrOCR reads a box only
+    /// while it is undecided: fewer than `disagree` readers have read another
+    /// number than `values` (ours), enough readers are left to get there, and
+    /// Apple has not already disagreed (`flagged`). Which boxes are flagged
+    /// comes out exactly as if all eight had read every box; TrOCR-large reads
+    /// about 6% of them. src/lib/prefill.ts was measured with these counts.
     static func read(_ pngs: [Data], values: [Int], flagged: [Bool]) -> [[String?]] {
         let images = pngs.map(Pixels.init(png:))
         var texts = Array(repeating: [String?](repeating: nil, count: names.count), count: pngs.count)
@@ -61,8 +65,11 @@ enum OtherReaders {
         for (r, name) in names.enumerated() {
             if Date() >= deadline { break }
             let left = names.count - r
+            // The fast readers read every box: how many disagree ranks a box
+            // (OTHER_READERS_WEIGHT), not only whether four do.
             let open = images.indices.filter { b in
-                images[b] != nil && !flagged[b] && disagreed[b] < disagree && disagreed[b] + left >= disagree
+                images[b] != nil && (r < everyBox ||
+                    (!flagged[b] && disagreed[b] < disagree && disagreed[b] + left >= disagree))
             }
             if open.isEmpty { continue }
             autoreleasepool {

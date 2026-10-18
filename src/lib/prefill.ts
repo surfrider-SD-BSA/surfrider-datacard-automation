@@ -520,6 +520,20 @@ const TENS_WEIGHT = 0.5;
  */
 export const OTHER_READERS_DISAGREE = 4;
 
+/**
+ * How much each open reader that disagrees moves a box up, beyond the line:
+ * a flagged box ranks x(1 + this x every reader past `OTHER_READERS_DISAGREE`),
+ * an unflagged one x(1 + this x every reader that disagrees). Eight against
+ * ours is likelier wrong than four, three likelier than none.
+ *
+ * Measured 18 October 2026 with the counts the phone has (the five fast
+ * readers on every box, the TrOCRs only while a box is undecided): total off
+ * 6,884 -> 6,673, 6,878 -> 6,665, 6,838 -> 6,691 (seeds 1, 3, 0); halves A
+ * 2,977 -> 2,908, 3,129 -> 3,119, 3,099 -> 3,135; B 3,907 -> 3,765,
+ * 3,749 -> 3,546, 3,739 -> 3,556. 0.1 for either side was worse on two seeds.
+ */
+const OTHER_READERS_WEIGHT = 0.05;
+
 /** Letters the open readers write for handwritten digits, as Apple's are read (Engine.swift). */
 const LOOKALIKE: Record<string, string> = {
   l: "1", I: "1", "|": "1", i: "1", "!": "1", O: "0", o: "0", D: "0", Q: "0", S: "5", s: "5",
@@ -546,12 +560,18 @@ export function autoAcceptedInScan(
 ): boolean[] {
   const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
   const show = Math.ceil(readings.length * SHOW_SHARE);
-  const outvoted = (r: Reading, o: (number | null)[] | null | undefined) =>
-    (o ?? []).filter((v) => v != null && v !== r.value).length >= OTHER_READERS_DISAGREE;
-  const rank = (r: Reading, s: number | null | undefined, o: (number | null)[] | null | undefined) =>
-    (s != null && s !== r.value) || outvoted(r, o) ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r;
+  const against = (r: Reading, o: (number | null)[] | null | undefined) =>
+    (o ?? []).filter((v) => v != null && v !== r.value).length;
+  const flagged = (r: Reading, s: number | null | undefined, d: number) =>
+    (s != null && s !== r.value) || d >= OTHER_READERS_DISAGREE;
+  const score = (r: Reading, s: number | null | undefined, o: (number | null)[] | null | undefined, row: number | null | undefined) => {
+    const d = against(r, o);
+    const f = flagged(r, s, d);
+    const e = rowWeighted(expectedError(f ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r), r, row);
+    return e * (1 + OTHER_READERS_WEIGHT * (f ? Math.max(0, d - OTHER_READERS_DISAGREE) : d));
+  };
   const ranked = readings
-    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -rowWeighted(expectedError(rank(r!, second[i], others[i])), r!, rows[i]) }))
+    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -score(r!, second[i], others[i], rows[i]) }))
     .sort((a, b) => a.c - b.c || a.i - b.i);
   const accepted = readings.map((r) => !empty(r));
   let shown = readings.filter(empty).length;
