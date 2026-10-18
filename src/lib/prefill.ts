@@ -491,14 +491,15 @@ const TENS_WEIGHT = 0.5;
 /**
  * On iOS, open handwriting readers also read every box our reader read as
  * digits (`OtherReaders.swift`): docTR's CRNN, PARSeq and ViTSTR, PaddleOCR's
- * recognizer, EasyOCR's recognizer, and TrOCR small, base and large. A box
- * where at least this many of them read another number than ours is ranked as
- * if Apple had disagreed.
+ * PP-OCRv5 server recognizer, EasyOCR's recognizer, and TrOCR small, base and
+ * large. A box where at least this many of them read another number than ours
+ * is ranked as if Apple had disagreed.
  *
- * None of them is a better reader than ours -- taking their number when they
- * out-vote ours fixes about as many boxes as it breaks (33 for 30 with four
- * agreeing) -- but they make different mistakes from ours and from each other,
- * so when several disagree at once, ours is usually the one that is wrong.
+ * Taking their number instead of ours is worse -- when four agree it fixes
+ * about as many taken boxes as it breaks (33 for 30), and even PP-OCRv5 alone,
+ * right on 79% of the boxes it reads where ours is on 74%, takes total off
+ * 7,606 -> 8,512 -- but they make different mistakes from ours and from each
+ * other, so when several disagree at once, ours is usually the one wrong.
  *
  * Measured 18 October 2026 under the apps' rule with Apple's opinion (SECOND=
  * and OTHERS= in scripts/apps-rule.mjs), total off on the boxes taken unseen,
@@ -506,13 +507,16 @@ const TENS_WEIGHT = 0.5;
  * and two others trained the same way on other seeds:
  *
  *                 today   with the readers     half A           half B
- *     seed 1      7,606       7,036            3,600 -> 3,008   4,006 -> 4,042
- *     seed 3      7,775       7,019            3,682 -> 3,147   4,093 -> 3,872
- *     seed 0      7,910       6,840            3,833 -> 3,100   4,077 -> 3,740
+ *     seed 1      7,606       6,884            3,600 -> 2,977   4,006 -> 3,907
+ *     seed 3      7,775       6,874            3,682 -> 3,129   4,093 -> 3,745
+ *     seed 0      7,910       6,838            3,833 -> 3,099   4,077 -> 3,739
  *
- * 4 of 8 beat 3 and 5; seven readers without EasyOCR, 3 of 7, came to 7,044 /
- * 7,068 / 6,867. The phone reads only until a box is settled (OtherReaders.swift),
- * about 1 min 45 s for a scan's 244 written boxes on an M-series Mac.
+ * 4 of 8 beat 3 and 5. PP-OCRv5 replaced PaddleOCR v3 (7,036 / 7,019 / 6,840
+ * with v3). Not kept: more docTR readers (SAR, MASTER, mobile CRNN, ViPTR) and
+ * PP-OCRv6 small/medium or v5 English, added or in place of EasyOCR -- all
+ * worse; EasyOCR is weak alone but its mistakes are its own. The phone reads
+ * only until a box is settled (OtherReaders.swift), about 1 min 45 s for a
+ * scan's 244 written boxes on an M-series Mac.
  */
 export const OTHER_READERS_DISAGREE = 4;
 

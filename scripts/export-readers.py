@@ -4,15 +4,15 @@
 Eight readers, all free and open, downloaded from their publishers:
 
     doctr-crnn, doctr-parseq, doctr-vitstr   docTR (Mindee), recognition models
-    paddle-rec                               PaddleOCR v3 recognizer, as RapidOCR ships it
+    paddle-v5                                PaddleOCR PP-OCRv5 server recognizer
     easyocr-rec                              EasyOCR's English recognizer
     trocr-small, trocr-base, trocr-large     Microsoft TrOCR, handwritten
 
-Stored small enough for the App Store's 4 GB limit (2.5 GB in all): docTR's
+Stored small enough for the App Store's 4 GB limit (2.6 GB in all): docTR's
 CRNN and PARSeq and EasyOCR at half precision; ViTSTR and the TrOCR encoders
 at full (at half ViTSTR reads NaN, and the encoders run 2.4x slower on a
 CPU); the TrOCR decoders as 8-bit weights (half precision breaks their
-attention mask); PaddleOCR as it comes (11 MB). Measured 18 October 2026
+attention mask); PP-OCRv5 as published (96 MB). Measured 18 October 2026
 against the full-size readers: see OTHER_READERS_DISAGREE in src/lib/prefill.ts.
 
 Needs Python with torch, transformers, python-doctr, easyocr,
@@ -69,18 +69,30 @@ def doctr(tmp: pathlib.Path) -> None:
         (OUT / f"doctr-{name}.vocab.json").write_text(json.dumps(model.cfg["vocab"]))
 
 
-def paddle() -> None:
-    import onnxruntime as ort
-    import rapidocr_onnxruntime
+# PaddleOCR's PP-OCRv5 server recognizer, as RapidOCR publishes it. It replaced
+# v3 on 18 October 2026: alone it is right on 79% of the boxes it reads (ours
+# 74% on the same), and in the vote it took total off 7,036 -> 6,884.
+PADDLE_URL = (
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/"
+    "onnx/PP-OCRv5/rec/ch_PP-OCRv5_rec_server.onnx"
+)
+PADDLE_SHA256 = "e09385400eaaaef34ceff54aeb7c4f0f1fe014c27fa8b9905d4709b65746562a"
 
-    src = (
-        pathlib.Path(rapidocr_onnxruntime.__file__).parent / "models" / "ch_PP-OCRv3_rec_infer.onnx"
-    )
-    shutil.copy(src, OUT / "paddle-rec.onnx")
-    chars = (
-        ort.InferenceSession(str(src)).get_modelmeta().custom_metadata_map["character"].splitlines()
-    )
-    (OUT / "paddle-rec.vocab.json").write_text(
+
+def paddle() -> None:
+    import hashlib
+    import urllib.request
+
+    import onnxruntime as ort
+
+    dst = OUT / "paddle-v5.onnx"
+    urllib.request.urlretrieve(PADDLE_URL, dst)
+    if hashlib.sha256(dst.read_bytes()).hexdigest() != PADDLE_SHA256:
+        dst.unlink()
+        raise SystemExit(f"{PADDLE_URL} is not the model that was measured")
+    meta = ort.InferenceSession(str(dst)).get_modelmeta().custom_metadata_map
+    chars = meta["character"].splitlines()
+    (OUT / "paddle-v5.vocab.json").write_text(
         json.dumps(["blank", *chars, " "], ensure_ascii=False)
     )
 

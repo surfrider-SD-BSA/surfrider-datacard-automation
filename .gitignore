@@ -73,7 +73,7 @@ assets/reference/lines-*.png
 # put a second 3.4MB digit model in the history and let the app drift from src/
 # without the diff ever showing it.
 ios/SurfriderDataCards/web/
-# The open readers' models (2.5 GB), built by scripts/export-readers.py.
+# The open readers' models (2.6 GB), built by scripts/export-readers.py.
 ios/SurfriderDataCards/readers/*
 !ios/SurfriderDataCards/readers/README.md
 
