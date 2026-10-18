@@ -488,17 +488,66 @@ const TENS_WEIGHT = 0.5;
  * `second` holds the phone's own reading of each box where it has one
  * (SECOND_DISAGREES_CONFIDENCE), and `rows` each box's card row (TENS_WEIGHT).
  */
+/**
+ * On iOS, open handwriting readers also read every box our reader read as
+ * digits (`OtherReaders.swift`): docTR's CRNN, PARSeq and ViTSTR, PaddleOCR's
+ * recognizer, EasyOCR's recognizer, and TrOCR small, base and large. A box
+ * where at least this many of them read another number than ours is ranked as
+ * if Apple had disagreed.
+ *
+ * None of them is a better reader than ours -- taking their number when they
+ * out-vote ours fixes about as many boxes as it breaks (33 for 30 with four
+ * agreeing) -- but they make different mistakes from ours and from each other,
+ * so when several disagree at once, ours is usually the one that is wrong.
+ *
+ * Measured 18 October 2026 under the apps' rule with Apple's opinion (SECOND=
+ * and OTHERS= in scripts/apps-rule.mjs), total off on the boxes taken unseen,
+ * with the readers exactly as the phone runs them, for the shipped digit reader
+ * and two others trained the same way on other seeds:
+ *
+ *                 today   with the readers     half A           half B
+ *     seed 1      7,606       7,036            3,600 -> 3,008   4,006 -> 4,042
+ *     seed 3      7,775       7,019            3,682 -> 3,147   4,093 -> 3,872
+ *     seed 0      7,910       6,840            3,833 -> 3,100   4,077 -> 3,740
+ *
+ * 4 of 8 beat 3 and 5; seven readers without EasyOCR, 3 of 7, came to 7,044 /
+ * 7,068 / 6,867. The phone reads only until a box is settled (OtherReaders.swift),
+ * about 1 min 45 s for a scan's 244 written boxes on an M-series Mac.
+ */
+export const OTHER_READERS_DISAGREE = 4;
+
+/** Letters the open readers write for handwritten digits, as Apple's are read (Engine.swift). */
+const LOOKALIKE: Record<string, string> = {
+  l: "1", I: "1", "|": "1", i: "1", "!": "1", O: "0", o: "0", D: "0", Q: "0", S: "5", s: "5",
+  Z: "2", z: "2", B: "8", g: "9", q: "9", G: "6", b: "6", T: "7", A: "4",
+};
+
+/**
+ * An open reader's text as a number: the first run of digits after lookalike
+ * letters are read as digits, at most 999. The first run, not all digits: the
+ * readers often add a stroke of the box's printed edge after the number
+ * ("14 1", "7_1"), and the first run scored better (out/exp/wa/parse.cjs).
+ */
+export function numberFromReader(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const run = [...text].map((c) => LOOKALIKE[c] ?? c).join("").match(/\d+/);
+  return run ? Math.min(Number(run[0]), 999) : null;
+}
+
 export function autoAcceptedInScan(
   readings: (Reading | null | undefined)[],
   second: (number | null | undefined)[] = [],
   rows: (number | null | undefined)[] = [],
+  others: ((number | null)[] | null | undefined)[] = [],
 ): boolean[] {
   const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
   const show = Math.ceil(readings.length * SHOW_SHARE);
-  const rank = (r: Reading, s: number | null | undefined) =>
-    s != null && s !== r.value ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r;
+  const outvoted = (r: Reading, o: (number | null)[] | null | undefined) =>
+    (o ?? []).filter((v) => v != null && v !== r.value).length >= OTHER_READERS_DISAGREE;
+  const rank = (r: Reading, s: number | null | undefined, o: (number | null)[] | null | undefined) =>
+    (s != null && s !== r.value) || outvoted(r, o) ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r;
   const ranked = readings
-    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -rowWeighted(expectedError(rank(r!, second[i])), r!, rows[i]) }))
+    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -rowWeighted(expectedError(rank(r!, second[i], others[i])), r!, rows[i]) }))
     .sort((a, b) => a.c - b.c || a.i - b.i);
   const accepted = readings.map((r) => !empty(r));
   let shown = readings.filter(empty).length;

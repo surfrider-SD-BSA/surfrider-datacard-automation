@@ -120,6 +120,8 @@ struct SecondBox: Decodable, Sendable {
     let cardNumber: Int
     let row: Int
     let png: String
+    /// Our own reading of the box.
+    let value: Int
 }
 
 /// [card, row, taken] for every cell, after the second opinion.
@@ -279,12 +281,42 @@ final class Engine: NSObject, ObservableObject {
         // Off the main thread, and many boxes to a picture: Vision is ten times
         // faster on 36 boxes tiled 3 by 12 than on each alone, and as good
         // (out/exp/vis/mosaic.swift). Running pictures side by side is slower.
-        let opinions = await Task.detached(priority: .userInitiated) {
-            stride(from: 0, to: boxes.count, by: Self.tileColumns * Self.tileRows).flatMap { start in
+        let (opinions, texts) = await Task.detached(priority: .userInitiated) {
+            let apple = stride(from: 0, to: boxes.count, by: Self.tileColumns * Self.tileRows).flatMap { start in
                 Self.appleReadings(Array(boxes[start..<min(start + Self.tileColumns * Self.tileRows, boxes.count)]))
             }
+            // The open readers on the same crops (OtherReaders.swift), as text;
+            // the engine turns it into numbers the way it was scored.
+            let began = Date()
+            var appleDisagrees = Set<String>()
+            for o in apple where o.count == 3 {
+                if let box = boxes.first(where: { $0.cardNumber == o[0] && $0.row == o[1] }), box.value != o[2] {
+                    appleDisagrees.insert("\(o[0]):\(o[1])")
+                }
+            }
+            let texts = OtherReaders.read(
+                boxes.map { Data(base64Encoded: $0.png) ?? Data() },
+                values: boxes.map(\.value),
+                flagged: boxes.map { appleDisagrees.contains("\($0.cardNumber):\($0.row)") })
+            #if DEBUG
+            // What each reader read, for checking the phone against out/exp/wa/phone.py.
+            let dump: [String: Any] = [
+                "seconds": Date().timeIntervalSince(began),
+                "boxes": Dictionary(uniqueKeysWithValues: zip(boxes, texts).map { box, t in
+                    ("\(box.cardNumber):\(box.row)", t.map { $0 ?? "" })
+                }),
+            ]
+            if let data = try? JSONSerialization.data(withJSONObject: dump) {
+                try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("other-readers.json"))
+            }
+            #endif
+            return (apple, texts)
         }.value
-        guard let ranked: SecondRanked = try? await call("secondOpinions", params: ["opinions": opinions]) else { return }
+        let others: [[Any]] = zip(boxes, texts).map { box, t in
+            [box.cardNumber, box.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
+        }
+        guard let ranked: SecondRanked = try? await call(
+            "secondOpinions", params: ["opinions": opinions, "others": others]) else { return }
         var taken: [String: Bool] = [:]
         for entry in ranked.accepted { taken["\(entry.card):\(entry.row)"] = entry.accepted }
         for c in result.cards.indices {
