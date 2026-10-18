@@ -165,6 +165,7 @@ function rankedCells() {
   const accepted = autoAcceptedInScan(
     all.map((x) => x.prefill),
     all.map(({ card, cell }) => state.second.get(`${card.cardNumber}:${cell.row}`)),
+    all.map(({ cell }) => cell.row),
   );
   return all.map((x, i) => ({ ...x, accepted: accepted[i]! }));
 }
