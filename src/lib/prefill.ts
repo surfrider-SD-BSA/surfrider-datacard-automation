@@ -8,6 +8,7 @@
  * about. The desktop tool and the phone read it from here.
  */
 
+import { TENS_SHARE } from "./row-prior";
 import { reconcile, type Reading } from "./reading";
 import type { ExtractedCell } from "./extract";
 
@@ -424,6 +425,11 @@ const EXPECTED_ERROR = {
   ],
 };
 
+function rowWeighted(e: number, r: Reading, row: number | null | undefined): number {
+  if (row == null || r.source === "agreed" || String(Math.abs(Math.round(r.value))).length !== 1) return e;
+  return e * (1 + TENS_WEIGHT * (TENS_SHARE[row] ?? 0.2));
+}
+
 function expectedError(r: Reading): number {
   const text = String(Math.abs(Math.round(r.value)));
   const c = r.confidence;
@@ -464,22 +470,35 @@ function expectedError(r: Reading): number {
 const SECOND_DISAGREES_CONFIDENCE = 0.01;
 
 /**
+ * A one-digit reading ranks higher the more often its row is counted in tens
+ * (`TENS_SHARE`): its expected error is multiplied by 1 + TENS_WEIGHT x share.
+ *
+ * The commonest big miss taken unseen is a two-digit number read as one digit,
+ * and those cluster on the rows that are usually two digits. Fitted on half the
+ * scans and scored on the other, both halves improve (3,843 -> 3,779 and
+ * 4,514 -> 4,318 total off); 0.5 to 1 all help, past that it hurts. Not on
+ * readings both readers agreed on.
+ */
+const TENS_WEIGHT = 0.5;
+
+/**
  * Which of a scan's readings are taken as read: all but the least confident
  * `SHOW_SHARE` of them. Same order in as out. Ties at the line are broken by
  * order on the card, so the share is exact and the answer the same everywhere.
  * `second` holds the phone's own reading of each box where it has one
- * (SECOND_DISAGREES_CONFIDENCE).
+ * (SECOND_DISAGREES_CONFIDENCE), and `rows` each box's card row (TENS_WEIGHT).
  */
 export function autoAcceptedInScan(
   readings: (Reading | null | undefined)[],
   second: (number | null | undefined)[] = [],
+  rows: (number | null | undefined)[] = [],
 ): boolean[] {
   const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
   const show = Math.ceil(readings.length * SHOW_SHARE);
   const rank = (r: Reading, s: number | null | undefined) =>
     s != null && s !== r.value ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r;
   const ranked = readings
-    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -expectedError(rank(r!, second[i])) }))
+    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -rowWeighted(expectedError(rank(r!, second[i])), r!, rows[i]) }))
     .sort((a, b) => a.c - b.c || a.i - b.i);
   const accepted = readings.map((r) => !empty(r));
   let shown = readings.filter(empty).length;

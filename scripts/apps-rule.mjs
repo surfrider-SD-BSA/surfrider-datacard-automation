@@ -120,6 +120,7 @@ for (const scan of cachedScans()) {
   const taken = autoAcceptedInScan(
     cells.map((x) => x.p),
     cells.map((x) => (x.p?.source === "digits" ? second[x.r.key] : undefined)),
+    cells.map((x) => x.r.row),
   );
   cells.forEach(({ r, c, p }, i) =>
     rows.push({

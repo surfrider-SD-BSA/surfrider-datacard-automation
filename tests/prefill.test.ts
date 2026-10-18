@@ -189,6 +189,21 @@ describe("autoAcceptedInScan with a second opinion", () => {
   });
 });
 
+describe("autoAcceptedInScan by row", () => {
+  const at = (value: number) => ({ value, confidence: 0.6, source: "digits", tally: null, digits: value }) as Reading;
+
+  it("shows a one-digit reading on a row usually counted in tens first", () => {
+    // Row 18, cigarette butts, is 10 or more on two cards in three; row 26 rarely.
+    expect(autoAcceptedInScan([at(4), at(4), at(4), at(4), at(4)], [], [26, 26, 18, 26, 26])).toEqual([
+      true,
+      true,
+      false,
+      true,
+      true,
+    ]);
+  });
+});
+
 describe("autoAcceptedInScan on three-digit readings", () => {
   const at = (value: number, confidence: number) =>
     ({ value, confidence, source: "digits", tally: null, digits: value }) as Reading;
