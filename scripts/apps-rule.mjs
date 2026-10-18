@@ -23,6 +23,8 @@
  * FOLDS_DIR picks another set of trained folds (default out/models/cnn).
  * SECOND=file.json, {"scan:card:row": value}, gives the boxes the phone's own
  * text reader read, as iOS does (SECOND_DISAGREES_CONFIDENCE in prefill.ts).
+ * OTHERS=file.json, {"scan:card:row": [value | null, ...]}, gives the open
+ * readers' numbers, as iOS reads them (OTHER_READERS_DISAGREE in prefill.ts).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -105,6 +107,7 @@ if (jobs && !process.env.SCANS) {
   process.exit(0);
 }
 const second = process.env.SECOND ? JSON.parse(readFileSync(process.env.SECOND, "utf8")) : {};
+const others = process.env.OTHERS ? JSON.parse(readFileSync(process.env.OTHERS, "utf8")) : {};
 const only = process.env.SCANS ? new Set(process.env.SCANS.split(",")) : null;
 
 const rows = [];
@@ -121,6 +124,7 @@ for (const scan of cachedScans()) {
     cells.map((x) => x.p),
     cells.map((x) => (x.p?.source === "digits" ? second[x.r.key] : undefined)),
     cells.map((x) => x.r.row),
+    cells.map((x) => (x.p?.source === "digits" ? others[x.r.key] : undefined)),
   );
   cells.forEach(({ r, c, p }, i) =>
     rows.push({

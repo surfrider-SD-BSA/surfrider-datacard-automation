@@ -41,6 +41,9 @@
 		AA00000000000000000004020 /* DriveDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004021 /* DriveDownload.swift */; };
 		AA00000000000000000004030 /* DrivePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004031 /* DrivePicker.swift */; };
 		AA0000000000000000000440 /* DriveUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000441 /* DriveUpload.swift */; };
+		AA0000000000000000000510 /* OtherReaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000500 /* OtherReaders.swift */; };
+		AA0000000000000000000511 /* readers in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000501 /* readers */; };
+		AA0000000000000000000512 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000521 /* onnxruntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +108,8 @@
 		AA00000000000000000004021 /* DriveDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveDownload.swift; path = Drive/DriveDownload.swift; sourceTree = "<group>"; };
 		AA00000000000000000004031 /* DrivePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DrivePicker.swift; path = Drive/DrivePicker.swift; sourceTree = "<group>"; };
 		AA0000000000000000000441 /* DriveUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DriveUpload.swift; path = Drive/DriveUpload.swift; sourceTree = "<group>"; };
+		AA0000000000000000000500 /* OtherReaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OtherReaders.swift; path = Tally/OtherReaders.swift; sourceTree = "<group>"; };
+		AA0000000000000000000501 /* readers */ = {isa = PBXFileReference; lastKnownFileType = folder; path = readers; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +117,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA0000000000000000000512 /* onnxruntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -151,6 +157,7 @@
 				AA0000000000000000000101 /* Components.swift */,
 				AA000000000000000000010F /* Glass.swift */,
 				AA0000000000000000000102 /* Engine.swift */,
+				AA0000000000000000000500 /* OtherReaders.swift */,
 				AA0000000000000000000130 /* DocumentScanner.swift */,
 				AA0000000000000000000131 /* PDFPicker.swift */,
 				AA0000000000000000000103 /* TallyModel.swift */,
@@ -174,6 +181,7 @@
 				AA0000000000000000000314 /* DataCards.entitlements */,
 				AA000000000000000000000F /* Assets.xcassets */,
 				AA000000000000000000000E /* web */,
+				AA0000000000000000000501 /* readers */,
 			);
 			path = SurfriderDataCards;
 			sourceTree = "<group>";
@@ -218,6 +226,9 @@
 				AA0000000000000000000306 /* PBXTargetDependency */,
 			);
 			name = "Data Cards";
+			packageProductDependencies = (
+				AA0000000000000000000521 /* onnxruntime */,
+			);
 			productName = SurfriderDataCards;
 			productReference = AA0000000000000000000005 /* Data Cards.app */;
 			productType = "com.apple.product-type.application";
@@ -266,6 +277,9 @@
 				Base,
 			);
 			mainGroup = AA0000000000000000000002;
+			packageReferences = (
+				AA0000000000000000000520 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
+			);
 			productRefGroup = AA0000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -284,6 +298,7 @@
 				AA000000000000000000001A /* Assets.xcassets in Resources */,
 				AA000000000000000000001B /* PrivacyInfo.xcprivacy in Resources */,
 				AA0000000000000000000013 /* web in Resources */,
+				AA0000000000000000000511 /* readers in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -307,6 +322,7 @@
 				AA0000000000000000000201 /* Components.swift in Sources */,
 				AA000000000000000000020F /* Glass.swift in Sources */,
 				AA0000000000000000000202 /* Engine.swift in Sources */,
+				AA0000000000000000000510 /* OtherReaders.swift in Sources */,
 				AA0000000000000000000230 /* DocumentScanner.swift in Sources */,
 				AA0000000000000000000231 /* PDFPicker.swift in Sources */,
 				AA0000000000000000000203 /* TallyModel.swift in Sources */,
@@ -611,6 +627,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA0000000000000000000520 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager";
+			requirement = {
+				kind = exactVersion;
+				version = 1.20.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0000000000000000000521 /* onnxruntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000520 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AA0000000000000000000001 /* Project object */;
 }

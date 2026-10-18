@@ -39,7 +39,7 @@ import {
   viewRect,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
-import { autoAcceptedInScan, prefillFor } from "./lib/prefill";
+import { autoAcceptedInScan, numberFromReader, prefillFor } from "./lib/prefill";
 import { rasterizePdf } from "./lib/pdf";
 import {
   pairIntoCards,
@@ -157,6 +157,8 @@ const state = {
   problems: [] as PairingProblem[],
   /** The phone's own reading of a box, keyed "card:row" (SECOND_DISAGREES_CONFIDENCE in lib/prefill.ts). */
   second: new Map<string, number>(),
+  /** The open readers' numbers for a box, keyed "card:row" (OTHER_READERS_DISAGREE in lib/prefill.ts). */
+  others: new Map<string, (number | null)[]>(),
 };
 
 /** Every cell of the scan in order, with its reading and the phone's second opinion, ranked. */
@@ -166,6 +168,7 @@ function rankedCells() {
     all.map((x) => x.prefill),
     all.map(({ card, cell }) => state.second.get(`${card.cardNumber}:${cell.row}`)),
     all.map(({ cell }) => cell.row),
+    all.map(({ card, cell }) => state.others.get(`${card.cardNumber}:${cell.row}`)),
   );
   return all.map((x, i) => ({ ...x, accepted: accepted[i]! }));
 }
@@ -345,6 +348,7 @@ async function process(params: ProcessParams) {
   state.cards = cards.map(assembleCard);
   state.problems = problems;
   state.second.clear();
+  state.others.clear();
   progress("done", 1);
 
   return {
@@ -468,21 +472,28 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
 function secondOpinionBoxes() {
   return rankedCells()
     .filter((x) => x.prefill?.source === "digits")
-    .map(({ card, cell }) => {
+    .map(({ card, cell, prefill }) => {
       const r = cell.rect, m = 4;
       const canvas = cropToCanvas(cell.image, r.x - m, r.y - m, r.width + 2 * m, r.height + 2 * m, 1);
       return {
         cardNumber: card.cardNumber,
         row: cell.row,
         png: canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, ""),
+        // Our reading, so the open readers can stop on a box once it is settled (OtherReaders.swift).
+        value: prefill!.value,
       };
     });
 }
 
-/** Take the phone's readings, as [card, row, value], and say again which cells are taken as read. */
-function secondOpinions(params: { opinions: [number, number, number][] }) {
+/**
+ * Take the phone's readings, as [card, row, value], and the open readers' text
+ * as [card, row, [text | null, ...]], and say again which cells are taken as read.
+ */
+function secondOpinions(params: { opinions: [number, number, number][]; others?: [number, number, (string | null)[]][] }) {
   state.second.clear();
   for (const [card, row, value] of params.opinions) state.second.set(`${card}:${row}`, value);
+  state.others.clear();
+  for (const [card, row, texts] of params.others ?? []) state.others.set(`${card}:${row}`, texts.map(numberFromReader));
   return {
     accepted: rankedCells().map(({ card, cell, accepted }) => [card.cardNumber, cell.row, accepted]),
   };
@@ -617,6 +628,7 @@ function reset() {
   state.fileName = "";
   state.fileSize = 0;
   state.second.clear();
+  state.others.clear();
   return { ok: true };
 }
 

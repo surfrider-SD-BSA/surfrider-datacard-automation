@@ -16,6 +16,7 @@ import {
   PREFILL_GATE,
   autoAcceptFor,
   isAutoAccepted,
+  OTHER_READERS_DISAGREE,
   prefillFor,
   prefillTag,
 } from "../src/lib/prefill";
@@ -188,6 +189,26 @@ describe("autoAcceptedInScan with a second opinion", () => {
 
   it("changes nothing where the phone agrees or has no reading", () => {
     expect(autoAcceptedInScan(five, [4, undefined, null, 4, 7])).toEqual(autoAcceptedInScan(five));
+  });
+});
+
+describe("autoAcceptedInScan with the open readers", () => {
+  const at = (value: number, confidence: number) =>
+    ({ value, confidence, source: "digits", tally: null, digits: value }) as Reading;
+  const five = [at(4, 0.6), at(4, 0.6), at(4, 0.6), at(4, 0.6), at(7, 0.99)];
+  const votes = (n: number) => [...Array(n).fill(1), ...Array(8 - n).fill(7)] as (number | null)[];
+
+  it(`shows a sure reading ${OTHER_READERS_DISAGREE} of them read differently`, () => {
+    expect(autoAcceptedInScan(five, [], [], [null, null, null, null, votes(OTHER_READERS_DISAGREE)])).toEqual([
+      true, true, true, true, false,
+    ]);
+  });
+
+  it("changes nothing where fewer disagree, or they have no reading", () => {
+    const fewer = votes(OTHER_READERS_DISAGREE - 1);
+    const silent = Array(8).fill(null) as (number | null)[];
+    expect(autoAcceptedInScan(five, [], [], [null, null, null, null, fewer])).toEqual(autoAcceptedInScan(five));
+    expect(autoAcceptedInScan(five, [], [], [null, null, null, null, silent])).toEqual(autoAcceptedInScan(five));
   });
 });
 
