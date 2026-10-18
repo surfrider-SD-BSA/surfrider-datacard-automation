@@ -90,10 +90,9 @@
 	<!-- Photographing the cards: VisionKit's document scanner, which finds the
 	     page's corners and rectifies the perspective before the image reaches
 	     the pipeline. It was behind a BETA build from 1 Sep to 18 Oct 2026 and
-	     is now in every build, so the key ships too; iOS kills the app the
-	     moment the scanner is presented without it. The button still says BETA
-	     because a handheld capture has not been measured against the 200 DPI
-	     the reading wants. See Tally/DocumentScanner.swift.
+	     is now an ordinary button in every build, so the key ships too; iOS
+	     kills the app the moment the scanner is presented without it. See
+	     Tally/DocumentScanner.swift.
 
 	     There is still no NSPhotoLibraryUsageDescription: nothing here reads
 	     the library or writes to it. -->

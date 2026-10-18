@@ -168,10 +168,11 @@ and a shutter. A plain camera was refused before, correctly — *"a photograph h
 at an angle keystones, and registration corrects rotation and scale but not that."*
 `VNDocumentCameraViewController` rectifies the perspective before the image reaches
 the pipeline, which answers the objection rather than ignoring it. Captured pages
-are bound into a PDF laid out at `pixels × 72/200` so that rasterizing at 200 DPI
-returns exactly the pixels the camera captured. It is in every build since
-18 Oct 2026 (BETA builds only before) and tagged BETA on the control, because the resolution
-question below was never settled.
+are bound into a PDF laid out 8.5 in wide at 200 DPI, so a photo reaches
+registration at the scanner's scale (laying them out at `pixels × 72/200`, as
+the first version did, put a 12 MP photo at ~1.7x and every page was refused).
+It is an ordinary button in every build since 18 Oct 2026 (BETA builds only
+before). Hand-held photos in beach light are still unmeasured.
 
 **Screen 5 cannot retake one page.** The design offers *"Retake page 7"*. Per-page
 retake does not exist, so the screen offers a better scan instead, and says the

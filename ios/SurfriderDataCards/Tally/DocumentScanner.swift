@@ -87,7 +87,8 @@ enum CapturedPages {
     ///
     /// THE PAGE SIZE IS THE WHOLE POINT OF THIS FUNCTION. VisionKit crops to
     /// the paper's edges, so a page is one card, and the card is US letter
-    /// wide. Each page is laid out 612 points (8.5 in) wide and stored at 200
+    /// wide. Each page is laid out 612 points (8.5 in) across its short edge,
+    /// whichever way it was held, and stored at 200
     /// DPI, which is what the chapter's scanner produces and what `pdf.ts`
     /// rasterizes at. This used to keep the camera's own pixels instead, laid
     /// out at `pixels * 72/200`: a 12 MP capture then reached registration at
@@ -119,9 +120,13 @@ enum CapturedPages {
                 let image = page(index)
                 // `size` has the orientation applied; `cgImage` does not.
                 guard image.size.width > 0, image.size.height > 0 else { return }
+                // The SHORT edge is the card's 8.5 inches: a card photographed
+                // sideways comes back landscape, registration turns it upright,
+                // and scaling its long edge to 8.5 in would leave it at ~77%.
+                let scale = pageWidthPixels / min(image.size.width, image.size.height)
                 let pixels = CGSize(
-                    width: pageWidthPixels,
-                    height: (pageWidthPixels * image.size.height / image.size.width).rounded()
+                    width: (image.size.width * scale).rounded(),
+                    height: (image.size.height * scale).rounded()
                 )
                 let format = UIGraphicsImageRendererFormat()
                 format.scale = 1
