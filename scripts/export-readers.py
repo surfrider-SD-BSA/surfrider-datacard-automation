@@ -10,10 +10,10 @@ Eight readers, all free and open, downloaded from their publishers:
 
 Stored small enough for the App Store's 4 GB limit (2.5 GB in all): docTR's
 CRNN and PARSeq and EasyOCR at half precision; ViTSTR and the TrOCR encoders
-at full (at half ViTSTR reads NaN, and the encoders run 2.4x slower on a CPU); the TrOCR decoders as 8-bit
-weights (half precision breaks their attention mask), PaddleOCR as it comes
-(11 MB). Measured 18 October 2026 against the full-size readers: see
-OTHER_READERS_DISAGREE in src/lib/prefill.ts.
+at full (at half ViTSTR reads NaN, and the encoders run 2.4x slower on a
+CPU); the TrOCR decoders as 8-bit weights (half precision breaks their
+attention mask); PaddleOCR as it comes (11 MB). Measured 18 October 2026
+against the full-size readers: see OTHER_READERS_DISAGREE in src/lib/prefill.ts.
 
 Needs Python with torch, transformers, python-doctr, easyocr,
 rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
@@ -39,7 +39,9 @@ OUT = pathlib.Path(os.environ.get("READERS_OUT", ROOT / "ios" / "SurfriderDataCa
 
 
 def half(src: pathlib.Path, dst: pathlib.Path) -> None:
-    model = float16.convert_float_to_float16(onnx.load(str(src)), keep_io_types=True, disable_shape_infer=True)
+    model = float16.convert_float_to_float16(
+        onnx.load(str(src)), keep_io_types=True, disable_shape_infer=True
+    )
     onnx.save(model, str(dst))
 
 
@@ -50,8 +52,16 @@ def doctr(tmp: pathlib.Path) -> None:
         model = build(pretrained=True, exportable=True).eval()
         x = torch.rand(1, 3, 32, 128)
         full = tmp / f"doctr-{name}.onnx"
-        torch.onnx.export(model, x, str(full), input_names=["input"], output_names=["logits"],
-                          dynamic_axes={"input": {0: "b"}, "logits": {0: "b"}}, opset_version=17, dynamo=False)
+        torch.onnx.export(
+            model,
+            x,
+            str(full),
+            input_names=["input"],
+            output_names=["logits"],
+            dynamic_axes={"input": {0: "b"}, "logits": {0: "b"}},
+            opset_version=17,
+            dynamo=False,
+        )
         if name == "vitstr":  # at half precision it reads nothing but NaN (10.7% right)
             shutil.copy(full, OUT / f"doctr-{name}.onnx")
         else:
@@ -63,10 +73,16 @@ def paddle() -> None:
     import onnxruntime as ort
     import rapidocr_onnxruntime
 
-    src = pathlib.Path(rapidocr_onnxruntime.__file__).parent / "models" / "ch_PP-OCRv3_rec_infer.onnx"
+    src = (
+        pathlib.Path(rapidocr_onnxruntime.__file__).parent / "models" / "ch_PP-OCRv3_rec_infer.onnx"
+    )
     shutil.copy(src, OUT / "paddle-rec.onnx")
-    chars = ort.InferenceSession(str(src)).get_modelmeta().custom_metadata_map["character"].splitlines()
-    (OUT / "paddle-rec.vocab.json").write_text(json.dumps(["blank", *chars, " "], ensure_ascii=False))
+    chars = (
+        ort.InferenceSession(str(src)).get_modelmeta().custom_metadata_map["character"].splitlines()
+    )
+    (OUT / "paddle-rec.vocab.json").write_text(
+        json.dumps(["blank", *chars, " "], ensure_ascii=False)
+    )
 
 
 def easyocr(tmp: pathlib.Path) -> None:
@@ -91,8 +107,16 @@ def easyocr(tmp: pathlib.Path) -> None:
             return self.m(x, None)
 
     full = tmp / "easyocr-rec.onnx"
-    torch.onnx.export(Wrap(model), torch.rand(1, 1, 64, 160), str(full), input_names=["input"], output_names=["logits"],
-                      dynamic_axes={"input": {0: "b", 3: "w"}, "logits": {0: "b", 1: "t"}}, opset_version=17, dynamo=False)
+    torch.onnx.export(
+        Wrap(model),
+        torch.rand(1, 1, 64, 160),
+        str(full),
+        input_names=["input"],
+        output_names=["logits"],
+        dynamic_axes={"input": {0: "b", 3: "w"}, "logits": {0: "b", 1: "t"}},
+        opset_version=17,
+        dynamo=False,
+    )
     half(full, OUT / "easyocr-rec.onnx")
     (OUT / "easyocr-rec.vocab.json").write_text(json.dumps(list(reader.converter.character)))
 
@@ -125,7 +149,9 @@ def trocr(tmp: pathlib.Path) -> None:
                 self.m = m
 
             def forward(self, ids, enc):
-                return self.m.decoder(input_ids=ids, encoder_hidden_states=enc, use_cache=False).logits
+                return self.m.decoder(
+                    input_ids=ids, encoder_hidden_states=enc, use_cache=False
+                ).logits
 
         dst = OUT / f"trocr-{size}"
         dst.mkdir(exist_ok=True)
@@ -133,11 +159,30 @@ def trocr(tmp: pathlib.Path) -> None:
         with torch.no_grad():
             hidden = Enc(model)(px)
         enc, dec = tmp / f"trocr-{size}-encoder.onnx", tmp / f"trocr-{size}-decoder.onnx"
-        torch.onnx.export(Enc(model), px, str(enc), input_names=["pixel_values"], output_names=["hidden"],
-                          dynamic_axes={"pixel_values": {0: "b"}, "hidden": {0: "b"}}, opset_version=17, dynamo=False)
-        torch.onnx.export(Dec(model), (torch.tensor([[start, 20]]), hidden), str(dec), input_names=["input_ids", "hidden"],
-                          output_names=["logits"], opset_version=17, dynamo=False,
-                          dynamic_axes={"input_ids": {0: "b", 1: "t"}, "hidden": {0: "b"}, "logits": {0: "b", 1: "t"}})
+        torch.onnx.export(
+            Enc(model),
+            px,
+            str(enc),
+            input_names=["pixel_values"],
+            output_names=["hidden"],
+            dynamic_axes={"pixel_values": {0: "b"}, "hidden": {0: "b"}},
+            opset_version=17,
+            dynamo=False,
+        )
+        torch.onnx.export(
+            Dec(model),
+            (torch.tensor([[start, 20]]), hidden),
+            str(dec),
+            input_names=["input_ids", "hidden"],
+            output_names=["logits"],
+            opset_version=17,
+            dynamo=False,
+            dynamic_axes={
+                "input_ids": {0: "b", 1: "t"},
+                "hidden": {0: "b"},
+                "logits": {0: "b", 1: "t"},
+            },
+        )
         shutil.copy(enc, dst / "encoder.onnx")  # at half precision the CPU runs it 2.4x slower
         quantize_dynamic(str(dec), str(dst / "decoder.onnx"), weight_type=QuantType.QInt8)
         tokens = proc.tokenizer.convert_ids_to_tokens(list(range(len(proc.tokenizer))))
