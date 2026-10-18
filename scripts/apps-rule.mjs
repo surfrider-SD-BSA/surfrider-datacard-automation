@@ -21,6 +21,8 @@
  * --compare needs no cache: it reads two --out files and lists every box that
  * left, arrived, or changed value, source, or shown/taken, with its sheet value.
  * FOLDS_DIR picks another set of trained folds (default out/models/cnn).
+ * SECOND=file.json, {"scan:card:row": value}, gives the boxes the phone's own
+ * text reader read, as iOS does (SECOND_DISAGREES_CONFIDENCE in prefill.ts).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -102,6 +104,7 @@ if (jobs && !process.env.SCANS) {
   console.log(summarise(merged));
   process.exit(0);
 }
+const second = process.env.SECOND ? JSON.parse(readFileSync(process.env.SECOND, "utf8")) : {};
 const only = process.env.SCANS ? new Set(process.env.SCANS.split(",")) : null;
 
 const rows = [];
@@ -114,7 +117,10 @@ for (const scan of cachedScans()) {
     const [c] = cellsForSide(page(r), r.pageNumber, map(r), r.side, model);
     if (c) cells.push({ r, c, p: prefillFor(c) });
   }
-  const taken = autoAcceptedInScan(cells.map((x) => x.p));
+  const taken = autoAcceptedInScan(
+    cells.map((x) => x.p),
+    cells.map((x) => (x.p?.source === "digits" ? second[x.r.key] : undefined)),
+  );
   cells.forEach(({ r, c, p }, i) =>
     rows.push({
       scan,

@@ -21,6 +21,7 @@
 
 import Foundation
 import SwiftUI
+import Vision
 import WebKit
 
 // MARK: - What comes back
@@ -39,7 +40,7 @@ struct ScanCell: Decodable, Identifiable, Hashable {
         /// bundle and a build against a stale one should put every cell in
         /// front of a person rather than none. `AUTO_ACCEPT` in
         /// src/lib/prefill.ts is where the threshold lives and what it costs.
-        let autoAccepted: Bool?
+        var autoAccepted: Bool?
 
         var takenAsRead: Bool { autoAccepted == true }
 
@@ -69,7 +70,7 @@ struct ScanCell: Decodable, Identifiable, Hashable {
     let hasValue: Bool
     let tallyOnly: Bool
     let pageNumber: Int
-    let prefill: Prefill?
+    var prefill: Prefill?
 
     var id: Int { row }
 }
@@ -79,7 +80,7 @@ struct ScanCard: Decodable, Identifiable, Hashable {
     /// Card 1 is column C. Never inferred from where the ink is.
     let column: String
     let missingSides: [String]
-    let cells: [ScanCell]
+    var cells: [ScanCell]
 
     var id: Int { cardNumber }
 }
@@ -112,7 +113,29 @@ struct ScanResult: Decodable {
     let pages: [ScanPage]
     let minBannerOverlap: Double
     let problems: [ScanProblem]
-    let cards: [ScanCard]
+    var cards: [ScanCard]
+}
+
+struct SecondBox: Decodable, Sendable {
+    let cardNumber: Int
+    let row: Int
+    let png: String
+}
+
+/// [card, row, taken] for every cell, after the second opinion.
+struct SecondRanked: Decodable {
+    struct Entry: Decodable {
+        let card: Int
+        let row: Int
+        let accepted: Bool
+        init(from decoder: Decoder) throws {
+            var c = try decoder.unkeyedContainer()
+            card = try c.decode(Int.self)
+            row = try c.decode(Int.self)
+            accepted = try c.decode(Bool.self)
+        }
+    }
+    let accepted: [Entry]
 }
 
 struct CropResult: Decodable {
@@ -233,11 +256,102 @@ final class Engine: NSObject, ObservableObject {
         progressObserver = onProgress
         defer { progressObserver = nil }
 
-        return try await call("process", params: [
+        var result: ScanResult = try await call("process", params: [
             "url": "\(WebAssetSchemeHandler.scheme)://\(WebAssetSchemeHandler.host)/__inbox/\(token)",
             "fileName": url.lastPathComponent,
             "fileSize": size,
         ] as [String: Any])
+        await secondOpinion(on: &result)
+        return result
+    }
+
+    /// Have Apple's text reader look again at every box read as written digits,
+    /// and let the engine show first the ones it reads differently.
+    ///
+    /// Not a reader in its own right: it answers on one box in five and is
+    /// further off than ours where it does. But where it answers and disagrees,
+    /// ours has usually lost a digit. See `SECOND_DISAGREES_CONFIDENCE` in
+    /// src/lib/prefill.ts for what it is worth. Anything going wrong here
+    /// leaves the engine's own ranking, which is what Android uses.
+    private func secondOpinion(on result: inout ScanResult) async {
+        guard let boxes: [SecondBox] = try? await call("secondOpinionBoxes", params: [String: String]()),
+              !boxes.isEmpty else { return }
+        // Off the main thread, and many boxes to a picture: Vision is ten times
+        // faster on 36 boxes tiled 3 by 12 than on each alone, and as good
+        // (out/exp/vis/mosaic.swift). Running pictures side by side is slower.
+        let opinions = await Task.detached(priority: .userInitiated) {
+            stride(from: 0, to: boxes.count, by: Self.tileColumns * Self.tileRows).flatMap { start in
+                Self.appleReadings(Array(boxes[start..<min(start + Self.tileColumns * Self.tileRows, boxes.count)]))
+            }
+        }.value
+        guard let ranked: SecondRanked = try? await call("secondOpinions", params: ["opinions": opinions]) else { return }
+        var taken: [String: Bool] = [:]
+        for entry in ranked.accepted { taken["\(entry.card):\(entry.row)"] = entry.accepted }
+        for c in result.cards.indices {
+            for k in result.cards[c].cells.indices {
+                let key = "\(result.cards[c].cardNumber):\(result.cards[c].cells[k].row)"
+                if let t = taken[key], result.cards[c].cells[k].prefill != nil {
+                    result.cards[c].cells[k].prefill?.autoAccepted = t
+                }
+            }
+        }
+    }
+
+    nonisolated private static let tileColumns = 3
+    nonisolated private static let tileRows = 12
+    nonisolated private static let tileGap = 60
+
+    /// Apple's best reading of each box as a number, as [card, row, value],
+    /// read from one picture with the boxes tiled on white. A line of text
+    /// belongs to the box its middle falls in. Letters it commonly sees for
+    /// handwritten digits are read as those digits; the candidate with the
+    /// highest confidence that has any digit in it wins. This is the rule
+    /// `out/exp/vis/score.cjs` measured.
+    nonisolated private static func appleReadings(_ boxes: [SecondBox]) -> [[Int]] {
+        let images = boxes.map { Data(base64Encoded: $0.png).flatMap { UIImage(data: $0)?.cgImage } }
+        let cellW = (images.compactMap { $0?.width }.max() ?? 0) + tileGap
+        let cellH = (images.compactMap { $0?.height }.max() ?? 0) + tileGap
+        let width = tileColumns * cellW + tileGap, height = tileRows * cellH + tileGap
+        guard cellW > tileGap,
+              let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return [] }
+        ctx.setFillColor(gray: 1, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        var rects: [CGRect?] = []
+        for (k, image) in images.enumerated() {
+            guard let image else { rects.append(nil); continue }
+            let x = tileGap + (k % tileColumns) * cellW, top = tileGap + (k / tileColumns) * cellH
+            let rect = CGRect(x: x, y: height - top - image.height, width: image.width, height: image.height)
+            ctx.draw(image, in: rect)
+            rects.append(rect)
+        }
+        guard let mosaic = ctx.makeImage() else { return [] }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        try? VNImageRequestHandler(cgImage: mosaic).perform([request])
+
+        let lookalike: [Character: Character] = [
+            "l": "1", "I": "1", "|": "1", "i": "1", "!": "1", "O": "0", "o": "0", "D": "0", "Q": "0",
+            "S": "5", "s": "5", "Z": "2", "z": "2", "B": "8", "g": "9", "q": "9", "G": "6", "b": "6",
+            "T": "7", "A": "4",
+        ]
+        var best: [Int: (value: Int, confidence: Float)] = [:]
+        let half = Double(tileGap) / 2
+        for observation in request.results ?? [] {
+            let b = observation.boundingBox
+            let middle = CGPoint(x: b.midX * Double(width), y: b.midY * Double(height))
+            guard let k = rects.firstIndex(where: { $0?.insetBy(dx: -half, dy: -half).contains(middle) == true }) else { continue }
+            for candidate in observation.topCandidates(5) {
+                let digits = String(candidate.string.filter { !$0.isWhitespace }
+                    .map { lookalike[$0] ?? $0 }.filter(\.isASCII).filter(\.isNumber))
+                guard !digits.isEmpty else { continue }
+                let value = min(Int(digits.prefix(6)) ?? 999, 999)
+                if best[k] == nil || candidate.confidence > best[k]!.confidence { best[k] = (value, candidate.confidence) }
+            }
+        }
+        return best.keys.sorted().map { [boxes[$0].cardNumber, boxes[$0].row, best[$0]!.value] }
     }
 
     /// One cell's picture. `kind` is "total", "marks" or "context".

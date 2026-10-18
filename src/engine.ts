@@ -155,7 +155,19 @@ const state = {
   fileSize: 0,
   cards: [] as ExtractedCard[],
   problems: [] as PairingProblem[],
+  /** The phone's own reading of a box, keyed "card:row" (SECOND_DISAGREES_CONFIDENCE in lib/prefill.ts). */
+  second: new Map<string, number>(),
 };
+
+/** Every cell of the scan in order, with its reading and the phone's second opinion, ranked. */
+function rankedCells() {
+  const all = state.cards.flatMap((card) => card.cells.map((cell) => ({ card, cell, prefill: prefillFor(cell) })));
+  const accepted = autoAcceptedInScan(
+    all.map((x) => x.prefill),
+    all.map(({ card, cell }) => state.second.get(`${card.cardNumber}:${cell.row}`)),
+  );
+  return all.map((x, i) => ({ ...x, accepted: accepted[i]! }));
+}
 
 /** Card 1 is column C, and the mapping is never inferred from anything else. */
 function columnLetter(cardNumber: number): string {
@@ -331,6 +343,7 @@ async function process(params: ProcessParams) {
   const { cards, problems } = pairIntoCards(pages);
   state.cards = cards.map(assembleCard);
   state.problems = problems;
+  state.second.clear();
   progress("done", 1);
 
   return {
@@ -355,8 +368,7 @@ async function process(params: ProcessParams) {
     cards: ((): unknown[] => {
       // Ranked across the whole scan: the least sure share is shown, the rest
       // taken as read. See SHOW_SHARE in lib/prefill.ts.
-      const all = state.cards.flatMap((card) => card.cells.map((cell) => prefillFor(cell)));
-      const accepted = autoAcceptedInScan(all);
+      const accepted = rankedCells().map((x) => x.accepted);
       let k = 0;
       return state.cards.map((card) => ({
       cardNumber: card.cardNumber,
@@ -447,6 +459,34 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
   };
 }
 
+/**
+ * The boxes read as written digits, as PNGs of the printed box and 4 pixels
+ * round it at the scan's own resolution, for the phone's text reader to give a
+ * second opinion on. That crop is the one it was measured on.
+ */
+function secondOpinionBoxes() {
+  return rankedCells()
+    .filter((x) => x.prefill?.source === "digits")
+    .map(({ card, cell }) => {
+      const r = cell.rect, m = 4;
+      const canvas = cropToCanvas(cell.image, r.x - m, r.y - m, r.width + 2 * m, r.height + 2 * m, 1);
+      return {
+        cardNumber: card.cardNumber,
+        row: cell.row,
+        png: canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, ""),
+      };
+    });
+}
+
+/** Take the phone's readings, as [card, row, value], and say again which cells are taken as read. */
+function secondOpinions(params: { opinions: [number, number, number][] }) {
+  state.second.clear();
+  for (const [card, row, value] of params.opinions) state.second.set(`${card}:${row}`, value);
+  return {
+    accepted: rankedCells().map(({ card, cell, accepted }) => [card.cardNumber, cell.row, accepted]),
+  };
+}
+
 interface ExportParams {
   event: {
     date: string;
@@ -489,8 +529,8 @@ function trainingBoxes(
   untouched: Set<string>,
   seen: Set<string>,
 ): TrainingBox[] {
-  const all = state.cards.flatMap((card) => card.cells.map((cell) => ({ card, cell })));
-  const accepted = autoAcceptedInScan(all.map(({ cell }) => prefillFor(cell)));
+  const all = rankedCells();
+  const accepted = all.map((x) => x.accepted);
   const shown = new Set<string>();
   all.forEach(({ card, cell }, i) => {
     const key = `${card.cardNumber}:${cell.row}`;
@@ -575,6 +615,7 @@ function reset() {
   state.problems = [];
   state.fileName = "";
   state.fileSize = 0;
+  state.second.clear();
   return { ok: true };
 }
 
@@ -585,6 +626,8 @@ const METHODS: Record<string, (params: any) => unknown | Promise<unknown>> = {
   },
   process,
   crop,
+  secondOpinionBoxes,
+  secondOpinions,
   export: exportWorkbook,
   reset,
 };

@@ -174,6 +174,21 @@ describe("autoAcceptedInScan ranking", () => {
   });
 });
 
+describe("autoAcceptedInScan with a second opinion", () => {
+  const at = (value: number, confidence: number) =>
+    ({ value, confidence, source: "digits", tally: null, digits: value }) as Reading;
+  const five = [at(4, 0.6), at(4, 0.6), at(4, 0.6), at(4, 0.6), at(7, 0.99)];
+
+  it("shows a sure reading the phone read differently", () => {
+    expect(autoAcceptedInScan(five)).toEqual([false, true, true, true, true]);
+    expect(autoAcceptedInScan(five, [null, null, null, null, 70])).toEqual([true, true, true, true, false]);
+  });
+
+  it("changes nothing where the phone agrees or has no reading", () => {
+    expect(autoAcceptedInScan(five, [4, undefined, null, 4, 7])).toEqual(autoAcceptedInScan(five));
+  });
+});
+
 describe("autoAcceptedInScan on three-digit readings", () => {
   const at = (value: number, confidence: number) =>
     ({ value, confidence, source: "digits", tally: null, digits: value }) as Reading;

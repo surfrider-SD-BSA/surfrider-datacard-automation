@@ -440,15 +440,46 @@ function expectedError(r: Reading): number {
 }
 
 /**
+ * A written number the phone's own text reader saw differently is ranked as if
+ * read at the lowest confidence, so it is among the first shown.
+ *
+ * On iOS, Apple's Vision text reader looks at each box our reader read as
+ * digits (`secondOpinionBoxes` in engine.ts). It gives a number on only one box
+ * in five and is further off than ours where it does (20,080 against 16,447 on
+ * the same 714 boxes), so it is no reader to fill boxes with. But where it does
+ * answer and disagrees, ours is usually the one wrong, and by a lot -- it sees
+ * the digit ours lost ("10" for 100, "0" for 90, "2" for 20). The 77 taken
+ * boxes it disagreed on were off by 1,283 in all; the next 77 by our own
+ * ranking, by 229.
+ *
+ * The phone reads 36 boxes at a time, tiled 3 by 12 on one picture: ten times
+ * faster than one by one and as good (6.28 Seaport reads in 12 s, not 41 s,
+ * against 10 s without it). Under the apps' rule, same share shown, with the
+ * tiled readings (`SECOND=` in scripts/apps-rule.mjs): total off 9,461 ->
+ * 8,356, misses of 10 or more 247 -> 215, exactly right 2,258 -> 2,252.
+ * Android has no second opinion and is unchanged.
+ *
+ * Tried, not kept: trusting a shown box the phone agrees with (8,356 -> 8,689).
+ */
+const SECOND_DISAGREES_CONFIDENCE = 0.01;
+
+/**
  * Which of a scan's readings are taken as read: all but the least confident
  * `SHOW_SHARE` of them. Same order in as out. Ties at the line are broken by
  * order on the card, so the share is exact and the answer the same everywhere.
+ * `second` holds the phone's own reading of each box where it has one
+ * (SECOND_DISAGREES_CONFIDENCE).
  */
-export function autoAcceptedInScan(readings: (Reading | null | undefined)[]): boolean[] {
+export function autoAcceptedInScan(
+  readings: (Reading | null | undefined)[],
+  second: (number | null | undefined)[] = [],
+): boolean[] {
   const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
   const show = Math.ceil(readings.length * SHOW_SHARE);
+  const rank = (r: Reading, s: number | null | undefined) =>
+    s != null && s !== r.value ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r;
   const ranked = readings
-    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -expectedError(r!) }))
+    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -expectedError(rank(r!, second[i])) }))
     .sort((a, b) => a.c - b.c || a.i - b.i);
   const accepted = readings.map((r) => !empty(r));
   let shown = readings.filter(empty).length;
