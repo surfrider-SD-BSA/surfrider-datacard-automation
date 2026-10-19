@@ -25,6 +25,8 @@
  * text reader read, as iOS does (SECOND_DISAGREES_CONFIDENCE in prefill.ts).
  * OTHERS=file.json, {"scan:card:row": [value | null, ...]}, gives the open
  * readers' numbers, as iOS reads them (OTHER_READERS_DISAGREE in prefill.ts).
+ * TUNED=file.json, {"scan:card:row": text}, gives the tuned reader's text where
+ * iOS reads it, and fills those boxes as iOS does (tunedValue in prefill.ts).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -68,7 +70,7 @@ if (compare) {
 const { cachedScans, loadCells } = await import("./lib/cellcache.mjs");
 const { cellsForSide } = await import("../src/lib/extract.ts");
 const { decodeModel } = await import("../src/lib/digits.ts");
-const { prefillFor, autoAcceptedInScan } = await import("../src/lib/prefill.ts");
+const { prefillFor, autoAcceptedInScan, tunedValue } = await import("../src/lib/prefill.ts");
 
 const FOLDS = process.env.FOLDS_DIR ?? "out/models/cnn";
 const modelFor = (scan) =>
@@ -108,6 +110,7 @@ if (jobs && !process.env.SCANS) {
 }
 const second = process.env.SECOND ? JSON.parse(readFileSync(process.env.SECOND, "utf8")) : {};
 const others = process.env.OTHERS ? JSON.parse(readFileSync(process.env.OTHERS, "utf8")) : {};
+const tuned = process.env.TUNED ? JSON.parse(readFileSync(process.env.TUNED, "utf8")) : {};
 const only = process.env.SCANS ? new Set(process.env.SCANS.split(",")) : null;
 
 const rows = [];
@@ -130,7 +133,7 @@ for (const scan of cachedScans()) {
     rows.push({
       scan,
       key: r.key,
-      value: p.value,
+      value: tunedValue(p, tuned[r.key], others[r.key], second[r.key]),
       confidence: +p.confidence.toFixed(3),
       source: p.source,
       taken: taken[i],

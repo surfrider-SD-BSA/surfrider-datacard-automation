@@ -39,7 +39,7 @@ import {
   viewRect,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
-import { autoAcceptedInScan, numberFromReader, prefillFor } from "./lib/prefill";
+import { autoAcceptedInScan, numberFromReader, prefillFor, tunedValue } from "./lib/prefill";
 import { rasterizePdf } from "./lib/pdf";
 import {
   pairIntoCards,
@@ -489,13 +489,24 @@ function secondOpinionBoxes() {
  * Take the phone's readings, as [card, row, value], and the open readers' text
  * as [card, row, [text | null, ...]], and say again which cells are taken as read.
  */
-function secondOpinions(params: { opinions: [number, number, number][]; others?: [number, number, (string | null)[]][] }) {
+function secondOpinions(params: {
+  opinions: [number, number, number][];
+  others?: [number, number, (string | null)[]][];
+  tuned?: [number, number, string][];
+}) {
   state.second.clear();
   for (const [card, row, value] of params.opinions) state.second.set(`${card}:${row}`, value);
   state.others.clear();
   for (const [card, row, texts] of params.others ?? []) state.others.set(`${card}:${row}`, texts.map(numberFromReader));
+  const tuned = new Map((params.tuned ?? []).map(([card, row, text]) => [`${card}:${row}`, text]));
+  // Ranked on our own readings, then filled with the tuned reader's number
+  // where it has two others behind it (TUNED_AGREE in lib/prefill.ts).
   return {
-    accepted: rankedCells().map(({ card, cell, accepted }) => [card.cardNumber, cell.row, accepted]),
+    accepted: rankedCells().map(({ card, cell, accepted, prefill }) => {
+      const key = `${card.cardNumber}:${cell.row}`;
+      const value = prefill ? tunedValue(prefill, tuned.get(key), state.others.get(key), state.second.get(key)) : null;
+      return [card.cardNumber, cell.row, accepted, value !== prefill?.value ? value : null];
+    }),
   };
 }
 

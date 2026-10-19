@@ -7,6 +7,8 @@ Eight readers, all free and open, downloaded from their publishers:
     paddle-v5                                PaddleOCR PP-OCRv5 server recognizer
     easyocr-rec                              EasyOCR's English recognizer
     trocr-small, trocr-base, trocr-large     Microsoft TrOCR, handwritten
+    trocr-ours                               TrOCR-small fine-tuned on the chapter's boxes,
+                                             if scripts/train-trocr.py has run
 
 Stored small enough for the App Store's 4 GB limit (2.6 GB in all): docTR's
 CRNN and PARSeq and EasyOCR at half precision; ViTSTR and the TrOCR encoders
@@ -136,8 +138,16 @@ def easyocr(tmp: pathlib.Path) -> None:
 def trocr(tmp: pathlib.Path) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
-    for size in ["small", "base", "large"]:
-        name = f"microsoft/trocr-{size}-handwritten"
+    models = [
+        (f"microsoft/trocr-{s}-handwritten", f"trocr-{s}") for s in ["small", "base", "large"]
+    ]
+    # Our tuned reader, if scripts/train-trocr.py has made it here.
+    ours = ROOT / "out" / "models" / "trocr-ours"
+    if ours.exists():
+        models.append((str(ours), "trocr-ours"))
+    else:
+        print(f"no {ours}: the tuned reader is left out (scripts/train-trocr.py makes it)")
+    for name, folder in models:
         proc = TrOCRProcessor.from_pretrained(name)
         model = VisionEncoderDecoderModel.from_pretrained(name).eval()
         start = model.config.decoder_start_token_id
@@ -165,12 +175,12 @@ def trocr(tmp: pathlib.Path) -> None:
                     input_ids=ids, encoder_hidden_states=enc, use_cache=False
                 ).logits
 
-        dst = OUT / f"trocr-{size}"
+        dst = OUT / folder
         dst.mkdir(exist_ok=True)
         px = torch.rand(1, 3, 384, 384)
         with torch.no_grad():
             hidden = Enc(model)(px)
-        enc, dec = tmp / f"trocr-{size}-encoder.onnx", tmp / f"trocr-{size}-decoder.onnx"
+        enc, dec = tmp / f"{folder}-encoder.onnx", tmp / f"{folder}-decoder.onnx"
         torch.onnx.export(
             Enc(model),
             px,
