@@ -534,6 +534,39 @@ export const OTHER_READERS_DISAGREE = 4;
  */
 const OTHER_READERS_WEIGHT = 0.05;
 
+/**
+ * How many of the other readers (the open readers and Apple's) must read the
+ * same number as our own tuned reader before its number replaces ours.
+ *
+ * The tuned reader is TrOCR-small fine-tuned on the chapter's own TOTAL boxes
+ * and sheet values (scripts/train-trocr.py). Held out by halves of the scans
+ * it is right on 71.8% of boxes where ours is on 66.9%, and off by 25,969 in
+ * all against ours 41,442 -- the first reader better than ours on every box.
+ * Taking its number everywhere is still worse (7,606 -> 9,415: where ours is
+ * sure, ours is right), but where it disagrees with ours and two others read
+ * what it read, ours is the one wrong: total off on the boxes taken unseen
+ * 6,673 -> 6,431, 6,662 -> 6,409, 6,691 -> 6,407 for the shipped digit reader
+ * and two others (fixed 39-45 boxes, broke 7-9; every half better). One was
+ * worse (24 broken on every seed), three fixed fewer.
+ */
+export const TUNED_AGREE = 2;
+
+/**
+ * The number to fill a box with, given what the tuned reader read: its number
+ * where it differs from ours and `TUNED_AGREE` of the others read it too;
+ * otherwise ours. Only for digit readings.
+ */
+export function tunedValue(
+  r: Reading,
+  tuned: string | null | undefined,
+  others: (number | null)[] | null | undefined,
+  second: number | null | undefined,
+): number {
+  const t = numberFromReader(tuned);
+  if (r.source !== "digits" || t === null || t === r.value) return r.value;
+  return [...(others ?? []), second].filter((v) => v === t).length >= TUNED_AGREE ? t : r.value;
+}
+
 /** Letters the open readers write for handwritten digits, as Apple's are read (Engine.swift). */
 const LOOKALIKE: Record<string, string> = {
   l: "1", I: "1", "|": "1", i: "1", "!": "1", O: "0", o: "0", D: "0", Q: "0", S: "5", s: "5",

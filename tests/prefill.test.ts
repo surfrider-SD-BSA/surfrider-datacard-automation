@@ -17,6 +17,7 @@ import {
   autoAcceptFor,
   isAutoAccepted,
   OTHER_READERS_DISAGREE,
+  tunedValue,
   prefillFor,
   prefillTag,
 } from "../src/lib/prefill";
@@ -257,5 +258,21 @@ describe("autoAcceptedInScan on three-digit readings", () => {
       true,
       true,
     ]);
+  });
+});
+
+describe("tunedValue", () => {
+  const digits = { value: 5, confidence: 0.9, source: "digits", tally: null, digits: 5 } as Reading;
+
+  it("takes the tuned reader's number when two others read it too", () => {
+    expect(tunedValue(digits, "15", [15, null, 7], 15)).toBe(15);
+    expect(tunedValue(digits, "15", [15, 15, 7], undefined)).toBe(15);
+  });
+
+  it("keeps ours with fewer behind it, on agreement, or for counted tallies", () => {
+    expect(tunedValue(digits, "15", [15, null, 7], undefined)).toBe(5);
+    expect(tunedValue(digits, "5", [5, 5], 5)).toBe(5);
+    expect(tunedValue(digits, null, [15, 15], 15)).toBe(5);
+    expect(tunedValue({ ...digits, source: "tally" }, "15", [15, 15], 15)).toBe(5);
   });
 });
