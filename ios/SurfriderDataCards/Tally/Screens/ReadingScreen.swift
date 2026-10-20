@@ -107,17 +107,25 @@ struct ReadingScreen: View {
                         .foregroundStyle(Nocturne.text(68))
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if model.refusedPages.isEmpty {
+                    // The back button is hidden here, so every way this screen can
+                    // end needs a button out: nothing written found (a single page,
+                    // or the wrong file) and nothing left to check both had none.
+                    if !model.refusedPages.isEmpty {
+                        Button("Look at that page first") { model.path.append(.refused) }
+                            .buttonStyle(PrimaryButtonStyle())
+                    } else if model.allCells.isEmpty {
+                        Button("Try another scan") { dismiss() }
+                            .buttonStyle(PrimaryButtonStyle())
+                    } else if model.cells.isEmpty {
+                        Button("See the cards") { model.path.append(.cards) }
+                            .buttonStyle(PrimaryButtonStyle())
+                    } else {
                         Button("Start checking") {
                             model.index = 0
                             model.syncEntryToCurrentCell()
                             model.path.append(.review)
                         }
                         .buttonStyle(PrimaryButtonStyle())
-                        .disabled(model.cells.isEmpty)
-                    } else {
-                        Button("Look at that page first") { model.path.append(.refused) }
-                            .buttonStyle(PrimaryButtonStyle())
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -190,6 +198,8 @@ struct ReadingScreen: View {
         let refused = model.refusedPages.count
         if refused > 0 {
             text += " \(refused) page\(refused == 1 ? "" : "s") would not line up."
+        } else if cells == 0 {
+            text += " Nothing to fill in: is this the whole scan, fronts and backs?"
         }
         return text
     }

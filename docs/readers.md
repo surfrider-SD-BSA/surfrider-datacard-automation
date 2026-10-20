@@ -12,6 +12,8 @@ For every box our own digit reader (`src/lib/digits.ts`) read as written digits:
 4. *(Switched off since 20 October 2026, `OtherReaders.voteEnabled`: measured with every reader on every written box it made results worse; see below.)* **Eight open readers** vote on that number (`OtherReaders.read`, budget `budget`): PP-OCRv5, EasyOCR, docTR CRNN, ViTSTR and PARSeq (PARSeq fine-tuned on our boxes) read every box; TrOCR small, base and large only boxes still undecided.
 5. **Ranking** (`autoAcceptedInScan` in `prefill.ts`): a box Apple disagrees with, or at least 4 readers do (`OTHER_READERS_DISAGREE`), counts as flagged; the more readers disagree, the higher it ranks (`OTHER_READERS_WEIGHT`). The top 20% of each scan (`SHOW_SHARE`) is shown to a person; the rest is taken as read.
 
+For every **tally-only box** (strokes in the strip, no number in the TOTAL box), the app's own stroke counter (`src/lib/tally.ts`) counts it first. Then **our two tally readers** — TrOCR-small taught to read a strip as its count, first on drawn tallies and then on the chapter's own, from two random starts — read the strip (`OtherReaders.readTally`, budget `tallyBudget`). Where at least one gives one clean count, the average of their clean counts goes in at the box's own confidence (`tallyFromReaders` in `prefill.ts`); otherwise the counter's number stands.
+
 Swift reads the boxes and sends **text**; the engine turns text into numbers (`numberFromReader`) so the phone and the scorer share one rule.
 
 ## Measured
@@ -25,10 +27,22 @@ The models are not in git. In a Python environment with torch, transformers, pyt
 ```
 CELL_CACHE=out/cells-app npx vite-node scripts/box-crops.mjs   # our boxes and sheet values -> out/boxes
 python scripts/train-trocr.py                                   # tuned reader -> out/models/trocr-ours (~25 min, GPU)
-python scripts/export-readers.py --ours                         # tuned reader only (123 MB) -> ios/SurfriderDataCards/readers
+python scripts/export-readers.py --ours                         # tuned + tally readers (~370 MB) -> ios/SurfriderDataCards/readers
 ```
 
-That is all the app runs while the vote is off. Anything else already in that folder is bundled too, so empty it first (keep `README.md`) to ship the small app. To switch the vote back on, set `OtherReaders.voteEnabled` and export everything (`python scripts/export-readers.py`, ≈2.7 GB; it also needs `train-parseq.py`, ~1 h on a CPU, for the tuned PARSeq).
+That and the tally readers below (`--ours` exports them too) are all the app runs while the vote is off. Anything else already in that folder is bundled too, so empty it first (keep `README.md`) to ship the small app. To switch the vote back on, set `OtherReaders.voteEnabled` and export everything (`python scripts/export-readers.py`, ≈2.7 GB; it also needs `train-parseq.py`, ~1 h on a CPU, for the tuned PARSeq).
+
+The tally readers (`readers/tally-a`, `tally-b`):
+
+```
+CELL_CACHE=out/cells-app FOLDS_DIR=out/models/cnn-w4s1 npx vite-node scripts/tally-strips.mjs   # strips and sheet counts -> out/tally
+python scripts/train-tally.py synth                             # drawn tallies -> out/models/tally-synth (~80 min, GPU)
+python scripts/train-tally.py real --seed 0 --name tally-a      # ~15 min each
+python scripts/train-tally.py real --seed 1 --name tally-b
+python scripts/export-readers.py --tally                        # just these two
+```
+
+Retraining is a new roll of the dice: two random starts held out on the same scans differed by 590 in total off. Keep the pair that was measured unless the new one is measured too.
 
 Without them the app builds and runs as it did before #163: Apple is the only second opinion and our number is filled in.
 

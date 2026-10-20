@@ -10,6 +10,8 @@ Eight readers, all free and open, downloaded from their publishers:
     trocr-small, trocr-base, trocr-large     Microsoft TrOCR, handwritten
     trocr-ours                               TrOCR-small fine-tuned on the chapter's boxes,
                                              if scripts/train-trocr.py has run
+    tally-a, tally-b                         TrOCR-small taught to count tally strips, if
+                                             scripts/train-tally.py has run
 
 Stored small enough for the App Store's 4 GB limit (2.6 GB in all): docTR's
 CRNN and PARSeq and EasyOCR at half precision; ViTSTR and the TrOCR encoders
@@ -22,8 +24,10 @@ Needs Python with torch, transformers, python-doctr, easyocr,
 rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
 
     python scripts/export-readers.py            about 10 minutes, ~5 GB of downloads
-    python scripts/export-readers.py --ours     only trocr-ours (123 MB), all the app
-                                                runs while OtherReaders.voteEnabled is false
+    python scripts/export-readers.py --ours     only trocr-ours and the tally readers (~370 MB),
+                                                all the app runs while OtherReaders.voteEnabled
+                                                is false
+    python scripts/export-readers.py --tally    only the two tally readers (2 x 123 MB)
 """
 
 from __future__ import annotations
@@ -145,7 +149,7 @@ def easyocr(tmp: pathlib.Path) -> None:
     (OUT / "easyocr-rec.vocab.json").write_text(json.dumps(list(reader.converter.character)))
 
 
-def trocr(tmp: pathlib.Path, only_ours: bool = False) -> None:
+def trocr(tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
     models = [
@@ -159,6 +163,15 @@ def trocr(tmp: pathlib.Path, only_ours: bool = False) -> None:
         models.append((str(ours), "trocr-ours"))
     else:
         print(f"no {ours}: the tuned reader is left out (scripts/train-trocr.py makes it)")
+    # Our tally readers, if scripts/train-tally.py has made them.
+    for name in ["tally-a", "tally-b"]:
+        tally = ROOT / "out" / "models" / name
+        if tally.exists():
+            models.append((str(tally), name))
+        else:
+            print(f"no {tally}: that tally reader is left out (scripts/train-tally.py makes it)")
+    if only_tally:
+        models = [m for m in models if m[1].startswith("tally-")]
     for name, folder in models:
         proc = TrOCRProcessor.from_pretrained(name)
         model = VisionEncoderDecoderModel.from_pretrained(name).eval()
@@ -230,9 +243,9 @@ def main() -> None:
         sys.exit("no out/models/trocr-ours: run scripts/train-trocr.py first")
     with tempfile.TemporaryDirectory() as t:
         tmp = pathlib.Path(t)
-        if only_ours:
-            trocr(tmp, only_ours=True)
-            print(f"wrote {OUT / 'trocr-ours'}")
+        if only_ours or "--tally" in sys.argv[1:]:
+            trocr(tmp, only_ours=only_ours, only_tally=not only_ours)
+            print(f"wrote {OUT}")
             return
         doctr(tmp)
         paddle()
