@@ -30,7 +30,8 @@ struct ScanCell: Decodable, Identifiable, Hashable {
     struct Prefill: Decodable, Hashable {
         /// Ours, or the tuned reader's where two others read it too (`tunedValue` in prefill.ts).
         var value: Int
-        let confidence: Double
+        /// How sure the reading is; changed with `value` (`mainReading` in prefill.ts).
+        var confidence: Double
         /// "tally" | "digits" | "agreed" | "split" -- which reader spoke.
         let source: String
 
@@ -131,14 +132,16 @@ struct SecondRanked: Decodable {
         let card: Int
         let row: Int
         let accepted: Bool
-        /// The number to fill the box with instead of ours, if any.
+        /// The number to fill the box with instead of ours, if any, and how sure it is.
         let value: Int?
+        let confidence: Double?
         init(from decoder: Decoder) throws {
             var c = try decoder.unkeyedContainer()
             card = try c.decode(Int.self)
             row = try c.decode(Int.self)
             accepted = try c.decode(Bool.self)
             value = c.isAtEnd ? nil : try c.decodeIfPresent(Int.self)
+            confidence = c.isAtEnd ? nil : try c.decodeIfPresent(Double.self)
         }
     }
     let accepted: [Entry]
@@ -324,10 +327,10 @@ final class Engine: NSObject, ObservableObject {
         let tunedParams: [[Any]] = zip(boxes, tuned).compactMap { box, t in t.map { [box.cardNumber, box.row, $0] } }
         guard let ranked: SecondRanked = try? await call(
             "secondOpinions", params: ["opinions": opinions, "others": others, "tuned": tunedParams]) else { return }
-        var taken: [String: Bool] = [:], better: [String: Int] = [:]
+        var taken: [String: Bool] = [:], better: [String: (value: Int, confidence: Double?)] = [:]
         for entry in ranked.accepted {
             taken["\(entry.card):\(entry.row)"] = entry.accepted
-            if let v = entry.value { better["\(entry.card):\(entry.row)"] = v }
+            if let v = entry.value { better["\(entry.card):\(entry.row)"] = (v, entry.confidence) }
         }
         for c in result.cards.indices {
             for k in result.cards[c].cells.indices {
@@ -335,8 +338,9 @@ final class Engine: NSObject, ObservableObject {
                 if let t = taken[key], result.cards[c].cells[k].prefill != nil {
                     result.cards[c].cells[k].prefill?.autoAccepted = t
                 }
-                if let v = better[key], result.cards[c].cells[k].prefill != nil {
-                    result.cards[c].cells[k].prefill?.value = v
+                if let b = better[key], result.cards[c].cells[k].prefill != nil {
+                    result.cards[c].cells[k].prefill?.value = b.value
+                    if let confidence = b.confidence { result.cards[c].cells[k].prefill?.confidence = confidence }
                 }
             }
         }
