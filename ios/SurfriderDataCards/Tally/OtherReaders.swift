@@ -4,13 +4,15 @@ import ImageIO
 import OnnxRuntimeBindings
 
 /// Eight open handwriting readers, run on the phone with ONNX Runtime over the
-/// boxes our reader read as digits: docTR's CRNN, PARSeq and ViTSTR,
+/// boxes our reader read as digits: docTR's CRNN, PARSeq (fine-tuned on the
+/// chapter's boxes, scripts/train-parseq.py) and ViTSTR,
 /// PaddleOCR's PP-OCRv5 server recognizer, EasyOCR's recognizer, and TrOCR
 /// small, base and large.
 ///
-/// Only PP-OCRv5 reads better than ours where it answers, and even its number
-/// is worse to take than ours on the boxes taken unseen (8,512 against 7,606).
-/// But they make other mistakes than ours: where several read another number at once,
+/// PP-OCRv5 and the tuned PARSeq read better than ours where they answer, yet
+/// even PP-OCRv5's number is worse to take than ours on the boxes taken unseen
+/// (8,512 against 7,606). They make other mistakes than ours, though: where
+/// several read another number at once,
 /// ours is usually the one wrong, so the box is shown first
 /// (`OTHER_READERS_DISAGREE` in src/lib/prefill.ts, which also turns their
 /// text into numbers). Each reader is loaded, run over every box and let go

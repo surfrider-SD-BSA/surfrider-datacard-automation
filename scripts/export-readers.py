@@ -3,7 +3,8 @@
 
 Eight readers, all free and open, downloaded from their publishers:
 
-    doctr-crnn, doctr-parseq, doctr-vitstr   docTR (Mindee), recognition models
+    doctr-crnn, doctr-parseq, doctr-vitstr   docTR (Mindee), recognition models; PARSeq with
+                                             our fine-tuned weights if scripts/train-parseq.py ran
     paddle-v5                                PaddleOCR PP-OCRv5 server recognizer
     easyocr-rec                              EasyOCR's English recognizer
     trocr-small, trocr-base, trocr-large     Microsoft TrOCR, handwritten
@@ -51,7 +52,13 @@ def doctr(tmp: pathlib.Path) -> None:
     from doctr.models import crnn_vgg16_bn, parseq, vitstr_base
 
     for name, build in [("crnn", crnn_vgg16_bn), ("parseq", parseq), ("vitstr", vitstr_base)]:
-        model = build(pretrained=True, exportable=True).eval()
+        model = build(pretrained=True, exportable=True)
+        tuned = ROOT / "out" / "models" / f"{name}-ours.pt"
+        if tuned.exists():  # fine-tuned on the chapter's boxes (scripts/train-parseq.py)
+            model.load_state_dict(torch.load(tuned, map_location="cpu"))
+        elif name == "parseq":
+            print(f"no {tuned}: PARSeq is exported as published (scripts/train-parseq.py tunes it)")
+        model.eval()
         x = torch.rand(1, 3, 32, 128)
         full = tmp / f"doctr-{name}.onnx"
         torch.onnx.export(
