@@ -18,6 +18,8 @@ import {
   isAutoAccepted,
   OTHER_READERS_DISAGREE,
   mainReading,
+  tallyFromReaders,
+  tallyNumber,
   TUNED_DISAGREES,
   prefillFor,
   prefillTag,
@@ -259,6 +261,37 @@ describe("autoAcceptedInScan on three-digit readings", () => {
       true,
       true,
     ]);
+  });
+});
+
+describe("tallyFromReaders", () => {
+  const counted = { value: 3, confidence: 0.3, source: "tally", tally: 3, digits: null } as Reading;
+
+  it("reads only one clean count, or the same count repeated", () => {
+    expect(tallyNumber("12")).toBe(12);
+    expect(tallyNumber(" 7 ")).toBe(7);
+    expect(tallyNumber("22 22")).toBe(22);
+    expect(tallyNumber("28233")).toBeNull();
+    expect(tallyNumber("45 8")).toBeNull();
+    expect(tallyNumber("1 3 1")).toBeNull();
+    expect(tallyNumber("")).toBeNull();
+    expect(tallyNumber(null)).toBeNull();
+  });
+
+  it("puts in the average of the clean counts, rounded, at the box's own confidence", () => {
+    expect(tallyFromReaders(counted, ["8", "11"])).toMatchObject({ value: 10, confidence: 0.3, source: "tally" });
+    expect(tallyFromReaders(counted, ["8", "28233"])).toMatchObject({ value: 8, confidence: 0.3 });
+  });
+
+  it("keeps the app's count where neither reader gives a clean one", () => {
+    expect(tallyFromReaders(counted, ["45 8", null])).toBe(counted);
+    expect(tallyFromReaders(counted, undefined)).toBe(counted);
+    expect(tallyFromReaders(counted, ["3", "3"])).toBe(counted);
+  });
+
+  it("counts a box first read as a number in the strip as a tally", () => {
+    const written = { ...counted, source: "digits" } as Reading;
+    expect(tallyFromReaders(written, ["3"])).toMatchObject({ value: 3, source: "tally" });
   });
 });
 

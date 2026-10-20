@@ -574,6 +574,43 @@ export function mainReading(r: Reading, tuned: string | null | undefined): Readi
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
 
+/**
+ * A tally reader's text as a count, or null where it is not one clean number:
+ * one or two digits, or the same one or two digits repeated ("22 22"). Anything
+ * else ("28233", "45 8", "1 3 1") is the reader losing its way on a long or
+ * crowded strip, and the app's own count stands.
+ */
+export function tallyNumber(text: string | null | undefined): number | null {
+  const m = /^(\d{1,2})(?: \1)*$/.exec((text ?? "").trim());
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * A tally-only box (strokes, no number in the TOTAL box) with our two tally
+ * readers' count in it: the average of their clean counts, rounded, at the
+ * confidence the box already had. Unchanged where neither gives a clean count.
+ *
+ * The tally readers are TrOCR-small taught first on drawn tally strips and then
+ * on the chapter's own (scripts/train-tally.py), twice from different random
+ * starts. On the 299 tally-only boxes with a sheet number, held out by halves
+ * of the scans, the app's counter was exactly right on 77 and off by 2,220;
+ * the two readers averaged under this rule, 108 and 1,653.
+ *
+ * Measured 20 October 2026, honest scoring with the vote off, total off on the
+ * boxes taken unseen: 6,545 -> 6,467, 6,471 -> 6,425, 6,554 -> 6,513 for the
+ * shipped digit reader and two others. Half A better on all three (3,330 ->
+ * 3,273, 3,309 -> 3,249, 3,366 -> 3,313), half B on one (3,215 -> 3,194) and
+ * slightly worse on two (3,162 -> 3,176, 3,188 -> 3,200). The owner's call to
+ * ship it. A new confidence for the changed boxes changed which boxes are
+ * shown and was worse, so the box keeps its own.
+ */
+export function tallyFromReaders(r: Reading, texts: readonly (string | null | undefined)[] | undefined): Reading {
+  const counts = (texts ?? []).map(tallyNumber).filter((n): n is number => n !== null);
+  if (counts.length === 0) return r;
+  const value = Math.round(counts.reduce((a, b) => a + b, 0) / counts.length);
+  return value === r.value && r.source === "tally" ? r : { ...r, value, source: "tally" };
+}
+
 /** Letters the open readers write for handwritten digits, as Apple's are read (Engine.swift). */
 const LOOKALIKE: Record<string, string> = {
   l: "1", I: "1", "|": "1", i: "1", "!": "1", O: "0", o: "0", D: "0", Q: "0", S: "5", s: "5",

@@ -115,6 +115,38 @@ enum OtherReaders {
         return texts
     }
 
+    /// Our two tally readers (TrOCR-small taught to count tally strips,
+    /// scripts/train-tally.py, in `readers/tally-a` and `readers/tally-b`).
+    static let tallyNames = ["tally-a", "tally-b"]
+
+    /// The most the tally readers may take on one scan. A scan has about 16
+    /// tally-only boxes (441 over 28 scans), two readings each at ~0.1 s on an
+    /// M-series Mac; this is for the phone being slower, not the usual case.
+    static let tallyBudget: TimeInterval = 30
+
+    /// Each tally strip's text from each tally reader, in `tallyNames` order;
+    /// nil where a reader is missing, read nothing or ran out of `tallyBudget`.
+    /// The engine averages their clean counts (`tallyFromReaders` in
+    /// src/lib/prefill.ts).
+    static func readTally(_ pngs: [Data]) -> [[String?]] {
+        var texts = Array(repeating: [String?](repeating: nil, count: tallyNames.count), count: pngs.count)
+        guard !pngs.isEmpty, let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
+              let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
+        let images = pngs.map(Pixels.init(png:))
+        let deadline = Date().addingTimeInterval(tallyBudget)
+        for (r, name) in tallyNames.enumerated() {
+            autoreleasepool {
+                guard let reader = load(name, in: folder, env: env) else { return }
+                for b in images.indices {
+                    if Date() >= deadline { break }
+                    guard let image = images[b] else { continue }
+                    texts[b][r] = try? reader(image)
+                }
+            }
+        }
+        return texts
+    }
+
     /// `numberFromReader` in src/lib/prefill.ts: lookalike letters read as
     /// digits, then the first run of ASCII digits, at most 999.
     static func number(_ text: String?) -> Int? {
