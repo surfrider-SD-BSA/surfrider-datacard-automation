@@ -512,7 +512,12 @@ const TENS_WEIGHT = 0.5;
  *     seed 0      7,910       6,838            3,833 -> 3,099   4,077 -> 3,739
  *
  * 4 of 8 beat 3 and 5. PP-OCRv5 replaced PaddleOCR v3 (7,036 / 7,019 / 6,840
- * with v3). Not kept: more docTR readers (SAR, MASTER, mobile CRNN, ViPTR) and
+ * with v3). PARSeq is fine-tuned on the chapter's own boxes
+ * (scripts/train-parseq.py; held out by halves right on 68.8% where ours is on
+ * 67.2%): with it and the tuned TrOCR's fill-in (TUNED_AGREE), total off went
+ * 6,431 -> 6,200, 6,409 -> 6,140, 6,407 -> 6,338 (halves A 2,824 -> 2,748,
+ * 3,032 -> 2,788, 2,995 -> 2,903; B 3,607 -> 3,452, 3,377 -> 3,352,
+ * 3,412 -> 3,435). Tuning ViTSTR too: 6,227 / 6,066 / 6,249, two halves worse. Not kept: more docTR readers (SAR, MASTER, mobile CRNN, ViPTR) and
  * PP-OCRv6 small/medium or v5 English, added or in place of EasyOCR -- all
  * worse; EasyOCR is weak alone but its mistakes are its own. The phone reads
  * only until a box is settled (OtherReaders.swift), about 1 min 45 s for a
