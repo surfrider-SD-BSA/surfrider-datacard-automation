@@ -118,6 +118,13 @@ struct ScanResult: Decodable {
     var cards: [ScanCard]
 }
 
+/// A tally-only box's strip of strokes (`tallyStripBoxes` in src/engine.ts).
+struct TallyBox: Decodable, Sendable {
+    let cardNumber: Int
+    let row: Int
+    let png: String
+}
+
 struct SecondBox: Decodable, Sendable {
     let cardNumber: Int
     let row: Int
@@ -283,12 +290,14 @@ final class Engine: NSObject, ObservableObject {
     /// src/lib/prefill.ts for what it is worth. Anything going wrong here
     /// leaves the engine's own ranking, which is what Android uses.
     private func secondOpinion(on result: inout ScanResult) async {
-        guard let boxes: [SecondBox] = try? await call("secondOpinionBoxes", params: [String: String]()),
-              !boxes.isEmpty else { return }
+        let boxes: [SecondBox] = (try? await call("secondOpinionBoxes", params: [String: String]())) ?? []
+        // The tally-only boxes' strips, for our tally readers (tallyFromReaders in prefill.ts).
+        let strips: [TallyBox] = (try? await call("tallyStripBoxes", params: [String: String]())) ?? []
+        guard !boxes.isEmpty || !strips.isEmpty else { return }
         // Off the main thread, and many boxes to a picture: Vision is ten times
         // faster on 36 boxes tiled 3 by 12 than on each alone, and as good
         // (out/exp/vis/mosaic.swift). Running pictures side by side is slower.
-        let (opinions, texts, tuned) = await Task.detached(priority: .userInitiated) {
+        let (opinions, texts, tuned, counts) = await Task.detached(priority: .userInitiated) {
             let apple = stride(from: 0, to: boxes.count, by: Self.tileColumns * Self.tileRows).flatMap { start in
                 Self.appleReadings(Array(boxes[start..<min(start + Self.tileColumns * Self.tileRows, boxes.count)]))
             }
@@ -307,6 +316,7 @@ final class Engine: NSObject, ObservableObject {
                 }
             }
             let texts = OtherReaders.read(pngs, values: main, flagged: boxes.indices.map(appleDisagrees.contains))
+            let counts = OtherReaders.readTally(strips.map { Data(base64Encoded: $0.png) ?? Data() })
             #if DEBUG
             // What each reader read, for checking the phone against out/exp/wa/phone.py.
             let dump: [String: Any] = [
@@ -314,19 +324,26 @@ final class Engine: NSObject, ObservableObject {
                 "boxes": Dictionary(uniqueKeysWithValues: zip(zip(boxes, texts), tuned).map { bt, u in
                     ("\(bt.0.cardNumber):\(bt.0.row)", bt.1.map { $0 ?? "" } + [u ?? ""])
                 }),
+                "tally": Dictionary(uniqueKeysWithValues: zip(strips, counts).map { strip, t in
+                    ("\(strip.cardNumber):\(strip.row)", t.map { $0 ?? "" })
+                }),
             ]
             if let data = try? JSONSerialization.data(withJSONObject: dump) {
                 try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("other-readers.json"))
             }
             #endif
-            return (apple, texts, tuned)
+            return (apple, texts, tuned, counts)
         }.value
         let others: [[Any]] = zip(boxes, texts).map { box, t in
             [box.cardNumber, box.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
         }
         let tunedParams: [[Any]] = zip(boxes, tuned).compactMap { box, t in t.map { [box.cardNumber, box.row, $0] } }
+        let tallyParams: [[Any]] = zip(strips, counts).map { strip, t in
+            [strip.cardNumber, strip.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
+        }
         guard let ranked: SecondRanked = try? await call(
-            "secondOpinions", params: ["opinions": opinions, "others": others, "tuned": tunedParams]) else { return }
+            "secondOpinions",
+            params: ["opinions": opinions, "others": others, "tuned": tunedParams, "tally": tallyParams]) else { return }
         var taken: [String: Bool] = [:], better: [String: (value: Int, confidence: Double?)] = [:]
         for entry in ranked.accepted {
             taken["\(entry.card):\(entry.row)"] = entry.accepted
