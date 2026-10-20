@@ -43,11 +43,13 @@ enum OtherReaders {
     /// phone (the owner's line, 18 October 2026), and reading, tiling and
     /// Apple's reader take the rest. What is not read by
     /// then keeps fewer votes, so at worst a box is ranked as it was before.
-    static let budget: TimeInterval = 125
+    static let budget: TimeInterval = 110
 
     /// The most our tuned reader may take on one scan (~0.1 s a box on an
-    /// M-series Mac; a scan has 244 written boxes on average).
-    static let mainBudget: TimeInterval = 45
+    /// M-series Mac; a scan has 244 written boxes on average). It reads first
+    /// and gets the larger share: in the simulator with the Mac busy, 45 s read
+    /// 203 of 299 boxes. Its number is worth more than the vote's last voices.
+    static let mainBudget: TimeInterval = 60
 
     /// All the phone's cores, up to the six an iPhone has: a 299-box scan took
     /// 4 min 36 s on two threads in the simulator.
