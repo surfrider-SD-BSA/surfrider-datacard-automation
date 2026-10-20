@@ -94,12 +94,21 @@ final class HarnessUITests: XCTestCase {
         read.tap()
 
         // Screen 4: reading. It ends in "Start checking", or in a scan that could not
-        // be read, or in a page refused -- and the last two are answers too.
+        // be read, or in a page refused -- and the last two are answers too. So are
+        // "Try another scan" (nothing written found) and "See the cards" (nothing
+        // left to check), which go on to the cards list without the review screen.
         let start = app.buttons["Start checking"]
         let failed = app.staticTexts["That scan could not be read."]
         let refused = app.buttons["Look at that page first"]
+        let nothing = app.buttons["Try another scan"]
+        let cardsOnly = app.buttons["See the cards"]
         let began = Date()
-        while !start.exists && Date().timeIntervalSince(began) < 1800 {
+        while !start.exists && !cardsOnly.exists && Date().timeIntervalSince(began) < 1800 {
+            if nothing.exists && !failed.exists {
+                shot("nothing-found")
+                note("NOTHING FOUND: \(texts(app))")
+                return
+            }
             if failed.exists || refused.exists {
                 shot("reading-refused")
                 note("READ REFUSED: \(texts(app))")
@@ -108,16 +117,21 @@ final class HarnessUITests: XCTestCase {
             }
             sleep(2)
         }
-        XCTAssertTrue(start.exists, "reading did not finish in 30 minutes: \(texts(app))")
+        XCTAssertTrue(start.exists || cardsOnly.exists, "reading did not finish in 30 minutes: \(texts(app))")
         note("read in \(Int(Date().timeIntervalSince(began)))s")
         shot("reading-done")
-        start.tap()
+        if cardsOnly.exists {
+            note("NOTHING TO CHECK: \(texts(app))")
+            cardsOnly.tap()
+        } else {
+            start.tap()
 
-        // Screen 6, then 7: every box on the review list.
-        let all = app.buttons["All cards"]
-        XCTAssertTrue(all.waitForExistence(timeout: 30))
-        note("review first: \(texts(app))")
-        all.tap()
+            // Screen 6, then 7: every box on the review list.
+            let all = app.buttons["All cards"]
+            XCTAssertTrue(all.waitForExistence(timeout: 30))
+            note("review first: \(texts(app))")
+            all.tap()
+        }
         XCTAssertTrue(app.buttons["Make the spreadsheet"].waitForExistence(timeout: 30))
         note("cards header: \(texts(app).prefix(4))")
 
