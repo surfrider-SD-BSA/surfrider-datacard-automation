@@ -9,14 +9,14 @@ For every box our own digit reader (`src/lib/digits.ts`) read as written digits:
 1. **Our digit reader** reads it first (in the web bundle, as before). Its number and confidence are the starting point.
 2. **Apple's Vision text reader** reads the boxes tiled 3 by 12 (`Engine.swift`, `appleReadings`).
 3. **Our tuned reader** — TrOCR-small fine-tuned on the chapter's own boxes — reads every written box (`OtherReaders.readMain`, budget `mainBudget`). Where it reads a different number than ours, its number is filled in at confidence 0.4 (`mainReading`, `TUNED_DISAGREES` in `src/lib/prefill.ts`).
-4. **Eight open readers** vote on that number (`OtherReaders.read`, budget `budget`): PP-OCRv5, EasyOCR, docTR CRNN, ViTSTR and PARSeq (PARSeq fine-tuned on our boxes) read every box; TrOCR small, base and large only boxes still undecided.
+4. *(Switched off since 20 October 2026, `OtherReaders.voteEnabled`: measured with every reader on every written box it made results worse; see below.)* **Eight open readers** vote on that number (`OtherReaders.read`, budget `budget`): PP-OCRv5, EasyOCR, docTR CRNN, ViTSTR and PARSeq (PARSeq fine-tuned on our boxes) read every box; TrOCR small, base and large only boxes still undecided.
 5. **Ranking** (`autoAcceptedInScan` in `prefill.ts`): a box Apple disagrees with, or at least 4 readers do (`OTHER_READERS_DISAGREE`), counts as flagged; the more readers disagree, the higher it ranks (`OTHER_READERS_WEIGHT`). The top 20% of each scan (`SHOW_SHARE`) is shown to a person; the rest is taken as read.
 
 Swift reads the boxes and sends **text**; the engine turns text into numbers (`numberFromReader`) so the phone and the scorer share one rule.
 
 ## Measured
 
-"Total off": the sum of how far the numbers taken unseen are from the chapter's typed sheets, on 25 scans (`scripts/apps-rule.mjs` with `SECOND=`, `OTHERS=`, `TUNED=`), for the shipped digit reader and two others trained the same way. Before any of this: 7,606. Now: about 5,570 (−27%). The steps and every number are in the comments of `prefill.ts` and the PRs.
+"Total off": the sum of how far the numbers taken unseen are from the chapter's typed sheets, on 25 scans (`scripts/apps-rule.mjs` with `SECOND=`, `OTHERS=`, `TUNED=`), for the shipped digit reader and two others trained the same way. Measured the honest way — every reader and Apple on every written box, as the phone reads them (`out/exp/wa/honest.sh`) — before any of this: 7,904 / 8,178 / 8,274; with our tuned reader as the main reader (and the vote off): 6,545 / 6,471 / 6,554, about 17–21% less. Earlier figures in the PRs (7,606 → ~5,570) were measured with readings only on boxes with a sheet value and are optimistic.
 
 ## Rebuilding the models
 
@@ -33,8 +33,9 @@ Without them the app builds and runs as it did before #163: Apple is the only se
 
 ## Things to know
 
-- **Time**: about 2.5–3 minutes of reading on an M-series Mac for an average scan (244 written boxes). The owner prefers a scan under about 3.5 minutes (a preference, not a limit). Both budgets cap the time; what is not read keeps fewer votes.
+- **Time**: with the vote off, the tuned reader adds about 30 s to an average scan (244 written boxes) on an M-series Mac; with the vote on, about 2.5–3 minutes. The owner prefers a scan under about 3.5 minutes (a preference, not a limit). Both budgets cap the time; what is not read keeps fewer votes.
 - **Not yet checked on a real iPhone**: speed and memory (TrOCR-large's encoder is 1.2 GB).
 - **Precision**: each model is stored at the smallest size that reads the same: half precision for docTR CRNN/PARSeq and EasyOCR, full for ViTSTR (half reads NaN) and the TrOCR encoders (half is 2.4× slower on a CPU), 8-bit for the TrOCR decoders.
+- **The vote is off.** With readings on every written box (`out/exp/wa/honest.sh`), total off was 7,904 / 8,178 / 8,274 before any readers, 7,099 / 7,080 / 7,129 with the tuned reader and the vote, and 6,545 / 6,471 / 6,554 with the tuned reader alone. Its earlier gains came from votes existing only for boxes with a sheet value.
 - **Scoring trap**: give every reader readings on every box the phone reads. A simulation with tuned readings only for sheet-known boxes showed ~5,100 for what is really ~5,570.
 - **Training trap**: with this transformers version, passing `labels=` to TrOCR shifts the targets twice. `scripts/train-trocr.py` keeps the tokenizer's leading `<s>`, which lines the two shifts up; dropping it makes the model write nothing.

@@ -31,6 +31,15 @@ enum OtherReaders {
         "trocr-small", "trocr-base", "trocr-large",
     ]
 
+    /// Whether the eight open readers vote at all. Off since 20 October 2026:
+    /// scored with every reader on every written box, as the phone reads them,
+    /// the vote made the boxes taken unseen worse, not better -- total off
+    /// 6,545 / 6,471 / 6,554 without it against 7,099 / 7,080 / 7,129 with it
+    /// (and 6,481-6,545 at its strictest), and it costs about 2 minutes a scan.
+    /// Its earlier gains came from measuring with votes only on sheet-known
+    /// boxes. Our tuned reader (`readMain`) and Apple's still run.
+    static let voteEnabled = false
+
     /// `OTHER_READERS_DISAGREE` in src/lib/prefill.ts.
     static let disagree = 4
 
@@ -47,10 +56,10 @@ enum OtherReaders {
     static let budget: TimeInterval = 110
 
     /// The most our tuned reader may take on one scan (~0.1 s a box on an
-    /// M-series Mac; a scan has 244 written boxes on average). It reads first
-    /// and gets the larger share: in the simulator with the Mac busy, 45 s read
-    /// 203 of 299 boxes. Its number is worth more than the vote's last voices.
-    static let mainBudget: TimeInterval = 60
+    /// M-series Mac; a scan has 244 written boxes on average). With the vote
+    /// off it has the time to itself: in the simulator with the Mac busy, 60 s
+    /// read 283 of 299 boxes.
+    static let mainBudget: TimeInterval = 120
 
     /// All the phone's cores, up to the six an iPhone has: a 299-box scan took
     /// 4 min 36 s on two threads in the simulator.
@@ -67,8 +76,9 @@ enum OtherReaders {
     /// comes out exactly as if all eight had read every box; TrOCR-large reads
     /// about 6% of them. src/lib/prefill.ts was measured with these counts.
     static func read(_ pngs: [Data], values: [Int], flagged: [Bool]) -> [[String?]] {
-        let images = pngs.map(Pixels.init(png:))
         var texts = Array(repeating: [String?](repeating: nil, count: names.count), count: pngs.count)
+        guard voteEnabled else { return texts }
+        let images = pngs.map(Pixels.init(png:))
         guard let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
         var disagreed = [Int](repeating: 0, count: pngs.count)
