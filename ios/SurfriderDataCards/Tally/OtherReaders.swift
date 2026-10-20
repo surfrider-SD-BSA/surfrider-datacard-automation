@@ -35,14 +35,15 @@ enum OtherReaders {
     static let disagree = 4
 
     /// The first this many readers -- the fast ones -- read every box; the
-    /// TrOCRs only boxes still undecided. About 45 s of a scan.
+    /// TrOCRs only boxes still undecided.
     static let everyBox = 5
 
     /// The most the open readers may take on one scan, after our tuned reader's
-    /// `mainBudget`. A scan has to read in under 3 min 30 s on the
-    /// phone (the owner's line, 18 October 2026), and reading, tiling and
-    /// Apple's reader take the rest. What is not read by
-    /// then keeps fewer votes, so at worst a box is ranked as it was before.
+    /// `mainBudget`. The owner would like a scan read in about 3 min 30 s on the
+    /// phone (a preference, 19 October 2026: accuracy first, but bring the cost
+    /// in time), and reading, tiling and Apple's reader take the rest. What is
+    /// not read by then keeps fewer votes, so at worst a box is ranked as it
+    /// would be without them.
     static let budget: TimeInterval = 110
 
     /// The most our tuned reader may take on one scan (~0.1 s a box on an
@@ -60,7 +61,8 @@ enum OtherReaders {
     ///
     /// The fast readers (`everyBox`) read every box. A TrOCR reads a box only
     /// while it is undecided: fewer than `disagree` readers have read another
-    /// number than `values` (ours), enough readers are left to get there, and
+    /// number than `values` (the box's number: our tuned reader's where it read
+    /// one, `readMain`), enough readers are left to get there, and
     /// Apple has not already disagreed (`flagged`). Which boxes are flagged
     /// comes out exactly as if all eight had read every box; TrOCR-large reads
     /// about 6% of them. src/lib/prefill.ts was measured with these counts.
@@ -153,7 +155,7 @@ enum OtherReaders {
                     for t in 0..<steps {
                         let k = try argmax(logits, t * classes, classes)
                         if ctc {
-                            if k != previous && k != vocab.count { text.append(vocab[k]) }
+                            if k != previous && k < vocab.count { text.append(vocab[k]) }
                             previous = k
                         } else {
                             if k >= vocab.count { break }
@@ -174,7 +176,7 @@ enum OtherReaders {
                     var text = "", previous = -1
                     for t in 0..<steps {
                         let k = try argmax(logits, t * classes, classes, keep: paddle ? nil : keep)
-                        if k != previous && k != 0 { text += vocab[k] }
+                        if k != previous && k != 0 && k < vocab.count { text += vocab[k] }
                         previous = k
                     }
                     return text
@@ -199,7 +201,8 @@ enum OtherReaders {
                                                   outputNames: ["logits"], runOptions: nil)["logits"]!
                         let logits = try floats(out), classes = try out.tensorTypeAndShapeInfo().shape.last!.intValue
                         let k = try argmax(logits, (ids.count - 1) * classes, classes)
-                        if k == eos { break }
+                        // A model's vocabulary can be padded past its tokenizer's.
+                        if k == eos || k >= tokens.count { break }
                         ids.append(Int64(k))
                         text += tokens[k]
                     }

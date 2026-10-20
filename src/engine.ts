@@ -509,13 +509,14 @@ function secondOpinions(params: {
   for (const [card, row, texts] of params.others ?? []) state.others.set(`${card}:${row}`, texts.map(numberFromReader));
   state.tuned.clear();
   for (const [card, row, text] of params.tuned ?? []) state.tuned.set(`${card}:${row}`, text);
-  // Each cell's taken/shown answer, and the tuned reader's number where it differs from ours.
+  // Each cell's taken/shown answer, and the tuned reader's number and confidence where it differs from ours.
   return {
     accepted: rankedCells().map(({ card, cell, accepted, read, prefill }) => [
       card.cardNumber,
       cell.row,
       accepted,
       prefill && read && prefill.value !== read.value ? prefill.value : null,
+      prefill && read && prefill.value !== read.value ? prefill.confidence : null,
     ]),
   };
 }
