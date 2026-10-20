@@ -13,7 +13,10 @@
 # prints the log. A box that is not on the review list is logged as NOT ON THE
 # LIST -- taken as read, or never offered -- which is an answer, not a failure.
 # Exits non-zero when the UI test itself fails. With EXPORT=1 it then makes the
-# spreadsheet and copies it into the same directory.
+# spreadsheet and copies it into the same directory. WORKFLOW=1, then WORKFLOW=2
+# on the same scan, walk what a volunteer does besides reading instead: leave the
+# app mid-read, correct three boxes, quit, share the PDF again and pick the draft
+# up (testWorkflow and testWorkflowResume in HarnessUITests.swift).
 #
 # It needs no `xcode-select` switch, which needs the owner's password: every
 # command is given DEVELOPER_DIR. And it never touches a simulator it did not
@@ -115,7 +118,7 @@ boot
 # Only a spreadsheet made after this is this run's: a failed run must not show an older one.
 touch "$out/.started"
 status=0
-TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPORT:-0}" \
+TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPORT:-0}" TEST_RUNNER_WORKFLOW="${WORKFLOW:-0}" \
   xcodebuild test-without-building -project ios/build-uitest/Harness.xcodeproj -scheme Harness \
   -destination "id=$udid" -derivedDataPath "$dd" > "$out/xcodebuild.log" 2>&1 || status=$?
 
