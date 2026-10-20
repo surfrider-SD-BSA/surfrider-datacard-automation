@@ -112,6 +112,8 @@ rm -rf "$out"
 mkdir -p "$out"
 
 boot
+# Only a spreadsheet made after this is this run's: a failed run must not show an older one.
+touch "$out/.started"
 status=0
 TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPORT:-0}" \
   xcodebuild test-without-building -project ios/build-uitest/Harness.xcodeproj -scheme Harness \
@@ -121,7 +123,7 @@ TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPO
 if [ "${EXPORT:-0}" = 1 ]; then
   # The newest: each export gets a fresh directory, and earlier runs' are kept.
   made="$(find "$(xcrun simctl get_app_container "$udid" "$bundle" data)/tmp" -name '*.xlsx' \
-    -exec stat -f '%m %N' {} + 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
+    -newer "$out/.started" -exec stat -f '%m %N' {} + 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
   if [ -n "$made" ]; then cp "$made" "$out/"; fi
   ls "$out"/*.xlsx 2>/dev/null || echo "no spreadsheet came out" >&2
 fi
