@@ -333,20 +333,19 @@ final class TallyModel: ObservableObject {
         guard draft.matches(scan) else { return }
 
         values = draft.values
-        // A restored draft is a person's work. Nothing in it is claimed as a
-        // machine reading, even where the number happens to match what the tool
-        // would have counted -- the reviewer saw these boxes and kept them.
+        // A restored draft is a person's work, except the boxes it records as
+        // still the tool's reading: those stay machine-read, so a draft picked up
+        // halfway does not turn the boxes nobody reached into checked ones. Only
+        // where the saved value still matches what the tool read.
         untouched = [:]
-
-        // Except the ones they were never shown, which no draft can turn into
-        // a person's work: they were not on the list being worked through. Only
-        // where the saved value still matches what the tool read, since a draft
-        // taken before this setting existed may hold a number somebody really
-        // did type into a box that is no longer on the list.
+        let unchecked = draft.unchecked.map(Set.init)
         for flat in allCells {
-            guard let prefill = flat.cell.prefill, prefill.takenAsRead else { continue }
-            guard values[flat.key] == prefill.value else { continue }
-            untouched[flat.key] = prefill
+            guard let prefill = flat.cell.prefill, values[flat.key] == prefill.value else { continue }
+            // An older draft did not record them: then only the boxes taken as
+            // read, which were on no list to work through.
+            if unchecked?.contains(flat.key) ?? prefill.takenAsRead {
+                untouched[flat.key] = prefill
+            }
         }
     }
 
@@ -461,7 +460,7 @@ final class TallyModel: ObservableObject {
 
     private func currentDraft() -> Draft? {
         guard let scan, !values.isEmpty else { return nil }
-        return Draft(scan: scan, event: event, values: values)
+        return Draft(scan: scan, event: event, values: values, unchecked: Array(untouched.keys))
     }
 
     // MARK: - Export
