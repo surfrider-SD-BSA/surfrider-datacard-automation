@@ -38,16 +38,18 @@ enum OtherReaders {
     /// TrOCRs only boxes still undecided. About 45 s of a scan.
     static let everyBox = 5
 
-    /// The most the open readers may take on one scan, and the tuned reader
-    /// another `tunedBudget`. A scan has to read in under 3 min 30 s on the
+    /// The most the open readers may take on one scan, after our tuned reader's
+    /// `mainBudget`. A scan has to read in under 3 min 30 s on the
     /// phone (the owner's line, 18 October 2026), and reading, tiling and
     /// Apple's reader take the rest. What is not read by
     /// then keeps fewer votes, so at worst a box is ranked as it was before.
-    static let budget: TimeInterval = 140
+    static let budget: TimeInterval = 110
 
-    /// `TUNED_AGREE` in src/lib/prefill.ts, and the most the tuned reader may take.
-    static let tunedAgree = 2
-    static let tunedBudget: TimeInterval = 25
+    /// The most our tuned reader may take on one scan (~0.1 s a box on an
+    /// M-series Mac; a scan has 244 written boxes on average). It reads first
+    /// and gets the larger share: in the simulator with the Mac busy, 45 s read
+    /// 203 of 299 boxes. Its number is worth more than the vote's last voices.
+    static let mainBudget: TimeInterval = 60
 
     /// All the phone's cores, up to the six an iPhone has: a 299-box scan took
     /// 4 min 36 s on two threads in the simulator.
@@ -92,23 +94,17 @@ enum OtherReaders {
     }
 
     /// Our tuned reader's text (TrOCR-small fine-tuned on the chapter's boxes,
-    /// scripts/train-trocr.py, in `readers/trocr-ours`) for the boxes where at
-    /// least `tunedAgree` of the other readers and Apple read the same number,
-    /// not ours: the only boxes where its number can replace ours
-    /// (`tunedValue` in prefill.ts). nil elsewhere, or without the model.
-    static func readTuned(_ pngs: [Data], values: [Int], others: [[String?]], apple: [Int?]) -> [String?] {
+    /// scripts/train-trocr.py, in `readers/trocr-ours`) for every box, nil
+    /// where it read nothing, ran out of `mainBudget` or is not there. Its
+    /// number is the one filled in (`mainReading` in src/lib/prefill.ts).
+    static func readMain(_ pngs: [Data]) -> [String?] {
         var texts = [String?](repeating: nil, count: pngs.count)
-        let open = pngs.indices.filter { b in
-            var count: [Int: Int] = [:]
-            for n in others[b].map(number) + [apple[b]] { if let n, n != values[b] { count[n, default: 0] += 1 } }
-            return (count.values.max() ?? 0) >= tunedAgree
-        }
-        guard !open.isEmpty, let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
+        guard let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
         autoreleasepool {
             guard let reader = load("trocr-ours", in: folder, env: env) else { return }
-            let deadline = Date().addingTimeInterval(tunedBudget)
-            for b in open {
+            let deadline = Date().addingTimeInterval(mainBudget)
+            for b in pngs.indices {
                 if Date() >= deadline { break }
                 guard let image = Pixels(png: pngs[b]) else { continue }
                 texts[b] = try? reader(image)

@@ -25,8 +25,8 @@
  * text reader read, as iOS does (SECOND_DISAGREES_CONFIDENCE in prefill.ts).
  * OTHERS=file.json, {"scan:card:row": [value | null, ...]}, gives the open
  * readers' numbers, as iOS reads them (OTHER_READERS_DISAGREE in prefill.ts).
- * TUNED=file.json, {"scan:card:row": text}, gives the tuned reader's text where
- * iOS reads it, and fills those boxes as iOS does (tunedValue in prefill.ts).
+ * TUNED=file.json, {"scan:card:row": text}, gives the tuned reader's text, which
+ * iOS fills written boxes with before ranking them (mainReading in prefill.ts).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -70,7 +70,7 @@ if (compare) {
 const { cachedScans, loadCells } = await import("./lib/cellcache.mjs");
 const { cellsForSide } = await import("../src/lib/extract.ts");
 const { decodeModel } = await import("../src/lib/digits.ts");
-const { prefillFor, autoAcceptedInScan, tunedValue } = await import("../src/lib/prefill.ts");
+const { prefillFor, autoAcceptedInScan, mainReading } = await import("../src/lib/prefill.ts");
 
 const FOLDS = process.env.FOLDS_DIR ?? "out/models/cnn";
 const modelFor = (scan) =>
@@ -121,7 +121,8 @@ for (const scan of cachedScans()) {
   const cells = [];
   for (const r of records) {
     const [c] = cellsForSide(page(r), r.pageNumber, map(r), r.side, model);
-    if (c) cells.push({ r, c, p: prefillFor(c) });
+    const read = c && prefillFor(c);
+    if (c) cells.push({ r, c, p: read && mainReading(read, tuned[r.key]) });
   }
   const taken = autoAcceptedInScan(
     cells.map((x) => x.p),
@@ -133,7 +134,7 @@ for (const scan of cachedScans()) {
     rows.push({
       scan,
       key: r.key,
-      value: tunedValue(p, tuned[r.key], others[r.key], second[r.key]),
+      value: p.value,
       confidence: +p.confidence.toFixed(3),
       source: p.source,
       taken: taken[i],

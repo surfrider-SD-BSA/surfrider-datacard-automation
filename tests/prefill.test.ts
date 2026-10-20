@@ -17,7 +17,8 @@ import {
   autoAcceptFor,
   isAutoAccepted,
   OTHER_READERS_DISAGREE,
-  tunedValue,
+  mainReading,
+  TUNED_DISAGREES,
   prefillFor,
   prefillTag,
 } from "../src/lib/prefill";
@@ -261,18 +262,20 @@ describe("autoAcceptedInScan on three-digit readings", () => {
   });
 });
 
-describe("tunedValue", () => {
-  const digits = { value: 5, confidence: 0.9, source: "digits", tally: null, digits: 5 } as Reading;
+describe("mainReading", () => {
+  const digits = { value: 5, confidence: 0.6, source: "digits", tally: null, digits: 5 } as Reading;
 
-  it("takes the tuned reader's number when two others read it too", () => {
-    expect(tunedValue(digits, "15", [15, null, 7], 15)).toBe(15);
-    expect(tunedValue(digits, "15", [15, 15, 7], undefined)).toBe(15);
+  it("fills a written box with the tuned reader's number, unsure where ours read another", () => {
+    expect(mainReading(digits, "15")).toMatchObject({ value: 15, confidence: TUNED_DISAGREES });
   });
 
-  it("keeps ours with fewer behind it, on agreement, or for counted tallies", () => {
-    expect(tunedValue(digits, "15", [15, null, 7], undefined)).toBe(5);
-    expect(tunedValue(digits, "5", [5, 5], 5)).toBe(5);
-    expect(tunedValue(digits, null, [15, 15], 15)).toBe(5);
-    expect(tunedValue({ ...digits, source: "tally" }, "15", [15, 15], 15)).toBe(5);
+  it("leaves the reading as it was where ours read the same", () => {
+    expect(mainReading(digits, "5 ,")).toBe(digits);
+  });
+
+  it("keeps ours without a reading, and for counted tallies", () => {
+    expect(mainReading(digits, null)).toBe(digits);
+    expect(mainReading(digits, "—")).toBe(digits);
+    expect(mainReading({ ...digits, source: "tally" }, "15").value).toBe(5);
   });
 });

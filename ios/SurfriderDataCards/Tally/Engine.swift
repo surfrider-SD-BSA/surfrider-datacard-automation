@@ -292,23 +292,18 @@ final class Engine: NSObject, ObservableObject {
             // The open readers on the same crops (OtherReaders.swift), as text;
             // the engine turns it into numbers the way it was scored.
             let began = Date()
-            var appleDisagrees = Set<String>()
+            let pngs = boxes.map { Data(base64Encoded: $0.png) ?? Data() }
+            // Our tuned reader first, on every written box: its number is the
+            // one filled in (mainReading in prefill.ts), so the others vote on it.
+            let tuned = OtherReaders.readMain(pngs)
+            let main = zip(boxes, tuned).map { box, t in OtherReaders.number(t) ?? box.value }
+            var appleDisagrees = Set<Int>()
             for o in apple where o.count == 3 {
-                if let box = boxes.first(where: { $0.cardNumber == o[0] && $0.row == o[1] }), box.value != o[2] {
-                    appleDisagrees.insert("\(o[0]):\(o[1])")
+                if let b = boxes.firstIndex(where: { $0.cardNumber == o[0] && $0.row == o[1] }), main[b] != o[2] {
+                    appleDisagrees.insert(b)
                 }
             }
-            let pngs = boxes.map { Data(base64Encoded: $0.png) ?? Data() }
-            let texts = OtherReaders.read(
-                pngs,
-                values: boxes.map(\.value),
-                flagged: boxes.map { appleDisagrees.contains("\($0.cardNumber):\($0.row)") })
-            // Our tuned reader, only where two others read the same other number.
-            var appleValue: [String: Int] = [:]
-            for o in apple where o.count == 3 { appleValue["\(o[0]):\(o[1])"] = o[2] }
-            let tuned = OtherReaders.readTuned(
-                pngs, values: boxes.map(\.value), others: texts,
-                apple: boxes.map { appleValue["\($0.cardNumber):\($0.row)"] })
+            let texts = OtherReaders.read(pngs, values: main, flagged: boxes.indices.map(appleDisagrees.contains))
             #if DEBUG
             // What each reader read, for checking the phone against out/exp/wa/phone.py.
             let dump: [String: Any] = [
