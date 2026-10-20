@@ -514,7 +514,7 @@ const TENS_WEIGHT = 0.5;
  * 4 of 8 beat 3 and 5. PP-OCRv5 replaced PaddleOCR v3 (7,036 / 7,019 / 6,840
  * with v3). PARSeq is fine-tuned on the chapter's own boxes
  * (scripts/train-parseq.py; held out by halves right on 68.8% where ours is on
- * 67.2%): with it and the tuned TrOCR's fill-in (TUNED_AGREE), total off went
+ * 67.2%): with it and the tuned TrOCR's fill-in (before mainReading), total off went
  * 6,431 -> 6,200, 6,409 -> 6,140, 6,407 -> 6,338 (halves A 2,824 -> 2,748,
  * 3,032 -> 2,788, 2,995 -> 2,903; B 3,607 -> 3,452, 3,377 -> 3,352,
  * 3,412 -> 3,435). Tuning ViTSTR too: 6,227 / 6,066 / 6,249, two halves worse. Not kept: more docTR readers (SAR, MASTER, mobile CRNN, ViPTR) and
@@ -540,36 +540,38 @@ export const OTHER_READERS_DISAGREE = 4;
 const OTHER_READERS_WEIGHT = 0.05;
 
 /**
- * How many of the other readers (the open readers and Apple's) must read the
- * same number as our own tuned reader before its number replaces ours.
+ * How sure a written number is when our tuned reader read another number than
+ * our own digit reader: its number goes in at this confidence (`mainReading`).
+ * Where the two read the same, the reading is left as it was.
  *
  * The tuned reader is TrOCR-small fine-tuned on the chapter's own TOTAL boxes
  * and sheet values (scripts/train-trocr.py). Held out by halves of the scans
  * it is right on 71.8% of boxes where ours is on 66.9%, and off by 25,969 in
- * all against ours 41,442 -- the first reader better than ours on every box.
- * Taking its number everywhere is still worse (7,606 -> 9,415: where ours is
- * sure, ours is right), but where it disagrees with ours and two others read
- * what it read, ours is the one wrong: total off on the boxes taken unseen
- * 6,673 -> 6,431, 6,662 -> 6,409, 6,691 -> 6,407 for the shipped digit reader
- * and two others (fixed 39-45 boxes, broke 7-9; every half better). One was
- * worse (24 broken on every seed), three fixed fewer.
+ * all against ours 41,442. On iOS it reads every written box first and its
+ * number is the one filled in; the open readers and Apple vote against its
+ * number, not ours.
+ *
+ * Measured 19 October 2026, the tuned reader on every written box and the open
+ * readers as the phone reads them, total off on the boxes taken unseen:
+ * 6,200 -> 5,569, 6,140 -> 5,678, 6,338 -> 5,692 for the shipped digit reader
+ * and two others; halves A 2,748 -> 2,579, 2,788 -> 2,602, 2,903 -> 2,638, B
+ * 3,452 -> 2,990, 3,352 -> 3,076, 3,435 -> 3,054. 0.6 instead: 6,050 / 6,047 /
+ * 5,865; also making agreeing readings at least 0.9 or 0.7 sure was worse
+ * (6,420 / 6,283 / 6,246 and 5,938-5,960). Before it, the tuned reader's number
+ * went in only where two others read it too (6,431).
  */
-export const TUNED_AGREE = 2;
+export const TUNED_DISAGREES = 0.4;
 
 /**
- * The number to fill a box with, given what the tuned reader read: its number
- * where it differs from ours and `TUNED_AGREE` of the others read it too;
- * otherwise ours. Only for digit readings.
+ * A written box's reading with our tuned reader's number in it: unchanged where
+ * it read what ours read, its number at `TUNED_DISAGREES` where it read another.
+ * Ours where the tuned reader read nothing, and for every reading that is not
+ * of written digits.
  */
-export function tunedValue(
-  r: Reading,
-  tuned: string | null | undefined,
-  others: (number | null)[] | null | undefined,
-  second: number | null | undefined,
-): number {
+export function mainReading(r: Reading, tuned: string | null | undefined): Reading {
   const t = numberFromReader(tuned);
-  if (r.source !== "digits" || t === null || t === r.value) return r.value;
-  return [...(others ?? []), second].filter((v) => v === t).length >= TUNED_AGREE ? t : r.value;
+  if (r.source !== "digits" || t === null || t === r.value) return r;
+  return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
 
 /** Letters the open readers write for handwritten digits, as Apple's are read (Engine.swift). */
