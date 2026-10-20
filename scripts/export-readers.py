@@ -22,6 +22,8 @@ Needs Python with torch, transformers, python-doctr, easyocr,
 rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
 
     python scripts/export-readers.py            about 10 minutes, ~5 GB of downloads
+    python scripts/export-readers.py --ours     only trocr-ours (123 MB), all the app
+                                                runs while OtherReaders.voteEnabled is false
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ import json
 import os
 import pathlib
 import shutil
+import sys
 import tempfile
 
 import onnx
@@ -142,12 +145,14 @@ def easyocr(tmp: pathlib.Path) -> None:
     (OUT / "easyocr-rec.vocab.json").write_text(json.dumps(list(reader.converter.character)))
 
 
-def trocr(tmp: pathlib.Path) -> None:
+def trocr(tmp: pathlib.Path, only_ours: bool = False) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
     models = [
         (f"microsoft/trocr-{s}-handwritten", f"trocr-{s}") for s in ["small", "base", "large"]
     ]
+    if only_ours:
+        models = []
     # Our tuned reader, if scripts/train-trocr.py has made it here.
     ours = ROOT / "out" / "models" / "trocr-ours"
     if ours.exists():
@@ -220,8 +225,15 @@ def trocr(tmp: pathlib.Path) -> None:
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
+    only_ours = "--ours" in sys.argv[1:]
+    if only_ours and not (ROOT / "out" / "models" / "trocr-ours").exists():
+        sys.exit("no out/models/trocr-ours: run scripts/train-trocr.py first")
     with tempfile.TemporaryDirectory() as t:
         tmp = pathlib.Path(t)
+        if only_ours:
+            trocr(tmp, only_ours=True)
+            print(f"wrote {OUT / 'trocr-ours'}")
+            return
         doctr(tmp)
         paddle()
         easyocr(tmp)

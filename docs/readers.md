@@ -20,14 +20,15 @@ Swift reads the boxes and sends **text**; the engine turns text into numbers (`n
 
 ## Rebuilding the models
 
-The models (≈2.7 GB) are not in git. In a Python environment with torch, transformers, python-doctr, easyocr, rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
+The models are not in git. In a Python environment with torch, transformers, python-doctr, easyocr, rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
 
 ```
 CELL_CACHE=out/cells-app npx vite-node scripts/box-crops.mjs   # our boxes and sheet values -> out/boxes
 python scripts/train-trocr.py                                   # tuned reader -> out/models/trocr-ours (~25 min, GPU)
-python scripts/train-parseq.py                                  # tuned PARSeq -> out/models/parseq-ours.pt (~1 h, CPU)
-python scripts/export-readers.py                                # everything -> ios/SurfriderDataCards/readers
+python scripts/export-readers.py --ours                         # tuned reader only (123 MB) -> ios/SurfriderDataCards/readers
 ```
+
+That is all the app runs while the vote is off. Anything else already in that folder is bundled too, so empty it first (keep `README.md`) to ship the small app. To switch the vote back on, set `OtherReaders.voteEnabled` and export everything (`python scripts/export-readers.py`, ≈2.7 GB; it also needs `train-parseq.py`, ~1 h on a CPU, for the tuned PARSeq).
 
 Without them the app builds and runs as it did before #163: Apple is the only second opinion and our number is filled in.
 
