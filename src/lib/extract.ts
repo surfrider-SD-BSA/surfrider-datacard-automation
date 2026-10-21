@@ -25,10 +25,21 @@ import { itemForRow, type CardSide } from "./taxonomy";
  * reason to pay for it: the test costs about a millisecond a cell and there are
  * 4,800 cells on a 58-card event, of which some 730 clear this floor.
  *
- * Set deliberately low, and left where it was when the whole decision rested on
- * it. Nothing below it has ever been seen to hold writing.
+ * It was 0.008, and that was far from "essentially no dark pixels": a thin
+ * pencil 1, a light 3 or a short tally of two strokes covers less of its box
+ * than that, and every such cell was skipped -- exported blank -- before the
+ * mark test ever saw it. Measured 20 October 2026 on the 294 cards whose sheet
+ * column is clearly that card (out/exp/fake/complete.mjs): of 3,120 boxes with
+ * writing and a sheet number, the app alone left 17.9% blank. At 0.001 the
+ * shape tests do the deciding, as the comment below says they should: total
+ * off over every box (taken wrong + missed + filled where the sheet is blank)
+ * 12,039 -> 9,394, 11,986 -> 9,244, 11,970 -> 9,111 for the shipped digit
+ * reader and two others, both halves better on all three; 0.003 / 0.002 /
+ * 0.0015 fall in between, in order. Most numbers it now puts where the sheet
+ * has none are real ones the sheet left out. About 40% more cells clear it
+ * (7,528 -> 10,461 over the 28 scans), and the readers have that many more to read.
  */
-const INK_NEGLIGIBLE = 0.008;
+const INK_NEGLIGIBLE = 0.001;
 
 /**
  * Paper kept around a cell's crop, in pixels.
