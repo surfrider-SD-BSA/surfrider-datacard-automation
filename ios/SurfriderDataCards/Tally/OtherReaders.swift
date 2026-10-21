@@ -55,13 +55,13 @@ enum OtherReaders {
     /// would be without them.
     static let budget: TimeInterval = 110
 
-    /// The most our tuned reader may take on one scan. It is TrOCR-base since
-    /// 21 October 2026, about 2.5x slower than the small one was (~0.25 s a box
-    /// on an M-series Mac), and the lower ink floor offers about 40% more boxes
-    /// (some 340 on an average scan), so it was given more than the 120 s that
-    /// small had. The owner prefers about 3.5 minutes a scan but accuracy first;
-    /// a box it has no time for keeps our digit reader's number.
-    static let mainBudget: TimeInterval = 240
+    /// No limit: our tuned reader reads every written box however long it
+    /// takes. The owner's call, 21 October 2026 -- accuracy first, keep it
+    /// running; the reading screen counts the boxes so a long scan never looks
+    /// stuck. (It had 120 s as TrOCR-small and 240 s as TrOCR-base, which is
+    /// about 2.5x slower, ~0.25 s a box on an M-series Mac; a box it ran out of
+    /// time for kept our digit reader's number.)
+    static let mainBudget: TimeInterval = .infinity
 
     /// All the phone's cores, up to the six an iPhone has: a 299-box scan took
     /// 4 min 36 s on two threads in the simulator.
@@ -117,7 +117,7 @@ enum OtherReaders {
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
         autoreleasepool {
             guard let reader = load("trocr-ours", in: folder, env: env) else { return }
-            let deadline = Date().addingTimeInterval(mainBudget)
+            let deadline = mainBudget.isFinite ? Date().addingTimeInterval(mainBudget) : .distantFuture
             for b in pngs.indices {
                 if Date() >= deadline { break }
                 guard let image = Pixels(png: pngs[b]) else { continue }
@@ -132,10 +132,10 @@ enum OtherReaders {
     /// scripts/train-tally.py, in `readers/tally-a` and `readers/tally-b`).
     static let tallyNames = ["tally-a", "tally-b"]
 
-    /// The most the tally readers may take on one scan. A scan has about 16
-    /// tally-only boxes (441 over 28 scans), two readings each at ~0.1 s on an
-    /// M-series Mac; this is for the phone being slower, not the usual case.
-    static let tallyBudget: TimeInterval = 30
+    /// No limit, as `mainBudget`: every tally-only strip is read by both. A scan
+    /// has about 16 (441 over 28 scans), two readings each at ~0.1 s on an
+    /// M-series Mac.
+    static let tallyBudget: TimeInterval = .infinity
 
     /// Each tally strip's text from each tally reader, in `tallyNames` order;
     /// nil where a reader is missing, read nothing or ran out of `tallyBudget`.
@@ -146,7 +146,7 @@ enum OtherReaders {
         guard !pngs.isEmpty, let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
         let images = pngs.map(Pixels.init(png:))
-        let deadline = Date().addingTimeInterval(tallyBudget)
+        let deadline = tallyBudget.isFinite ? Date().addingTimeInterval(tallyBudget) : .distantFuture
         for (r, name) in tallyNames.enumerated() {
             autoreleasepool {
                 guard let reader = load(name, in: folder, env: env) else { return }
