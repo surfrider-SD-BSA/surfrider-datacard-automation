@@ -231,6 +231,20 @@ export function classifyPage(img: GrayImage) {
 }
 
 /**
+ * The search for a page that failed at the scanner's size.
+ *
+ * A scanner page is within a few percent of the reference, and the normal
+ * search (+/-6%) is kept that narrow because a wider one has more chances to
+ * lock onto a row-pitch alias. A phone capture is not held to the scanner's
+ * size: VisionKit crops to whatever edge it found, so the card can come back
+ * 10% smaller or larger, and a hand-held page can be turned further than the
+ * scanner's degree. Measured on 40 scanner pages rescaled by hand, the normal
+ * search accepted 1 of 40 at 90% and 12 of 40 at 110%. Only reached from
+ * failure, and the banner check still decides.
+ */
+const WIDE_SEARCH = { maxScaleDeviation: 0.3, maxOffset: 640 };
+
+/**
  * Level a page and fit it onto one reference.
  *
  * Deskew first: a rotated page cannot be brought into register by any
@@ -244,9 +258,10 @@ export function classifyPage(img: GrayImage) {
  * does not, so tying them together would force the noisier axis onto the
  * cleaner one. The horizontal search is correspondingly narrower.
  */
-export function registerPage(img: GrayImage, target: ReferenceTarget) {
+export function registerPage(img: GrayImage, target: ReferenceTarget, { wide = false } = {}) {
   const { image: reference, window } = target;
-  const skewDegrees = estimateSkew(img);
+  // A scanner skews a page by a degree at most; a hand-held phone, more.
+  const skewDegrees = estimateSkew(img, wide ? 6 : 2);
   const levelled = rotate(img, skewDegrees);
 
   const y = fitAxis(
@@ -254,6 +269,7 @@ export function registerPage(img: GrayImage, target: ReferenceTarget) {
     rowProfile(levelled),
     window.y,
     window.y + window.height,
+    wide ? WIDE_SEARCH : undefined,
   );
 
   // Fit x over the rows the vertical fit just placed, so the column profile is
@@ -270,7 +286,7 @@ export function registerPage(img: GrayImage, target: ReferenceTarget) {
           colProfile(levelled, pageY0, pageY1),
           window.x,
           window.x + window.width,
-          { maxScaleDeviation: 0.03, maxOffset: 200 },
+          wide ? WIDE_SEARCH : { maxScaleDeviation: 0.03, maxOffset: 200 },
         )
       : { scale: 1, offset: 0, score: -1 };
 
@@ -282,6 +298,7 @@ export function registerPage(img: GrayImage, target: ReferenceTarget) {
 
   return {
     image,
+    levelled,
     skewDegrees,
     transform,
     // Checked against the printed banners, not against the correlation that
@@ -289,6 +306,78 @@ export function registerPage(img: GrayImage, target: ReferenceTarget) {
     // with how much a volunteer wrote rather than with how far the page is out.
     bannerOverlap: bannerOverlap(image, target),
   };
+}
+
+/**
+ * Fit each of a side's two printed blocks on its own, for a page that did not
+ * fit as one piece.
+ *
+ * A scanner holds the sheet flat, so one transform places the whole page. A
+ * phone does not: a curled or bowed card, or VisionKit squaring up a sheet
+ * that was not quite flat, moves the left and right blocks by different
+ * amounts. Measured on a photographed card that registered whole to 0.63, the
+ * left block's banners sat 9px low and the right block's 4px high -- each
+ * block's own fit was fine, the page's single one could not be both. So each
+ * block is levelled and fitted vertically on its own, then the two are joined
+ * down the gutter between them.
+ *
+ * Only ever reached from failure, like the quarter-turn retry, so no page the
+ * scanner measurements were taken on is placed differently. The banner check
+ * still decides whether the result is used, block by block, since the weaker
+ * block sets the overlap.
+ */
+export function registerByBlock(
+  fit: ReturnType<typeof registerPage>,
+  target: ReferenceTarget,
+): ReturnType<typeof registerPage> {
+  const { image: reference, window, blocks } = target;
+  const { levelled, transform } = fit;
+  if (blocks.length !== 2) return fit;
+
+  const toPage = (v: number) => Math.round(transform.x.scale * v + transform.x.offset);
+  const placed = blocks.map((b) => {
+    const px0 = Math.max(0, toPage(b.x0));
+    const px1 = Math.min(levelled.width, toPage(b.x1));
+    if (px1 - px0 < 32) return null;
+    // Each half of a bent card tilts its own way, so each is levelled on its
+    // own rules before it is fitted. Rotating the whole page about its centre
+    // moves this block's columns by under a pixel at these angles.
+    const tilt = estimateSkew(strip(levelled, px0, px1));
+    const half = tilt === 0 ? levelled : rotate(levelled, tilt);
+    const y = fitAxis(
+      rowProfile(reference, b.x0, b.x1),
+      rowProfile(half, px0, px1),
+      window.y,
+      window.y + window.height,
+    );
+    return resampleToReference(half, reference.width, reference.height, {
+      x: transform.x,
+      y,
+    });
+  });
+  if (!placed[0] || !placed[1]) return fit;
+
+  // Each block's columns from its own fit, split halfway across the gutter.
+  const split = Math.round((blocks[0]!.x1 + blocks[1]!.x0) / 2);
+  const { width, height } = reference;
+  const data = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    data.set(placed[0].data.subarray(row, row + split), row);
+    data.set(placed[1].data.subarray(row + split, row + width), row + split);
+  }
+  const image = { width, height, data };
+  return { ...fit, image, bannerOverlap: bannerOverlap(image, target) };
+}
+
+/** The columns `x0`-`x1` of an image, full height. */
+function strip(img: GrayImage, x0: number, x1: number): GrayImage {
+  const width = x1 - x0;
+  const data = new Uint8Array(width * img.height);
+  for (let y = 0; y < img.height; y++) {
+    data.set(img.data.subarray(y * img.width + x0, y * img.width + x1), y * width);
+  }
+  return { width, height: img.height, data };
 }
 
 /**
@@ -321,6 +410,24 @@ export function registerAgainstBestSide(
       side = other;
       fit = alternative;
     }
+  }
+
+  // Not at the scanner's size: a photographed card can come back larger or
+  // smaller, depending on where the phone found its edges.
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
+    for (const candidate of [side, side === "front" ? "back" : "front"] as const) {
+      const attempt = registerPage(img, targets[candidate], { wide: true });
+      if (attempt.bannerOverlap > fit.bannerOverlap) {
+        side = candidate;
+        fit = attempt;
+      }
+    }
+  }
+
+  // Placed, but not as one piece: a photographed card is rarely flat.
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
+    const byBlock = registerByBlock(fit, targets[side]);
+    if (byBlock.bannerOverlap > fit.bannerOverlap) fit = byBlock;
   }
 
   // Still nothing. Before refusing the page, try it the other ways up.

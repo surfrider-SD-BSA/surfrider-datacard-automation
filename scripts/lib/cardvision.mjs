@@ -177,21 +177,31 @@ function fitAxis(refProfile, pageProfile, i0, i1, { maxScaleDeviation = 0.06, ma
 }
 
 /** Median pixel value: the page's paper level, by histogram rather than sorting. */
-function paperLevel({ gray }) {
+function paperLevel(img) {
+  return percentileLevel(img, 0.5);
+}
+
+function percentileLevel({ gray }, q) {
   const hist = new Uint32Array(256);
   for (const v of gray) hist[v]++;
-  const half = gray.length >> 1;
+  const limit = gray.length * q;
   let seen = 0;
   for (let v = 0; v < 256; v++) {
     seen += hist[v];
-    if (seen > half) return v;
+    if (seen > limit) return v;
   }
   return 255;
 }
 
+/** Mirrors `bannerInkDepth` in src/lib/image.ts, which says where these numbers come from. */
+function bannerInkDepth(img) {
+  const range = paperLevel(img) - percentileLevel(img, 0.01);
+  return Math.max(20, Math.min(60, range - 60));
+}
+
 /** Which rows of a block are section banner: mostly ink, right across it. */
 function bannerRows(img, x0, x1, y0, y1) {
-  const ink = Math.max(60, paperLevel(img) - 60);
+  const ink = Math.max(60, paperLevel(img) - bannerInkDepth(img));
   const span = x1 - x0;
   const out = new Uint8Array(y1 - y0);
   for (let y = y0; y < y1; y++) {

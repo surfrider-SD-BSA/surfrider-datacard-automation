@@ -222,6 +222,13 @@ describe("banner overlap", () => {
     expect(bannerOverlap(gray, TARGETS.front)).toBeGreaterThan(MIN_BANNER_OVERLAP);
   });
 
+  it("finds the banners on a pale phone capture, where they are barely gray", () => {
+    // VisionKit lifts a capture's tones: every banner here sits ~50 levels
+    // below the paper, short of the 60 a scanner page is held to.
+    const pale = { ...CARD, data: Uint8Array.from(CARD.data, (v) => Math.round(254 - (254 - v) * 0.25)) };
+    expect(bannerOverlap(pale, TARGETS.front)).toBeGreaterThan(MIN_BANNER_OVERLAP);
+  });
+
   it("is an intersection over union, so an all-ink mask does not pass", () => {
     const solid = new Uint8Array(200).fill(1);
     const sparse = new Uint8Array(200);
@@ -324,6 +331,24 @@ describe("registerAgainstBestSide", () => {
     expect(r.quarterTurns).toBe(3);
     expect(r.image.width).toBe(WIDTH);
     expect(r.image.height).toBe(HEIGHT);
+  });
+
+  it("places each block on its own when a photographed page is not flat", () => {
+    // A curled card: the right-hand block sits 16px lower than the left.
+    const bent = scanOf(CARD, { dy: 12 });
+    const shifted = Uint8Array.from(bent.data);
+    const split = (BLOCKS[0]!.x1 + BLOCKS[1]!.x0) >> 1;
+    for (let y = HEIGHT - 1; y >= 0; y--) {
+      for (let x = split; x < WIDTH; x++) {
+        shifted[y * WIDTH + x] = y >= 16 ? bent.data[(y - 16) * WIDTH + x]! : 250;
+      }
+    }
+    const page = { ...bent, data: shifted };
+
+    expect(registerPage(page, targets.front).bannerOverlap).toBeLessThan(MIN_BANNER_OVERLAP);
+    const r = registerAgainstBestSide(page, targets, 6);
+    expect(r.trusted).toBe(true);
+    expect(r.side).toBe("front");
   });
 
   it("does not turn a page that is already the right way up", () => {

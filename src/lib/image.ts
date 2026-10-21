@@ -352,15 +352,40 @@ export function resampleToReference(
 
 /** Median pixel value: the page's paper level, by histogram rather than sorting. */
 export function paperLevel(img: GrayImage): number {
+  return percentileLevel(img, 0.5);
+}
+
+/** The pixel value below which a fraction `q` of the page lies. */
+function percentileLevel(img: GrayImage, q: number): number {
   const hist = new Uint32Array(256);
   for (const v of img.data) hist[v]!++;
-  const half = img.data.length >> 1;
+  const limit = img.data.length * q;
   let seen = 0;
   for (let v = 0; v < 256; v++) {
     seen += hist[v]!;
-    if (seen > half) return v;
+    if (seen > limit) return v;
   }
   return 255;
+}
+
+/**
+ * How much darker than the paper a pixel must be to count as banner ink.
+ *
+ * 60 on every scanner page: their darkest ink sits 130-220 levels below the
+ * paper. A phone capture through VisionKit lifts its tones, and a photocopied
+ * card is paler again -- measured on one, 83 levels from paper to darkest ink,
+ * with the light gray sub-banners ("SMOKING", "FISHING") only 39 below the
+ * paper. A fixed 60 found no banners there at all and refused a page that had
+ * landed within 5px.
+ *
+ * So on a page that pale the cut moves up to 60 levels above its darkest ink,
+ * never nearer the paper than 20. A page with 120 levels or more keeps exactly
+ * the 60 it always had -- and every one of the 1,300 scanner pages does (the
+ * flattest is 132), as do both references, so nothing measured on them moves.
+ */
+export function bannerInkDepth(img: GrayImage): number {
+  const range = paperLevel(img) - percentileLevel(img, 0.01);
+  return Math.max(20, Math.min(60, range - 60));
 }
 
 /**
@@ -372,8 +397,9 @@ export function paperLevel(img: GrayImage): number {
  * between them. So this reads the printed card through the handwriting, which
  * is what makes it usable as a check on alignment.
  *
- * The threshold is taken from the page's own paper level, since scans vary from
- * white to distinctly gray.
+ * The threshold is taken from the page's own paper level and contrast, since
+ * scans vary from white to distinctly gray and phone captures are paler still --
+ * see `bannerInkDepth`.
  */
 export function bannerRows(
   img: GrayImage,
@@ -382,7 +408,7 @@ export function bannerRows(
   y0: number,
   y1: number,
 ): Uint8Array {
-  const ink = Math.max(60, paperLevel(img) - 60);
+  const ink = Math.max(60, paperLevel(img) - bannerInkDepth(img));
   const span = x1 - x0;
   const out = new Uint8Array(y1 - y0);
 
