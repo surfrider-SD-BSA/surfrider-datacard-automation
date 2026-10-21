@@ -523,6 +523,12 @@ const TENS_WEIGHT = 0.5;
  * only until a box is settled (OtherReaders.swift), about 1 min 45 s for a
  * scan's 244 written boxes on an M-series Mac.
  */
+/*
+ * Since 20 October 2026 the phone does not run the vote (OtherReaders.voteEnabled
+ * in Swift): scored with every reader on every written box, as the phone reads
+ * them, it made things worse (7,099 / 7,080 / 7,129 against 6,545 / 6,471 /
+ * 6,554 without it). The rule stays here for when it is switched back on.
+ */
 export const OTHER_READERS_DISAGREE = 4;
 
 /**
