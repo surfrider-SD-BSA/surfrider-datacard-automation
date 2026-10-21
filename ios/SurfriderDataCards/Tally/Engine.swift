@@ -324,7 +324,12 @@ final class Engine: NSObject, ObservableObject {
                 }
             }
             let texts = OtherReaders.read(pngs, values: main, flagged: boxes.indices.map(appleDisagrees.contains))
-            let counts = OtherReaders.readTally(strips.map { Data(base64Encoded: $0.png) ?? Data() })
+            let readings = strips.count * OtherReaders.tallyNames.count
+            let counts = OtherReaders.readTally(strips.map { Data(base64Encoded: $0.png) ?? Data() }) { done in
+                if done % 4 == 0 || done == readings {
+                    Task { @MainActor in self.readersProgress(done, of: readings, stage: "tally") }
+                }
+            }
             #if DEBUG
             // What each reader read, for checking the phone against out/exp/wa/phone.py.
             let dump: [String: Any] = [
@@ -447,8 +452,8 @@ final class Engine: NSObject, ObservableObject {
     private var progressObserver: ((EngineProgress) -> Void)?
 
     /// The readers' share of the work: after the pages, before the scan is handed over.
-    private func readersProgress(_ done: Int, of total: Int) {
-        let update = EngineProgress(stage: "readers", fraction: Double(done) / Double(max(1, total)),
+    private func readersProgress(_ done: Int, of total: Int, stage: String = "readers") {
+        let update = EngineProgress(stage: stage, fraction: Double(done) / Double(max(1, total)),
                                     pageNumber: done, total: total)
         progress = update
         progressObserver?(update)

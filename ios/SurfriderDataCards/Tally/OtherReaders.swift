@@ -129,7 +129,7 @@ enum OtherReaders {
     /// nil where a reader is missing, read nothing or ran out of `tallyBudget`.
     /// The engine averages their clean counts (`tallyFromReaders` in
     /// src/lib/prefill.ts).
-    static func readTally(_ pngs: [Data]) -> [[String?]] {
+    static func readTally(_ pngs: [Data], onStrip: (Int) -> Void = { _ in }) -> [[String?]] {
         var texts = Array(repeating: [String?](repeating: nil, count: tallyNames.count), count: pngs.count)
         guard !pngs.isEmpty, let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
@@ -142,6 +142,7 @@ enum OtherReaders {
                     if Date() >= deadline { break }
                     guard let image = images[b] else { continue }
                     texts[b][r] = try? reader(image)
+                    onStrip(r * images.count + b + 1)
                 }
             }
         }
