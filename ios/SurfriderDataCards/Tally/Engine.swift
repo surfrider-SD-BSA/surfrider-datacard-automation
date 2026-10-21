@@ -129,6 +129,8 @@ struct SecondBox: Decodable, Sendable {
     let cardNumber: Int
     let row: Int
     let png: String
+    /// The wider crop our tuned reader was trained on (`secondOpinionBoxes` in src/engine.ts).
+    let wide: String?
     /// Our own reading of the box.
     let value: Int
 }
@@ -310,7 +312,7 @@ final class Engine: NSObject, ObservableObject {
             let pngs = boxes.map { Data(base64Encoded: $0.png) ?? Data() }
             // Our tuned reader first, on every written box: its number is the
             // one filled in (mainReading in prefill.ts), so the others vote on it.
-            let tuned = OtherReaders.readMain(pngs) { done in
+            let tuned = OtherReaders.readMain(boxes.map { Data(base64Encoded: $0.wide ?? $0.png) ?? Data() }) { done in
                 // Every 8 boxes is plenty for a bar, and keeps the main thread free.
                 if done % 8 == 0 || done == pngs.count {
                     Task { @MainActor in self.readersProgress(done, of: pngs.count) }
