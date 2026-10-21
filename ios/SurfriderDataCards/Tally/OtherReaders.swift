@@ -109,7 +109,7 @@ enum OtherReaders {
     /// scripts/train-trocr.py, in `readers/trocr-ours`) for every box, nil
     /// where it read nothing, ran out of `mainBudget` or is not there. Its
     /// number is the one filled in (`mainReading` in src/lib/prefill.ts).
-    static func readMain(_ pngs: [Data]) -> [String?] {
+    static func readMain(_ pngs: [Data], onBox: (Int) -> Void = { _ in }) -> [String?] {
         var texts = [String?](repeating: nil, count: pngs.count)
         guard let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
@@ -120,6 +120,7 @@ enum OtherReaders {
                 if Date() >= deadline { break }
                 guard let image = Pixels(png: pngs[b]) else { continue }
                 texts[b] = try? reader(image)
+                onBox(b + 1)
             }
         }
         return texts
@@ -138,7 +139,7 @@ enum OtherReaders {
     /// nil where a reader is missing, read nothing or ran out of `tallyBudget`.
     /// The engine averages their clean counts (`tallyFromReaders` in
     /// src/lib/prefill.ts).
-    static func readTally(_ pngs: [Data]) -> [[String?]] {
+    static func readTally(_ pngs: [Data], onStrip: (Int) -> Void = { _ in }) -> [[String?]] {
         var texts = Array(repeating: [String?](repeating: nil, count: tallyNames.count), count: pngs.count)
         guard !pngs.isEmpty, let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
@@ -151,6 +152,7 @@ enum OtherReaders {
                     if Date() >= deadline { break }
                     guard let image = images[b] else { continue }
                     texts[b][r] = try? reader(image)
+                    onStrip(r * images.count + b + 1)
                 }
             }
         }

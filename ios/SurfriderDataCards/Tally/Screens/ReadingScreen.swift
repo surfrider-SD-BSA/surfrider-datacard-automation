@@ -35,10 +35,19 @@ struct ReadingScreen: View {
 
                 ProgressLine(fraction: fraction)
 
-                Text(caption)
-                    .font(Nocturne.Face.body(13))
-                    .foregroundStyle(Nocturne.text(62))
-                    .padding(.top, 10)
+                HStack(spacing: 8) {
+                    // Turning for as long as the phone is working, so a long scan
+                    // never looks frozen.
+                    if model.scan == nil && model.readingError == nil {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Nocturne.accent)
+                    }
+                    Text(caption)
+                        .font(Nocturne.Face.body(13))
+                        .foregroundStyle(Nocturne.text(62))
+                }
+                .padding(.top, 10)
 
                 VStack(alignment: .leading, spacing: 14) {
                     ForEach(steps, id: \.label) { step in
@@ -138,15 +147,35 @@ struct ReadingScreen: View {
 
     // MARK: -
 
-    private var fraction: Double { model.scan != nil ? 1 : engine.progress.fraction }
+    /// Pages are most of the bar, the readers the last stretch.
+    private var fraction: Double {
+        if model.scan != nil { return 1 }
+        let p = engine.progress
+        switch p.stage {
+        case "readers": return 0.85 + 0.12 * p.fraction
+        case "tally": return 0.97 + 0.03 * p.fraction
+        case "opening": return 0
+        default: return 0.85 * min(1, p.fraction)
+        }
+    }
 
     private var caption: String {
         if model.readingError != nil { return "Stopped." }
         if model.scan != nil { return "Done." }
-        if let page = engine.progress.pageNumber, let total = engine.progress.total {
+        let p = engine.progress
+        if p.stage == "readers", let done = p.pageNumber, let total = p.total {
+            return "Reading the handwriting: box \(done) of \(total)."
+        }
+        if p.stage == "tally", let done = p.pageNumber, let total = p.total {
+            return "Counting tally marks: \(done) of \(total)."
+        }
+        if p.stage == "pairing" || p.stage == "done" {
+            return "Reading the handwriting…"
+        }
+        if let page = p.pageNumber, let total = p.total {
             return "Page \(page) of \(total) — nothing leaves the phone."
         }
-        return "Opening the reference card — nothing leaves the phone."
+        return "Opening the scan — nothing leaves the phone."
     }
 
     private struct Step {
@@ -158,29 +187,31 @@ struct ReadingScreen: View {
     private var steps: [Step] {
         let scan = model.scan
         let aligned = scan.map { $0.pages.filter(\.trusted).count }
-        let total = scan?.pageCount ?? engine.progress.total ?? 0
+        // While the readers run, the engine's count is boxes, not pages.
+        let readers = engine.progress.stage == "readers" || engine.progress.stage == "tally"
+        let total = scan?.pageCount ?? (readers ? nil : engine.progress.total) ?? 0
         let cells = model.allCells.count
 
         return [
             Step(
                 label: "Pages read",
-                note: "\(total) page\(total == 1 ? "" : "s")",
-                done: scan != nil || (engine.progress.pageNumber ?? 0) > 0
+                note: total > 0 ? "\(total) page\(total == 1 ? "" : "s")" : "",
+                done: scan != nil || readers || (engine.progress.pageNumber ?? 0) > 0
             ),
             Step(
                 label: "Pages squared up and aligned",
                 note: aligned.map { "\($0) of \(total)" } ?? "",
-                done: scan != nil
+                done: scan != nil || readers
             ),
             Step(
                 label: "Fronts and backs paired into cards",
                 note: scan.map { "\($0.cards.count) card\($0.cards.count == 1 ? "" : "s")" } ?? "",
-                done: scan != nil
+                done: scan != nil || readers
             ),
             Step(
                 label: "Looking for handwriting",
                 note: "\(cells) cell\(cells == 1 ? "" : "s")",
-                done: scan != nil
+                done: scan != nil || readers
             ),
         ]
     }
