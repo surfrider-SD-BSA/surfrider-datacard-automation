@@ -99,7 +99,7 @@ enum OtherReaders {
     /// scripts/train-trocr.py, in `readers/trocr-ours`) for every box, nil
     /// where it read nothing, ran out of `mainBudget` or is not there. Its
     /// number is the one filled in (`mainReading` in src/lib/prefill.ts).
-    static func readMain(_ pngs: [Data]) -> [String?] {
+    static func readMain(_ pngs: [Data], onBox: (Int) -> Void = { _ in }) -> [String?] {
         var texts = [String?](repeating: nil, count: pngs.count)
         guard let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
               let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
@@ -110,6 +110,7 @@ enum OtherReaders {
                 if Date() >= deadline { break }
                 guard let image = Pixels(png: pngs[b]) else { continue }
                 texts[b] = try? reader(image)
+                onBox(b + 1)
             }
         }
         return texts

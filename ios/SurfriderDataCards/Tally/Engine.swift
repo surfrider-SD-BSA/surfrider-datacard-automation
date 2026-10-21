@@ -271,6 +271,9 @@ final class Engine: NSObject, ObservableObject {
 
         progressObserver = onProgress
         defer { progressObserver = nil }
+        // A new scan starts from nothing: the last one's "done" left the bar full
+        // while a big file was still being opened.
+        progress = EngineProgress(stage: "opening", fraction: 0)
 
         var result: ScanResult = try await call("process", params: [
             "url": "\(WebAssetSchemeHandler.scheme)://\(WebAssetSchemeHandler.host)/__inbox/\(token)",
@@ -307,7 +310,12 @@ final class Engine: NSObject, ObservableObject {
             let pngs = boxes.map { Data(base64Encoded: $0.png) ?? Data() }
             // Our tuned reader first, on every written box: its number is the
             // one filled in (mainReading in prefill.ts), so the others vote on it.
-            let tuned = OtherReaders.readMain(pngs)
+            let tuned = OtherReaders.readMain(pngs) { done in
+                // Every 8 boxes is plenty for a bar, and keeps the main thread free.
+                if done % 8 == 0 || done == pngs.count {
+                    Task { @MainActor in self.readersProgress(done, of: pngs.count) }
+                }
+            }
             let main = zip(boxes, tuned).map { box, t in OtherReaders.number(t) ?? box.value }
             var appleDisagrees = Set<Int>()
             for o in apple where o.count == 3 {
@@ -437,6 +445,14 @@ final class Engine: NSObject, ObservableObject {
     // MARK: - The bridge
 
     private var progressObserver: ((EngineProgress) -> Void)?
+
+    /// The readers' share of the work: after the pages, before the scan is handed over.
+    private func readersProgress(_ done: Int, of total: Int) {
+        let update = EngineProgress(stage: "readers", fraction: Double(done) / Double(max(1, total)),
+                                    pageNumber: done, total: total)
+        progress = update
+        progressObserver?(update)
+    }
 
     private func call<T: Decodable>(_ method: String, params: Any) async throws -> T {
         await waitForLoad()
