@@ -1,19 +1,25 @@
-"""Fine-tune TrOCR-small on the chapter's own TOTAL boxes: our tuned reader.
+"""Fine-tune TrOCR-base on the chapter's own TOTAL boxes: our tuned reader.
 
-The phone runs it after the open readers, on the boxes where two of them read
-the same number and it is not ours, and takes its number there when it agrees
-(`TUNED_AGREE` and `tunedValue` in src/lib/prefill.ts). Measured 18 October
-2026 held out by halves of the scans (`--half 0` / `--half 1` train on the other
-half and read this one): right on 71.8% of boxes, ours 66.9%.
+The phone runs it on every written box (`OtherReaders.readMain`); where it reads
+another number than our digit reader, its number goes in (`mainReading` in
+src/lib/prefill.ts). It is TrOCR-base since 21 October 2026 (TrOCR-small
+before): held out by halves of the scans (`--half 0` / `--half 1` train on the
+other half and read this one), exactly right on 1,281 of 1,772 and 2,080 of
+2,677 boxes against small's 1,259 and 1,846, and over every box the app takes
+or misses (out/exp/fake/complete.mjs) total off 9,166 / 9,040 / 8,971 with
+small, 8,857 / 8,776 / 8,606 with base, both halves better on all three seeds.
+It is about 2.5x slower to run and its encoder is 1.3 GB.
 
-Pictures and labels come from scripts/box-crops.mjs. Each picture is prepared
-exactly as the phone prepares it (OtherReaders.swift, `Pixels.trocr`): stretched
-to 384 x 384 by half-pixel bilinear resizing, scaled to -1..1. Training adds a
-small random crop and contrast change; reading does not.
+Pictures and labels come from scripts/box-crops.mjs (the wide crop). Each
+picture is prepared exactly as the phone prepares it (OtherReaders.swift,
+`Pixels.trocr`): stretched to 384 x 384 by half-pixel bilinear resizing, scaled
+to -1..1. Training adds a small random crop and contrast change; reading does
+not. The targets are fed by hand (teacher forcing): with this transformers
+version, `labels=` shifts them twice, and TrOCR-base then learns nothing.
 
-    CELL_CACHE=out/cells-app npx vite-node scripts/box-crops.mjs
-    python scripts/train-trocr.py               about 25 minutes on an M-series Mac
-    python scripts/export-readers.py            converts it with the other readers
+    CELL_CACHE=out/cells npx vite-node scripts/box-crops.mjs
+    python scripts/train-trocr.py               about 90 minutes on an M-series Mac
+    python scripts/export-readers.py --ours     converts it with the tally readers
 
 Writes out/models/trocr-ours (the model to ship), or with --half N
 out/models/trocr-ours-hN and its readings of the held-out half.
@@ -34,7 +40,7 @@ from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BOXES = ROOT / "out" / "boxes"
-BASE = "microsoft/trocr-small-handwritten"
+BASE = "microsoft/trocr-base-handwritten"
 
 
 def bilinear(a: np.ndarray, oh: int, ow: int) -> np.ndarray:
@@ -92,7 +98,7 @@ def main() -> None:
     model.config.decoder_start_token_id = start
     model.config.pad_token_id = tok.pad_token_id
 
-    batch = 16
+    batch = 8
     steps = args.epochs * (len(train) // batch)
     opt = torch.optim.AdamW(model.parameters(), lr=3e-5, weight_decay=0.01)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=3e-5, total_steps=steps, pct_start=0.1)
@@ -105,10 +111,17 @@ def main() -> None:
         for i in range(0, len(train) - batch + 1, batch):
             chunk = train[i : i + batch]
             px = torch.stack([picture(e["file"], True) for e in chunk]).to(dev)
-            labels = tok([str(e["sheet"]) for e in chunk], padding=True, return_tensors="pt")
-            ids = labels.input_ids
-            ids[ids == tok.pad_token_id] = -100
-            loss = model(pixel_values=px, labels=ids.to(dev)).loss
+            # Decoder input [start, t1..tn], target [t1..tn, </s>], without the leading <s>.
+            ids = tok([str(e["sheet"]) for e in chunk], padding=True, return_tensors="pt").input_ids
+            if tok.bos_token_id is not None and (ids[:, 0] == tok.bos_token_id).all():
+                ids = ids[:, 1:]
+            dec_in = torch.cat([torch.full((ids.shape[0], 1), start), ids[:, :-1]], 1)
+            target = ids.clone()
+            target[target == tok.pad_token_id] = -100
+            logits = model(pixel_values=px, decoder_input_ids=dec_in.to(dev)).logits
+            loss = torch.nn.functional.cross_entropy(
+                logits.reshape(-1, logits.shape[-1]), target.to(dev).reshape(-1), ignore_index=-100
+            )
             opt.zero_grad()
             loss.backward()
             opt.step()

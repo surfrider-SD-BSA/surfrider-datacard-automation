@@ -55,11 +55,13 @@ enum OtherReaders {
     /// would be without them.
     static let budget: TimeInterval = 110
 
-    /// The most our tuned reader may take on one scan (~0.1 s a box on an
-    /// M-series Mac; a scan has 244 written boxes on average). With the vote
-    /// off it has the time to itself: in the simulator with the Mac busy, 60 s
-    /// read 283 of 299 boxes.
-    static let mainBudget: TimeInterval = 120
+    /// The most our tuned reader may take on one scan. It is TrOCR-base since
+    /// 21 October 2026, about 2.5x slower than the small one was (~0.25 s a box
+    /// on an M-series Mac), and the lower ink floor offers about 40% more boxes
+    /// (some 340 on an average scan), so it was given more than the 120 s that
+    /// small had. The owner prefers about 3.5 minutes a scan but accuracy first;
+    /// a box it has no time for keeps our digit reader's number.
+    static let mainBudget: TimeInterval = 240
 
     /// All the phone's cores, up to the six an iPhone has: a 299-box scan took
     /// 4 min 36 s on two threads in the simulator.
