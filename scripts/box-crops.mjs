@@ -3,13 +3,20 @@
  * cell cache: the pictures and labels scripts/train-trocr.py fine-tunes our
  * tuned reader on (TUNED_AGREE in src/lib/prefill.ts).
  *
- * The crop is the one the phone's readers see (`secondOpinionBoxes` in
- * src/engine.ts): the printed box and 4 pixels round it at the scan's own
- * resolution. Labels are the chapter's typed sheet values; the three cards
+ * The crop is the one the phone gives our tuned reader (`wide` in
+ * `secondOpinionBoxes`, src/engine.ts): the printed box with 35% of its width
+ * more to the left, 8% to the right and 15% of its height above and below, at
+ * the scan's own resolution -- volunteers write past the box's left edge, and
+ * a reader shown only the box lost the digits there ("200" read as 20).
+ * Measured 20 October 2026 held out by halves, every box taken or missed
+ * counted (out/exp/fake/complete.mjs): total off 9,394 / 9,244 / 9,111 with
+ * the box + 4 px crop, 9,166 / 9,040 / 8,971 with this one, both halves better
+ * on all three seeds. Labels are the chapter's typed sheet values; the three cards
  * whose sheet column belongs to another card, and oceanside-9.06, whose sheet
  * is unreliable, are left out.
  *
- *   CELL_CACHE=out/cells-app npx vite-node scripts/box-crops.mjs     -> out/boxes/
+ *   CELL_CACHE=out/cells npx vite-node scripts/cell-cache.mjs       (once, with today's ink floor)
+ *   CELL_CACHE=out/cells npx vite-node scripts/box-crops.mjs        -> out/boxes/
  */
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -35,9 +42,9 @@ for (const scan of cachedScans()) {
     if (r.typed == null || MISMATCHED.has(r.key.split(":").slice(0, 2).join(":"))) continue;
     const [c] = cellsForSide(page(r), r.pageNumber, map(r), r.side, model);
     if (!c || prefillFor(c)?.source !== "digits") continue;
-    const t = r.cell.total, img = page(r), m = 4;
-    const x0 = Math.max(0, Math.round(t.x - m)), x1 = Math.min(img.width, Math.round(t.x + t.width + m));
-    const y0 = Math.max(0, Math.round(t.y - m)), y1 = Math.min(img.height, Math.round(t.y + t.height + m));
+    const t = r.cell.total, img = page(r);
+    const x0 = Math.max(0, Math.round(t.x - 0.35 * t.width)), x1 = Math.min(img.width, Math.round(t.x + 1.08 * t.width));
+    const y0 = Math.max(0, Math.round(t.y - 0.15 * t.height)), y1 = Math.min(img.height, Math.round(t.y + 1.15 * t.height));
     const png = new PNG({ width: x1 - x0, height: y1 - y0 });
     for (let y = 0; y < y1 - y0; y++) {
       for (let x = 0; x < x1 - x0; x++) {

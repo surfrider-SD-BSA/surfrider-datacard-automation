@@ -482,7 +482,9 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
 /**
  * The boxes read as written digits, as PNGs of the printed box and 4 pixels
  * round it at the scan's own resolution, for the phone's text reader to give a
- * second opinion on. That crop is the one it was measured on.
+ * second opinion on. That crop is the one it was measured on. `wide` is our
+ * tuned reader's: 35% of the box's width more to the left, 8% to the right and
+ * 15% of its height above and below.
  */
 function secondOpinionBoxes() {
   return rankedCells()
@@ -490,10 +492,17 @@ function secondOpinionBoxes() {
     .map(({ card, cell, read }) => {
       const r = cell.rect, m = 4;
       const canvas = cropToCanvas(cell.image, r.x - m, r.y - m, r.width + 2 * m, r.height + 2 * m, 1);
+      // Our tuned reader's crop is wider: volunteers write past the box's left
+      // edge ("200", "116"), and it was trained on these (scripts/box-crops.mjs).
+      const img = cell.image;
+      const x0 = Math.max(0, Math.round(r.x - 0.35 * r.width)), x1 = Math.min(img.width, Math.round(r.x + 1.08 * r.width));
+      const y0 = Math.max(0, Math.round(r.y - 0.15 * r.height)), y1 = Math.min(img.height, Math.round(r.y + 1.15 * r.height));
+      const wide = cropToCanvas(img, x0, y0, x1 - x0, y1 - y0, 1);
       return {
         cardNumber: card.cardNumber,
         row: cell.row,
         png: canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, ""),
+        wide: wide.toDataURL("image/png").replace(/^data:image\/png;base64,/, ""),
         // Our reading, so the open readers can stop on a box once it is settled (OtherReaders.swift).
         value: read!.value,
       };

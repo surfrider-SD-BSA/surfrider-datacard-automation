@@ -8,7 +8,7 @@ For every box our own digit reader (`src/lib/digits.ts`) read as written digits:
 
 1. **Our digit reader** reads it first (in the web bundle, as before). Its number and confidence are the starting point.
 2. **Apple's Vision text reader** reads the boxes tiled 3 by 12 (`Engine.swift`, `appleReadings`).
-3. **Our tuned reader** — TrOCR-small fine-tuned on the chapter's own boxes — reads every written box (`OtherReaders.readMain`, budget `mainBudget`). Where it reads a different number than ours, its number is filled in at confidence 0.4 (`mainReading`, `TUNED_DISAGREES` in `src/lib/prefill.ts`).
+3. **Our tuned reader** — TrOCR-small fine-tuned on the chapter's own boxes, shown a crop wider than the box to the left where volunteers write past its edge — reads every written box (`OtherReaders.readMain`, budget `mainBudget`). Where it reads a different number than ours, its number is filled in at confidence 0.4 (`mainReading`, `TUNED_DISAGREES` in `src/lib/prefill.ts`).
 4. *(Switched off since 20 October 2026, `OtherReaders.voteEnabled`: measured with every reader on every written box it made results worse; see below.)* **Eight open readers** vote on that number (`OtherReaders.read`, budget `budget`): PP-OCRv5, EasyOCR, docTR CRNN, ViTSTR and PARSeq (PARSeq fine-tuned on our boxes) read every box; TrOCR small, base and large only boxes still undecided.
 5. **Ranking** (`autoAcceptedInScan` in `prefill.ts`): a box Apple disagrees with, or at least 4 readers do (`OTHER_READERS_DISAGREE`), counts as flagged; the more readers disagree, the higher it ranks (`OTHER_READERS_WEIGHT`). The top 20% of each scan (`SHOW_SHARE`) is shown to a person; the rest is taken as read.
 
@@ -25,7 +25,8 @@ Swift reads the boxes and sends **text**; the engine turns text into numbers (`n
 The models are not in git. In a Python environment with torch, transformers, python-doctr, easyocr, rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
 
 ```
-CELL_CACHE=out/cells-app npx vite-node scripts/box-crops.mjs   # our boxes and sheet values -> out/boxes
+CELL_CACHE=out/cells npx vite-node scripts/cell-cache.mjs      # every offered cell, once (~7 min)
+CELL_CACHE=out/cells npx vite-node scripts/box-crops.mjs       # our boxes (wide crops) and sheet values -> out/boxes
 python scripts/train-trocr.py                                   # tuned reader -> out/models/trocr-ours (~25 min, GPU)
 python scripts/export-readers.py --ours                         # tuned + tally readers (~370 MB) -> ios/SurfriderDataCards/readers
 ```
