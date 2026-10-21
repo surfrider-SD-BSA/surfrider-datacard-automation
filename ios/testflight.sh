@@ -117,6 +117,17 @@ xcodebuild \
   $drive_settings \
   archive
 
+# onnxruntime.framework ships an Info.plist with no MinimumOSVersion, and App
+# Store Connect rejects the whole upload for it ("Missing Info.plist value"),
+# after the slow part. Give every embedded framework that lacks one the app's
+# deployment target; the export below re-signs them.
+min_os=$(grep -m1 'IPHONEOS_DEPLOYMENT_TARGET' ios/SurfriderDataCards.xcodeproj/project.pbxproj | sed 's/.*= *\([0-9.]*\);/\1/')
+for plist in "$archive"/Products/Applications/*.app/Frameworks/*.framework/Info.plist; do
+  [ -f "$plist" ] || continue
+  plutil -extract MinimumOSVersion raw "$plist" >/dev/null 2>&1 ||
+    plutil -insert MinimumOSVersion -string "$min_os" "$plist"
+done
+
 echo "==> exporting a signed .ipa"
 # The team id goes into a COPY, so an interrupted build cannot leave the committed file dirty.
 # The committed ExportOptions.plist is nine tenths explanatory comment, and
