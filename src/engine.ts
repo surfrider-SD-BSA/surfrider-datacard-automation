@@ -39,7 +39,7 @@ import {
   viewRect,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
-import { autoAcceptedInScan, prefillFor } from "./lib/prefill";
+import { autoAcceptedInScan, mainReading, numberFromReader, prefillFor, tallyFromReaders } from "./lib/prefill";
 import { rasterizePdf } from "./lib/pdf";
 import {
   pairIntoCards,
@@ -157,15 +157,31 @@ const state = {
   problems: [] as PairingProblem[],
   /** The phone's own reading of a box, keyed "card:row" (SECOND_DISAGREES_CONFIDENCE in lib/prefill.ts). */
   second: new Map<string, number>(),
+  /** The open readers' numbers for a box, keyed "card:row" (OTHER_READERS_DISAGREE in lib/prefill.ts). */
+  others: new Map<string, (number | null)[]>(),
+  /** Our tuned reader's text for a written box, keyed "card:row" (mainReading in lib/prefill.ts). */
+  tuned: new Map<string, string>(),
+  /** Our two tally readers' text for a tally-only box, keyed "card:row" (tallyFromReaders in lib/prefill.ts). */
+  tally: new Map<string, (string | null)[]>(),
 };
 
 /** Every cell of the scan in order, with its reading and the phone's second opinion, ranked. */
 function rankedCells() {
-  const all = state.cards.flatMap((card) => card.cells.map((cell) => ({ card, cell, prefill: prefillFor(cell) })));
+  // A written number is our tuned reader's where it has read the box (mainReading in lib/prefill.ts),
+  // and a tally-only box our tally readers' count where they give one (tallyFromReaders).
+  const all = state.cards.flatMap((card) =>
+    card.cells.map((cell) => {
+      const key = `${card.cardNumber}:${cell.row}`;
+      const read = prefillFor(cell);
+      const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
+      return { card, cell, read, prefill: counted && mainReading(counted, state.tuned.get(key)) };
+    }),
+  );
   const accepted = autoAcceptedInScan(
     all.map((x) => x.prefill),
     all.map(({ card, cell }) => state.second.get(`${card.cardNumber}:${cell.row}`)),
     all.map(({ cell }) => cell.row),
+    all.map(({ card, cell }) => state.others.get(`${card.cardNumber}:${cell.row}`)),
   );
   return all.map((x, i) => ({ ...x, accepted: accepted[i]! }));
 }
@@ -345,6 +361,9 @@ async function process(params: ProcessParams) {
   state.cards = cards.map(assembleCard);
   state.problems = problems;
   state.second.clear();
+  state.others.clear();
+  state.tuned.clear();
+  state.tally.clear();
   progress("done", 1);
 
   return {
@@ -467,10 +486,34 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
  */
 function secondOpinionBoxes() {
   return rankedCells()
-    .filter((x) => x.prefill?.source === "digits")
-    .map(({ card, cell }) => {
+    .filter((x) => x.read?.source === "digits")
+    .map(({ card, cell, read }) => {
       const r = cell.rect, m = 4;
       const canvas = cropToCanvas(cell.image, r.x - m, r.y - m, r.width + 2 * m, r.height + 2 * m, 1);
+      return {
+        cardNumber: card.cardNumber,
+        row: cell.row,
+        png: canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, ""),
+        // Our reading, so the open readers can stop on a box once it is settled (OtherReaders.swift).
+        value: read!.value,
+      };
+    });
+}
+
+/**
+ * Every tally-only box (strokes, no number in the TOTAL box) as the strip of
+ * strokes, for our tally readers on the phone (OtherReaders.readTally): the
+ * tally area and 6 pixels round it, as scripts/tally-strips.mjs cut them for
+ * training.
+ */
+function tallyStripBoxes() {
+  return rankedCells()
+    .filter((x) => x.cell.tallyOnly && x.read)
+    .map(({ card, cell }) => {
+      const r = cell.tallyRect, m = 6;
+      const x0 = Math.max(0, r.x - m), y0 = Math.max(0, r.y - m);
+      const x1 = Math.min(cell.image.width, r.x + r.width + m), y1 = Math.min(cell.image.height, r.y + r.height + m);
+      const canvas = cropToCanvas(cell.image, x0, y0, x1 - x0, y1 - y0, 1);
       return {
         cardNumber: card.cardNumber,
         row: cell.row,
@@ -479,12 +522,33 @@ function secondOpinionBoxes() {
     });
 }
 
-/** Take the phone's readings, as [card, row, value], and say again which cells are taken as read. */
-function secondOpinions(params: { opinions: [number, number, number][] }) {
+/**
+ * Take the phone's readings, as [card, row, value], and the open readers' text
+ * as [card, row, [text | null, ...]], and say again which cells are taken as read.
+ */
+function secondOpinions(params: {
+  opinions: [number, number, number][];
+  others?: [number, number, (string | null)[]][];
+  tuned?: [number, number, string][];
+  tally?: [number, number, (string | null)[]][];
+}) {
   state.second.clear();
   for (const [card, row, value] of params.opinions) state.second.set(`${card}:${row}`, value);
+  state.others.clear();
+  for (const [card, row, texts] of params.others ?? []) state.others.set(`${card}:${row}`, texts.map(numberFromReader));
+  state.tuned.clear();
+  for (const [card, row, text] of params.tuned ?? []) state.tuned.set(`${card}:${row}`, text);
+  state.tally.clear();
+  for (const [card, row, texts] of params.tally ?? []) state.tally.set(`${card}:${row}`, texts);
+  // Each cell's taken/shown answer, and the tuned reader's number and confidence where it differs from ours.
   return {
-    accepted: rankedCells().map(({ card, cell, accepted }) => [card.cardNumber, cell.row, accepted]),
+    accepted: rankedCells().map(({ card, cell, accepted, read, prefill }) => [
+      card.cardNumber,
+      cell.row,
+      accepted,
+      prefill && read && prefill.value !== read.value ? prefill.value : null,
+      prefill && read && prefill.value !== read.value ? prefill.confidence : null,
+    ]),
   };
 }
 
@@ -617,6 +681,9 @@ function reset() {
   state.fileName = "";
   state.fileSize = 0;
   state.second.clear();
+  state.others.clear();
+  state.tuned.clear();
+  state.tally.clear();
   return { ok: true };
 }
 
@@ -628,6 +695,7 @@ const METHODS: Record<string, (params: any) => unknown | Promise<unknown>> = {
   process,
   crop,
   secondOpinionBoxes,
+  tallyStripBoxes,
   secondOpinions,
   export: exportWorkbook,
   reset,

@@ -23,6 +23,10 @@
  * FOLDS_DIR picks another set of trained folds (default out/models/cnn).
  * SECOND=file.json, {"scan:card:row": value}, gives the boxes the phone's own
  * text reader read, as iOS does (SECOND_DISAGREES_CONFIDENCE in prefill.ts).
+ * OTHERS=file.json, {"scan:card:row": [value | null, ...]}, gives the open
+ * readers' numbers, as iOS reads them (OTHER_READERS_DISAGREE in prefill.ts).
+ * TUNED=file.json, {"scan:card:row": text}, gives the tuned reader's text, which
+ * iOS fills written boxes with before ranking them (mainReading in prefill.ts).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -66,7 +70,7 @@ if (compare) {
 const { cachedScans, loadCells } = await import("./lib/cellcache.mjs");
 const { cellsForSide } = await import("../src/lib/extract.ts");
 const { decodeModel } = await import("../src/lib/digits.ts");
-const { prefillFor, autoAcceptedInScan } = await import("../src/lib/prefill.ts");
+const { prefillFor, autoAcceptedInScan, mainReading } = await import("../src/lib/prefill.ts");
 
 const FOLDS = process.env.FOLDS_DIR ?? "out/models/cnn";
 const modelFor = (scan) =>
@@ -105,6 +109,8 @@ if (jobs && !process.env.SCANS) {
   process.exit(0);
 }
 const second = process.env.SECOND ? JSON.parse(readFileSync(process.env.SECOND, "utf8")) : {};
+const others = process.env.OTHERS ? JSON.parse(readFileSync(process.env.OTHERS, "utf8")) : {};
+const tuned = process.env.TUNED ? JSON.parse(readFileSync(process.env.TUNED, "utf8")) : {};
 const only = process.env.SCANS ? new Set(process.env.SCANS.split(",")) : null;
 
 const rows = [];
@@ -115,12 +121,14 @@ for (const scan of cachedScans()) {
   const cells = [];
   for (const r of records) {
     const [c] = cellsForSide(page(r), r.pageNumber, map(r), r.side, model);
-    if (c) cells.push({ r, c, p: prefillFor(c) });
+    const read = c && prefillFor(c);
+    if (c) cells.push({ r, c, p: read && mainReading(read, tuned[r.key]) });
   }
   const taken = autoAcceptedInScan(
     cells.map((x) => x.p),
     cells.map((x) => (x.p?.source === "digits" ? second[x.r.key] : undefined)),
     cells.map((x) => x.r.row),
+    cells.map((x) => (x.p?.source === "digits" ? others[x.r.key] : undefined)),
   );
   cells.forEach(({ r, c, p }, i) =>
     rows.push({

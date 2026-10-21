@@ -74,11 +74,23 @@ export async function rasterizePdf(
   onPage: (page: RasterPage) => void | Promise<void>,
   signal?: AbortSignal,
 ): Promise<number> {
-  const buffer = await file.arrayBuffer();
+  // The file is read in ranges as pdf.js asks for them, not whole: a whole
+  // copy, and pdf.js's own copy of it in its worker, of a 1,000-page scan
+  // (346 MB) had the phone end the app for memory before page 1. Only the
+  // bytes of the page being read are in hand; the pixels are the same.
+  const range = new pdfjs.PDFDataRangeTransport(file.size, new Uint8Array(0));
+  range.requestDataRange = (begin: number, end: number) => {
+    void file
+      .slice(begin, end)
+      .arrayBuffer()
+      .then((bytes) => range.onDataRange(begin, new Uint8Array(bytes)));
+  };
   // pdf.js's own JPEG decoder, and the pixels it decodes handed over as bytes
   // rather than as a bitmap: the same on every web engine. See scanpage.ts.
   const doc = await pdfjs.getDocument({
-    data: new Uint8Array(buffer),
+    range,
+    rangeChunkSize: 1 << 20,
+    disableAutoFetch: true,
     isImageDecoderSupported: false,
     isOffscreenCanvasSupported: false,
   }).promise;

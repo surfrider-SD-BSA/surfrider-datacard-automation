@@ -97,7 +97,7 @@ struct CleanupsScreen: View {
                         .foregroundStyle(Nocturne.accent300)
                 }
 
-                Text("\(draft.values.count) of \(draft.cellCount) cells checked. Your typing is on this phone — nothing has been put back until you say so.")
+                Text("\(draft.checkedCount) of \(draft.cellCount) cells checked. Your typing is on this phone — nothing has been put back until you say so.")
                     .font(Nocturne.Face.body(13))
                     .lineSpacing(3)
                     .foregroundStyle(Nocturne.text(68))

@@ -28,8 +28,10 @@ import WebKit
 
 struct ScanCell: Decodable, Identifiable, Hashable {
     struct Prefill: Decodable, Hashable {
-        let value: Int
-        let confidence: Double
+        /// Ours, or the tuned reader's where two others read it too (`tunedValue` in prefill.ts).
+        var value: Int
+        /// How sure the reading is; changed with `value` (`mainReading` in prefill.ts).
+        var confidence: Double
         /// "tally" | "digits" | "agreed" | "split" -- which reader spoke.
         let source: String
 
@@ -116,10 +118,19 @@ struct ScanResult: Decodable {
     var cards: [ScanCard]
 }
 
+/// A tally-only box's strip of strokes (`tallyStripBoxes` in src/engine.ts).
+struct TallyBox: Decodable, Sendable {
+    let cardNumber: Int
+    let row: Int
+    let png: String
+}
+
 struct SecondBox: Decodable, Sendable {
     let cardNumber: Int
     let row: Int
     let png: String
+    /// Our own reading of the box.
+    let value: Int
 }
 
 /// [card, row, taken] for every cell, after the second opinion.
@@ -128,11 +139,16 @@ struct SecondRanked: Decodable {
         let card: Int
         let row: Int
         let accepted: Bool
+        /// The number to fill the box with instead of ours, if any, and how sure it is.
+        let value: Int?
+        let confidence: Double?
         init(from decoder: Decoder) throws {
             var c = try decoder.unkeyedContainer()
             card = try c.decode(Int.self)
             row = try c.decode(Int.self)
             accepted = try c.decode(Bool.self)
+            value = c.isAtEnd ? nil : try c.decodeIfPresent(Int.self)
+            confidence = c.isAtEnd ? nil : try c.decodeIfPresent(Double.self)
         }
     }
     let accepted: [Entry]
@@ -255,6 +271,9 @@ final class Engine: NSObject, ObservableObject {
 
         progressObserver = onProgress
         defer { progressObserver = nil }
+        // A new scan starts from nothing: the last one's "done" left the bar full
+        // while a big file was still being opened.
+        progress = EngineProgress(stage: "opening", fraction: 0)
 
         var result: ScanResult = try await call("process", params: [
             "url": "\(WebAssetSchemeHandler.scheme)://\(WebAssetSchemeHandler.host)/__inbox/\(token)",
@@ -274,24 +293,84 @@ final class Engine: NSObject, ObservableObject {
     /// src/lib/prefill.ts for what it is worth. Anything going wrong here
     /// leaves the engine's own ranking, which is what Android uses.
     private func secondOpinion(on result: inout ScanResult) async {
-        guard let boxes: [SecondBox] = try? await call("secondOpinionBoxes", params: [String: String]()),
-              !boxes.isEmpty else { return }
+        let boxes: [SecondBox] = (try? await call("secondOpinionBoxes", params: [String: String]())) ?? []
+        // The tally-only boxes' strips, for our tally readers (tallyFromReaders in prefill.ts).
+        let strips: [TallyBox] = (try? await call("tallyStripBoxes", params: [String: String]())) ?? []
+        guard !boxes.isEmpty || !strips.isEmpty else { return }
         // Off the main thread, and many boxes to a picture: Vision is ten times
         // faster on 36 boxes tiled 3 by 12 than on each alone, and as good
         // (out/exp/vis/mosaic.swift). Running pictures side by side is slower.
-        let opinions = await Task.detached(priority: .userInitiated) {
-            stride(from: 0, to: boxes.count, by: Self.tileColumns * Self.tileRows).flatMap { start in
+        let (opinions, texts, tuned, counts) = await Task.detached(priority: .userInitiated) {
+            let apple = stride(from: 0, to: boxes.count, by: Self.tileColumns * Self.tileRows).flatMap { start in
                 Self.appleReadings(Array(boxes[start..<min(start + Self.tileColumns * Self.tileRows, boxes.count)]))
             }
+            // The open readers on the same crops (OtherReaders.swift), as text;
+            // the engine turns it into numbers the way it was scored.
+            let began = Date()
+            let pngs = boxes.map { Data(base64Encoded: $0.png) ?? Data() }
+            // Our tuned reader first, on every written box: its number is the
+            // one filled in (mainReading in prefill.ts), so the others vote on it.
+            let tuned = OtherReaders.readMain(pngs) { done in
+                // Every 8 boxes is plenty for a bar, and keeps the main thread free.
+                if done % 8 == 0 || done == pngs.count {
+                    Task { @MainActor in self.readersProgress(done, of: pngs.count) }
+                }
+            }
+            let main = zip(boxes, tuned).map { box, t in OtherReaders.number(t) ?? box.value }
+            var appleDisagrees = Set<Int>()
+            for o in apple where o.count == 3 {
+                if let b = boxes.firstIndex(where: { $0.cardNumber == o[0] && $0.row == o[1] }), main[b] != o[2] {
+                    appleDisagrees.insert(b)
+                }
+            }
+            let texts = OtherReaders.read(pngs, values: main, flagged: boxes.indices.map(appleDisagrees.contains))
+            let readings = strips.count * OtherReaders.tallyNames.count
+            let counts = OtherReaders.readTally(strips.map { Data(base64Encoded: $0.png) ?? Data() }) { done in
+                if done % 4 == 0 || done == readings {
+                    Task { @MainActor in self.readersProgress(done, of: readings, stage: "tally") }
+                }
+            }
+            #if DEBUG
+            // What each reader read, for checking the phone against out/exp/wa/phone.py.
+            let dump: [String: Any] = [
+                "seconds": Date().timeIntervalSince(began),
+                "boxes": Dictionary(uniqueKeysWithValues: zip(zip(boxes, texts), tuned).map { bt, u in
+                    ("\(bt.0.cardNumber):\(bt.0.row)", bt.1.map { $0 ?? "" } + [u ?? ""])
+                }),
+                "tally": Dictionary(uniqueKeysWithValues: zip(strips, counts).map { strip, t in
+                    ("\(strip.cardNumber):\(strip.row)", t.map { $0 ?? "" })
+                }),
+            ]
+            if let data = try? JSONSerialization.data(withJSONObject: dump) {
+                try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("other-readers.json"))
+            }
+            #endif
+            return (apple, texts, tuned, counts)
         }.value
-        guard let ranked: SecondRanked = try? await call("secondOpinions", params: ["opinions": opinions]) else { return }
-        var taken: [String: Bool] = [:]
-        for entry in ranked.accepted { taken["\(entry.card):\(entry.row)"] = entry.accepted }
+        let others: [[Any]] = zip(boxes, texts).map { box, t in
+            [box.cardNumber, box.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
+        }
+        let tunedParams: [[Any]] = zip(boxes, tuned).compactMap { box, t in t.map { [box.cardNumber, box.row, $0] } }
+        let tallyParams: [[Any]] = zip(strips, counts).map { strip, t in
+            [strip.cardNumber, strip.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
+        }
+        guard let ranked: SecondRanked = try? await call(
+            "secondOpinions",
+            params: ["opinions": opinions, "others": others, "tuned": tunedParams, "tally": tallyParams]) else { return }
+        var taken: [String: Bool] = [:], better: [String: (value: Int, confidence: Double?)] = [:]
+        for entry in ranked.accepted {
+            taken["\(entry.card):\(entry.row)"] = entry.accepted
+            if let v = entry.value { better["\(entry.card):\(entry.row)"] = (v, entry.confidence) }
+        }
         for c in result.cards.indices {
             for k in result.cards[c].cells.indices {
                 let key = "\(result.cards[c].cardNumber):\(result.cards[c].cells[k].row)"
                 if let t = taken[key], result.cards[c].cells[k].prefill != nil {
                     result.cards[c].cells[k].prefill?.autoAccepted = t
+                }
+                if let b = better[key], result.cards[c].cells[k].prefill != nil {
+                    result.cards[c].cells[k].prefill?.value = b.value
+                    if let confidence = b.confidence { result.cards[c].cells[k].prefill?.confidence = confidence }
                 }
             }
         }
@@ -371,6 +450,14 @@ final class Engine: NSObject, ObservableObject {
     // MARK: - The bridge
 
     private var progressObserver: ((EngineProgress) -> Void)?
+
+    /// The readers' share of the work: after the pages, before the scan is handed over.
+    private func readersProgress(_ done: Int, of total: Int, stage: String = "readers") {
+        let update = EngineProgress(stage: stage, fraction: Double(done) / Double(max(1, total)),
+                                    pageNumber: done, total: total)
+        progress = update
+        progressObserver?(update)
+    }
 
     private func call<T: Decodable>(_ method: String, params: Any) async throws -> T {
         await waitForLoad()

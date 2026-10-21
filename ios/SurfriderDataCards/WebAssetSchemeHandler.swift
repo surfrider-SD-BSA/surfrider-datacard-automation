@@ -83,11 +83,14 @@ final class WebAssetSchemeHandler: NSObject, WKURLSchemeHandler {
         // it is answered before the bundle is consulted at all.
         if path.hasPrefix(Self.inboxPrefix) {
             let token = String(path.dropFirst(Self.inboxPrefix.count))
-            guard let file = Self.staged(token), let data = try? Data(contentsOf: file) else {
+            // Mapped, not read: a long event's scan can be hundreds of megabytes,
+            // and handed over in pieces, because WebKit stalled on one 346 MB
+            // `didReceive` -- a 1,000-page scan sat at "Opening" for half an hour.
+            guard let file = Self.staged(token), let data = try? Data(contentsOf: file, options: .alwaysMapped) else {
                 Self.respondNotFound(url: url, task: task)
                 return
             }
-            Self.respond(url: url, data: data, mimeType: "application/pdf", cache: "no-store", task: task)
+            Self.respond(url: url, data: data, mimeType: "application/pdf", cache: "no-store", task: task, chunk: 4 << 20)
             return
         }
 
@@ -121,7 +124,7 @@ final class WebAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
 
     private static func respond(
-        url: URL, data: Data, mimeType: String, cache: String, task: WKURLSchemeTask
+        url: URL, data: Data, mimeType: String, cache: String, task: WKURLSchemeTask, chunk: Int? = nil
     ) {
         let response = HTTPURLResponse(
             url: url,
@@ -134,7 +137,16 @@ final class WebAssetSchemeHandler: NSObject, WKURLSchemeHandler {
             ]
         )!
         task.didReceive(response)
-        task.didReceive(data)
+        if let chunk {
+            var at = 0
+            while at < data.count {
+                let end = min(at + chunk, data.count)
+                task.didReceive(data.subdata(in: at..<end))
+                at = end
+            }
+        } else {
+            task.didReceive(data)
+        }
         task.didFinish()
     }
 

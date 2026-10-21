@@ -16,6 +16,11 @@ import {
   PREFILL_GATE,
   autoAcceptFor,
   isAutoAccepted,
+  OTHER_READERS_DISAGREE,
+  mainReading,
+  tallyFromReaders,
+  tallyNumber,
+  TUNED_DISAGREES,
   prefillFor,
   prefillTag,
 } from "../src/lib/prefill";
@@ -191,6 +196,33 @@ describe("autoAcceptedInScan with a second opinion", () => {
   });
 });
 
+describe("autoAcceptedInScan with the open readers", () => {
+  const at = (value: number, confidence: number) =>
+    ({ value, confidence, source: "digits", tally: null, digits: value }) as Reading;
+  const five = [at(4, 0.6), at(4, 0.6), at(4, 0.6), at(4, 0.6), at(7, 0.99)];
+  const votes = (n: number) => [...Array(n).fill(1), ...Array(8 - n).fill(7)] as (number | null)[];
+
+  it(`shows a sure reading ${OTHER_READERS_DISAGREE} of them read differently`, () => {
+    expect(autoAcceptedInScan(five, [], [], [null, null, null, null, votes(OTHER_READERS_DISAGREE)])).toEqual([
+      true, true, true, true, false,
+    ]);
+  });
+
+  it("shows first the flagged box more of them read differently", () => {
+    const sure = Array.from({ length: 5 }, () => at(7, 0.99));
+    // Two flagged, one shown (a fifth of five): the one eight disagree with.
+    const got = autoAcceptedInScan(sure, [], [], [votes(4), votes(8), null, null, null]);
+    expect(got).toEqual([true, false, true, true, true]);
+  });
+
+  it("changes nothing where fewer disagree, or they have no reading", () => {
+    const fewer = votes(OTHER_READERS_DISAGREE - 1);
+    const silent = Array(8).fill(null) as (number | null)[];
+    expect(autoAcceptedInScan(five, [], [], [null, null, null, null, fewer])).toEqual(autoAcceptedInScan(five));
+    expect(autoAcceptedInScan(five, [], [], [null, null, null, null, silent])).toEqual(autoAcceptedInScan(five));
+  });
+});
+
 describe("autoAcceptedInScan by row", () => {
   const at = (value: number) => ({ value, confidence: 0.6, source: "digits", tally: null, digits: value }) as Reading;
 
@@ -229,5 +261,54 @@ describe("autoAcceptedInScan on three-digit readings", () => {
       true,
       true,
     ]);
+  });
+});
+
+describe("tallyFromReaders", () => {
+  const counted = { value: 3, confidence: 0.3, source: "tally", tally: 3, digits: null } as Reading;
+
+  it("reads only one clean count, or the same count repeated", () => {
+    expect(tallyNumber("12")).toBe(12);
+    expect(tallyNumber(" 7 ")).toBe(7);
+    expect(tallyNumber("22 22")).toBe(22);
+    expect(tallyNumber("28233")).toBeNull();
+    expect(tallyNumber("45 8")).toBeNull();
+    expect(tallyNumber("1 3 1")).toBeNull();
+    expect(tallyNumber("")).toBeNull();
+    expect(tallyNumber(null)).toBeNull();
+  });
+
+  it("puts in the average of the clean counts, rounded, at the box's own confidence", () => {
+    expect(tallyFromReaders(counted, ["8", "11"])).toMatchObject({ value: 10, confidence: 0.3, source: "tally" });
+    expect(tallyFromReaders(counted, ["8", "28233"])).toMatchObject({ value: 8, confidence: 0.3 });
+  });
+
+  it("keeps the app's count where neither reader gives a clean one", () => {
+    expect(tallyFromReaders(counted, ["45 8", null])).toBe(counted);
+    expect(tallyFromReaders(counted, undefined)).toBe(counted);
+    expect(tallyFromReaders(counted, ["3", "3"])).toBe(counted);
+  });
+
+  it("counts a box first read as a number in the strip as a tally", () => {
+    const written = { ...counted, source: "digits" } as Reading;
+    expect(tallyFromReaders(written, ["3"])).toMatchObject({ value: 3, source: "tally" });
+  });
+});
+
+describe("mainReading", () => {
+  const digits = { value: 5, confidence: 0.6, source: "digits", tally: null, digits: 5 } as Reading;
+
+  it("fills a written box with the tuned reader's number, unsure where ours read another", () => {
+    expect(mainReading(digits, "15")).toMatchObject({ value: 15, confidence: TUNED_DISAGREES });
+  });
+
+  it("leaves the reading as it was where ours read the same", () => {
+    expect(mainReading(digits, "5 ,")).toBe(digits);
+  });
+
+  it("keeps ours without a reading, and for counted tallies", () => {
+    expect(mainReading(digits, null)).toBe(digits);
+    expect(mainReading(digits, "—")).toBe(digits);
+    expect(mainReading({ ...digits, source: "tally" }, "15").value).toBe(5);
   });
 });

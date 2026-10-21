@@ -488,17 +488,167 @@ const TENS_WEIGHT = 0.5;
  * `second` holds the phone's own reading of each box where it has one
  * (SECOND_DISAGREES_CONFIDENCE), and `rows` each box's card row (TENS_WEIGHT).
  */
+/**
+ * On iOS, open handwriting readers also read every box our reader read as
+ * digits (`OtherReaders.swift`): docTR's CRNN, PARSeq and ViTSTR, PaddleOCR's
+ * PP-OCRv5 server recognizer, EasyOCR's recognizer, and TrOCR small, base and
+ * large. A box where at least this many of them read another number than ours
+ * is ranked as if Apple had disagreed.
+ *
+ * Taking their number instead of ours is worse -- when four agree it fixes
+ * about as many taken boxes as it breaks (33 for 30), and even PP-OCRv5 alone,
+ * right on 79% of the boxes it reads where ours is on 74%, takes total off
+ * 7,606 -> 8,512 -- but they make different mistakes from ours and from each
+ * other, so when several disagree at once, ours is usually the one wrong.
+ *
+ * Measured 18 October 2026 under the apps' rule with Apple's opinion (SECOND=
+ * and OTHERS= in scripts/apps-rule.mjs), total off on the boxes taken unseen,
+ * with the readers exactly as the phone runs them, for the shipped digit reader
+ * and two others trained the same way on other seeds:
+ *
+ *                 today   with the readers     half A           half B
+ *     seed 1      7,606       6,884            3,600 -> 2,977   4,006 -> 3,907
+ *     seed 3      7,775       6,874            3,682 -> 3,129   4,093 -> 3,745
+ *     seed 0      7,910       6,838            3,833 -> 3,099   4,077 -> 3,739
+ *
+ * 4 of 8 beat 3 and 5. PP-OCRv5 replaced PaddleOCR v3 (7,036 / 7,019 / 6,840
+ * with v3). PARSeq is fine-tuned on the chapter's own boxes
+ * (scripts/train-parseq.py; held out by halves right on 68.8% where ours is on
+ * 67.2%): with it and the tuned TrOCR's fill-in (before mainReading), total off went
+ * 6,431 -> 6,200, 6,409 -> 6,140, 6,407 -> 6,338 (halves A 2,824 -> 2,748,
+ * 3,032 -> 2,788, 2,995 -> 2,903; B 3,607 -> 3,452, 3,377 -> 3,352,
+ * 3,412 -> 3,435). Tuning ViTSTR too: 6,227 / 6,066 / 6,249, two halves worse. Not kept: more docTR readers (SAR, MASTER, mobile CRNN, ViPTR) and
+ * PP-OCRv6 small/medium or v5 English, added or in place of EasyOCR -- all
+ * worse; EasyOCR is weak alone but its mistakes are its own. The phone reads
+ * only until a box is settled (OtherReaders.swift), about 1 min 45 s for a
+ * scan's 244 written boxes on an M-series Mac.
+ */
+export const OTHER_READERS_DISAGREE = 4;
+
+/**
+ * How much each open reader that disagrees moves a box up, beyond the line:
+ * a flagged box ranks x(1 + this x every reader past `OTHER_READERS_DISAGREE`),
+ * an unflagged one x(1 + this x every reader that disagrees). Eight against
+ * ours is likelier wrong than four, three likelier than none.
+ *
+ * Measured 18 October 2026 with the counts the phone has (the five fast
+ * readers on every box, the TrOCRs only while a box is undecided): total off
+ * 6,884 -> 6,673, 6,878 -> 6,665, 6,838 -> 6,691 (seeds 1, 3, 0); halves A
+ * 2,977 -> 2,908, 3,129 -> 3,119, 3,099 -> 3,135; B 3,907 -> 3,765,
+ * 3,749 -> 3,546, 3,739 -> 3,556. 0.1 for either side was worse on two seeds.
+ */
+const OTHER_READERS_WEIGHT = 0.05;
+
+/**
+ * How sure a written number is when our tuned reader read another number than
+ * our own digit reader: its number goes in at this confidence (`mainReading`).
+ * Where the two read the same, the reading is left as it was.
+ *
+ * The tuned reader is TrOCR-small fine-tuned on the chapter's own TOTAL boxes
+ * and sheet values (scripts/train-trocr.py). Held out by halves of the scans
+ * it is right on 71.8% of boxes where ours is on 66.9%, and off by 25,969 in
+ * all against ours 41,442. On iOS it reads every written box first and its
+ * number is the one filled in; the open readers and Apple vote against its
+ * number, not ours.
+ *
+ * Measured 19 October 2026, the tuned reader on every written box and the open
+ * readers as the phone reads them, total off on the boxes taken unseen:
+ * 6,200 -> 5,569, 6,140 -> 5,678, 6,338 -> 5,692 for the shipped digit reader
+ * and two others; halves A 2,748 -> 2,579, 2,788 -> 2,602, 2,903 -> 2,638, B
+ * 3,452 -> 2,990, 3,352 -> 3,076, 3,435 -> 3,054. 0.6 instead: 6,050 / 6,047 /
+ * 5,865; also making agreeing readings at least 0.9 or 0.7 sure was worse
+ * (6,420 / 6,283 / 6,246 and 5,938-5,960). Before it, the tuned reader's number
+ * went in only where two others read it too (6,431).
+ */
+export const TUNED_DISAGREES = 0.4;
+
+/**
+ * A written box's reading with our tuned reader's number in it: unchanged where
+ * it read what ours read, its number at `TUNED_DISAGREES` where it read another.
+ * Ours where the tuned reader read nothing, and for every reading that is not
+ * of written digits.
+ */
+export function mainReading(r: Reading, tuned: string | null | undefined): Reading {
+  const t = numberFromReader(tuned);
+  if (r.source !== "digits" || t === null || t === r.value) return r;
+  return { ...r, value: t, confidence: TUNED_DISAGREES };
+}
+
+/**
+ * A tally reader's text as a count, or null where it is not one clean number:
+ * one or two digits, or the same one or two digits repeated ("22 22"). Anything
+ * else ("28233", "45 8", "1 3 1") is the reader losing its way on a long or
+ * crowded strip, and the app's own count stands.
+ */
+export function tallyNumber(text: string | null | undefined): number | null {
+  const m = /^(\d{1,2})(?: \1)*$/.exec((text ?? "").trim());
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * A tally-only box (strokes, no number in the TOTAL box) with our two tally
+ * readers' count in it: the average of their clean counts, rounded, at the
+ * confidence the box already had. Unchanged where neither gives a clean count.
+ *
+ * The tally readers are TrOCR-small taught first on drawn tally strips and then
+ * on the chapter's own (scripts/train-tally.py), twice from different random
+ * starts. On the 299 tally-only boxes with a sheet number, held out by halves
+ * of the scans, the app's counter was exactly right on 77 and off by 2,220;
+ * the two readers averaged under this rule, 108 and 1,653.
+ *
+ * Measured 20 October 2026, honest scoring with the vote off, total off on the
+ * boxes taken unseen: 6,545 -> 6,467, 6,471 -> 6,425, 6,554 -> 6,513 for the
+ * shipped digit reader and two others. Half A better on all three (3,330 ->
+ * 3,273, 3,309 -> 3,249, 3,366 -> 3,313), half B on one (3,215 -> 3,194) and
+ * slightly worse on two (3,162 -> 3,176, 3,188 -> 3,200). The owner's call to
+ * ship it. A new confidence for the changed boxes changed which boxes are
+ * shown and was worse, so the box keeps its own.
+ */
+export function tallyFromReaders(r: Reading, texts: readonly (string | null | undefined)[] | undefined): Reading {
+  const counts = (texts ?? []).map(tallyNumber).filter((n): n is number => n !== null);
+  if (counts.length === 0) return r;
+  const value = Math.round(counts.reduce((a, b) => a + b, 0) / counts.length);
+  return value === r.value && r.source === "tally" ? r : { ...r, value, source: "tally" };
+}
+
+/** Letters the open readers write for handwritten digits, as Apple's are read (Engine.swift). */
+const LOOKALIKE: Record<string, string> = {
+  l: "1", I: "1", "|": "1", i: "1", "!": "1", O: "0", o: "0", D: "0", Q: "0", S: "5", s: "5",
+  Z: "2", z: "2", B: "8", g: "9", q: "9", G: "6", b: "6", T: "7", A: "4",
+};
+
+/**
+ * An open reader's text as a number: the first run of digits after lookalike
+ * letters are read as digits, at most 999. The first run, not all digits: the
+ * readers often add a stroke of the box's printed edge after the number
+ * ("14 1", "7_1"), and the first run scored better (out/exp/wa/parse.cjs).
+ */
+export function numberFromReader(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const run = [...text].map((c) => LOOKALIKE[c] ?? c).join("").match(/\d+/);
+  return run ? Math.min(Number(run[0]), 999) : null;
+}
+
 export function autoAcceptedInScan(
   readings: (Reading | null | undefined)[],
   second: (number | null | undefined)[] = [],
   rows: (number | null | undefined)[] = [],
+  others: ((number | null)[] | null | undefined)[] = [],
 ): boolean[] {
   const empty = (r: Reading | null | undefined) => r == null || r.source === "placeholder";
   const show = Math.ceil(readings.length * SHOW_SHARE);
-  const rank = (r: Reading, s: number | null | undefined) =>
-    s != null && s !== r.value ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r;
+  const against = (r: Reading, o: (number | null)[] | null | undefined) =>
+    (o ?? []).filter((v) => v != null && v !== r.value).length;
+  const flagged = (r: Reading, s: number | null | undefined, d: number) =>
+    (s != null && s !== r.value) || d >= OTHER_READERS_DISAGREE;
+  const score = (r: Reading, s: number | null | undefined, o: (number | null)[] | null | undefined, row: number | null | undefined) => {
+    const d = against(r, o);
+    const f = flagged(r, s, d);
+    const e = rowWeighted(expectedError(f ? { ...r, confidence: SECOND_DISAGREES_CONFIDENCE } : r), r, row);
+    return e * (1 + OTHER_READERS_WEIGHT * (f ? Math.max(0, d - OTHER_READERS_DISAGREE) : d));
+  };
   const ranked = readings
-    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -rowWeighted(expectedError(rank(r!, second[i])), r!, rows[i]) }))
+    .map((r, i) => ({ i, c: empty(r) ? -Infinity : -score(r!, second[i], others[i], rows[i]) }))
     .sort((a, b) => a.c - b.c || a.i - b.i);
   const accepted = readings.map((r) => !empty(r));
   let shown = readings.filter(empty).length;
