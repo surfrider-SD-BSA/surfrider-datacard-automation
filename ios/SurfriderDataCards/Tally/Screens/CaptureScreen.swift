@@ -58,7 +58,6 @@ struct CaptureScreen: View {
     /// Set by the tips' "Start scanning", so the camera opens once the sheet
     /// has gone: presenting it while the sheet is still dismissing drops it.
     @State private var scanAfterTips = false
-    @AppStorage(ScanTips.showFirstKey) private var tipsFirst = true
 
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: Nocturne.safeTop) {
@@ -110,7 +109,9 @@ struct CaptureScreen: View {
 
                 if Camera.offered {
                     Button {
-                        if tipsFirst { showingTips = true } else { scanning = true }
+                        // Every time, on purpose: whoever is holding the
+                        // phone may not be whoever read it last time.
+                        showingTips = true
                     } label: {
                         HStack(spacing: 9) {
                             Image(systemName: Nocturne.Icon.capture)
@@ -373,8 +374,6 @@ struct CaptureScreen: View {
 /// banners the alignment check reads, a page that is not flat bends the two
 /// blocks apart, and a missing corner crops the grid.
 enum ScanTips {
-    static let showFirstKey = "scanTips.showBeforeScanning"
-
     static let items: [(icon: String, title: String, detail: String)] = [
         ("rectangle.portrait", "Flat, on a plain darker surface",
          "Press out any curl or fold. A table darker than the card helps the camera find its edges."),
@@ -392,7 +391,6 @@ struct ScanTipsSheet: View {
     /// opened just to read, which closes with "Done".
     var onStart: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(ScanTips.showFirstKey) private var tipsFirst = true
 
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: 28) {
@@ -444,10 +442,6 @@ struct ScanTipsSheet: View {
                             }
                         }
                         .buttonStyle(PrimaryButtonStyle())
-                        Toggle("Show this before every scan", isOn: $tipsFirst)
-                            .font(Nocturne.Face.label(13))
-                            .foregroundStyle(Nocturne.text(62))
-                            .tint(Nocturne.accent)
                     } else {
                         Button("Done") { dismiss() }
                             .buttonStyle(PrimaryButtonStyle())
