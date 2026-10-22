@@ -12,8 +12,10 @@
 //  finds the page's corners and rectifies the perspective before handing the
 //  image over, so the pipeline gets a flat page. See DocumentScanner.swift.
 //
-//  RESOLUTION. The pipeline expects 200 DPI on the card's short edge, and
-//  registration only searches +/-6% around that scale. Every captured page is
+//  RESOLUTION. The pipeline expects 200 DPI on the card's short edge.
+//  Registration searches +/-6% around that scale first, and only a page that
+//  fails there gets the wider retries (size, tilt, a bent card -- see
+//  register.ts). Every captured page is
 //  laid out 8.5 inches wide and stored at 200 DPI (CapturedPages.pdf), so a
 //  photo reaches the reader at the same scale as the chapter's scanner. On the
 //  1.18 Imperial cards that read as well as the scan did (70 wrong of 728
@@ -52,6 +54,10 @@ struct CaptureScreen: View {
     @State private var problem: String?
     /// How many photographed pages are being bound into a PDF, while they are.
     @State private var preparing: Int?
+    @State private var showingTips = false
+    /// Set by the tips' "Start scanning", so the camera opens once the sheet
+    /// has gone: presenting it while the sheet is still dismissing drops it.
+    @State private var scanAfterTips = false
 
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: Nocturne.safeTop) {
@@ -103,7 +109,9 @@ struct CaptureScreen: View {
 
                 if Camera.offered {
                     Button {
-                        scanning = true
+                        // Every time, on purpose: whoever is holding the
+                        // phone may not be whoever read it last time.
+                        showingTips = true
                     } label: {
                         HStack(spacing: 9) {
                             Image(systemName: Nocturne.Icon.capture)
@@ -206,6 +214,17 @@ struct CaptureScreen: View {
                 // RootView, not through this view -- see DrivePicker.
                 DrivePicker(url: url)
                     .ignoresSafeArea()
+            }
+        }
+        .sheet(isPresented: $showingTips, onDismiss: {
+            if scanAfterTips {
+                scanAfterTips = false
+                scanning = true
+            }
+        }) {
+            ScanTipsSheet {
+                scanAfterTips = true
+                showingTips = false
             }
         }
         .fullScreenCover(isPresented: $scanning) {
@@ -344,5 +363,95 @@ struct CaptureScreen: View {
             path.addLine(to: CGPoint(x: x, y: corner.isTop ? rect.maxY : rect.minY))
             return path
         }
+    }
+}
+
+// MARK: - How to scan
+
+/// What decides whether a photographed page lines up, said before the camera
+/// opens rather than after a page has been refused. Every point here is one
+/// the registration measurements turned on: shadow and glare pale the printed
+/// banners the alignment check reads, a page that is not flat bends the two
+/// blocks apart, and a missing corner crops the grid.
+enum ScanTips {
+    static let items: [(icon: String, title: String, detail: String)] = [
+        ("rectangle.portrait", "Flat, on a plain darker surface",
+         "Press out any curl or fold. A table darker than the card helps the camera find its edges."),
+        ("sun.max", "Even light, no shadow",
+         "Keep your own shadow and your phone's off the card, especially the totals column. Turn the flash off if it leaves a glare."),
+        ("viewfinder", "Straight above, all four corners in",
+         "Hold the phone level over the middle of the card and wait for the outline to settle on its edges."),
+        ("arrow.left.arrow.right", "Front, then back, card by card",
+         "Keep the cards in order: the front of a card, then its back, then the next card."),
+    ]
+}
+
+struct ScanTipsSheet: View {
+    /// Shown as "Start scanning" when the camera opens next; nil for a sheet
+    /// opened just to read, which closes with "Done".
+    var onStart: (() -> Void)?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScreenBody(ground: Nocturne.captureGround, topPadding: 28) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Kicker(text: "Before you start", icon: Nocturne.Icon.capture)
+                        .padding(.bottom, 8)
+                    Text("How to scan the cards")
+                        .font(Nocturne.Face.title(26))
+                        .tracking(-0.26)
+                        .foregroundStyle(Nocturne.text)
+                        .padding(.bottom, 8)
+                    Text("A page lines up, and is read, only when its printed banners show clearly. These four things decide that.")
+                        .font(Nocturne.Face.body(13))
+                        .lineSpacing(3)
+                        .foregroundStyle(Nocturne.text(65))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ForEach(ScanTips.items, id: \.title) { tip in
+                        HStack(alignment: .top, spacing: 14) {
+                            Image(systemName: tip.icon)
+                                .font(.system(size: 18))
+                                .foregroundStyle(Nocturne.accent)
+                                .frame(width: 26)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(tip.title)
+                                    .font(Nocturne.Face.label(15, weight: .medium))
+                                    .foregroundStyle(Nocturne.text)
+                                Text(tip.detail)
+                                    .font(Nocturne.Face.body(13))
+                                    .lineSpacing(2.5)
+                                    .foregroundStyle(Nocturne.text(62))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(.top, 20)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .pageMargin()
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 12) {
+                    if let onStart {
+                        Button(action: onStart) {
+                            HStack(spacing: 9) {
+                                Image(systemName: Nocturne.Icon.capture)
+                                Text("Start scanning")
+                            }
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    } else {
+                        Button("Done") { dismiss() }
+                            .buttonStyle(PrimaryButtonStyle())
+                    }
+                }
+                .pageMargin()
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+            }
+        }
+        .presentationDragIndicator(.visible)
     }
 }

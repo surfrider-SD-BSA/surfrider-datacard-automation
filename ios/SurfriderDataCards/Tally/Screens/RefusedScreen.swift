@@ -18,6 +18,7 @@ import SwiftUI
 struct RefusedScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showingTips = false
 
     var body: some View {
         ScreenBody {
@@ -73,6 +74,11 @@ struct RefusedScreen: View {
             }
             .buttonStyle(PrimaryButtonStyle(minHeight: 50, size: 15))
 
+            // The same advice the camera opens with, for whoever skipped it.
+            Button("How to get a good scan") { showingTips = true }
+                .buttonStyle(TextButtonStyle())
+                .frame(maxWidth: .infinity)
+
             Button("Leave it out and carry on") {
                 model.index = 0
                 model.syncEntryToCurrentCell()
@@ -89,6 +95,7 @@ struct RefusedScreen: View {
                 .padding(.top, 6)
         }
         .pinnedActions()
+        .sheet(isPresented: $showingTips) { ScanTipsSheet() }
     }
 
     private var refusedLabel: String {
