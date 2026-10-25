@@ -29,6 +29,7 @@
  */
 
 import { loadCellMap, type CellMap } from "./lib/cells";
+import { CARD_LABELS } from "./lib/card-labels";
 import { decodeModel, type DigitModel } from "./lib/digits";
 import {
   assembleCard,
@@ -346,6 +347,7 @@ async function process(params: ProcessParams) {
       side: registered.side,
       trusted: registered.trusted,
       bannerOverlap: registered.bannerOverlap,
+      ruleOverlap: registered.ruleOverlap,
       cells: registered.trusted
         ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side, refs.digits)
         : [],
@@ -382,6 +384,7 @@ async function process(params: ProcessParams) {
       side: p.side,
       trusted: p.trusted,
       bannerOverlap: p.bannerOverlap,
+      ruleOverlap: p.ruleOverlap,
     })),
     minBannerOverlap: MIN_BANNER_OVERLAP,
     problems: state.problems,
@@ -400,6 +403,10 @@ async function process(params: ProcessParams) {
         return {
           row: cell.row,
           itemName: cell.itemName,
+          // The card's own words, for the checking screens. The export keeps
+          // `itemName`, the template's. See lib/card-labels.ts.
+          cardLabel: CARD_LABELS[cell.row]?.label ?? cell.itemName,
+          cardNote: CARD_LABELS[cell.row]?.note ?? null,
           section: cell.section,
           side: cell.side,
           hasValue: cell.hasValue,
@@ -588,6 +595,12 @@ interface ExportParams {
    * one nobody opened: both are still as the tool put them.
    */
   seen?: [number, number][];
+  /**
+   * What was written beside "Other (write-in)", as [card, row, name], where
+   * somebody typed it in. Listed on the provenance sheet; the template has no
+   * column for it.
+   */
+  writeIns?: [number, number, string][];
 }
 
 /**
@@ -661,10 +674,17 @@ async function exportWorkbook(params: ExportParams) {
     });
   }
 
+  const valueOf = new Map(params.values.flatMap(([card, rows]) => rows.map(([row, v]) => [`${card}:${row}`, v] as const)));
   const bytes = fillTemplate(template, {
     sourcePdfName: state.fileName,
     event: params.event,
     cards,
+    writeIns: (params.writeIns ?? []).map(([cardNumber, row, name]) => ({
+      cardNumber,
+      row,
+      name,
+      value: valueOf.get(`${cardNumber}:${row}`) ?? null,
+    })),
     training: trainingBoxes(
       params.values,
       untouched,

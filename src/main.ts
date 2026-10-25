@@ -219,6 +219,7 @@ async function processFile(file: File, opts: { fromDrive?: boolean } = {}) {
         side: registered.side,
         trusted: registered.trusted,
         bannerOverlap: registered.bannerOverlap,
+        ruleOverlap: registered.ruleOverlap,
         cells: registered.trusted
           ? cellsForSide(
               registered.image,

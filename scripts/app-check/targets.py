@@ -30,23 +30,36 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def taxonomy() -> list[tuple[str, str]]:
-    """(name, section) for every item on the card, from src/lib/taxonomy.ts."""
+def taxonomy() -> list[tuple[str, str, str]]:
+    """(template name, printed label, section) for every item on the card.
+
+    The app shows the printed label (src/lib/card-labels.ts) and the template name
+    goes to the spreadsheet; a target may use either, and is matched on the label.
+    """
     src = (ROOT / "src" / "lib" / "taxonomy.ts").read_text()
     found = re.findall(
-        r'\{\s*row:\s*\d+,\s*name:\s*"((?:[^"\\]|\\.)*)",\s*section:\s*"((?:[^"\\]|\\.)*)"', src
+        r'\{\s*row:\s*(\d+),\s*name:\s*"((?:[^"\\]|\\.)*)",\s*section:\s*"((?:[^"\\]|\\.)*)"', src
     )
     if len(found) < 50:
         raise SystemExit("could not read the item list from src/lib/taxonomy.ts")
-    return found
+    printed = (ROOT / "src" / "lib" / "card-labels.ts").read_text()
+    other = re.search(r'const OTHER: CardLabel = \{ label: "([^"]*)"', printed).group(1)
+    labels = {
+        int(r): label for r, label in re.findall(r'^\s*(\d+): \{ label: "([^"]*)"', printed, re.M)
+    }
+    labels.update({int(r): other for r in re.findall(r"^\s*(\d+): OTHER,", printed, re.M)})
+    return [(name, labels.get(int(row), name), section) for row, name, section in found]
 
 
 def parse(args: list[str]) -> list[tuple[int, str, str]]:
     """Each argument as (card, item, section), or an exit naming everything wrong with them."""
     items = taxonomy()
     sections: dict[str, list[str]] = {}
-    for name, section in items:
-        sections.setdefault(name, []).append(section)
+    shown: dict[tuple[str, str], str] = {}
+    for name, label, section in items:
+        for key in {name, label}:
+            sections.setdefault(key, []).append(section)
+            shown[(key, section)] = label
 
     out, errors = [], []
     for arg in args:
@@ -74,7 +87,7 @@ def parse(args: list[str]) -> list[tuple[int, str, str]]:
                 f"{arg!r}: {item!r} is not in a section called {section!r}; it is in {known}"
             )
             continue
-        out.append((card, item, section))
+        out.append((card, shown[(item, section)], section))
 
     if errors or not out:
         raise SystemExit("\n".join(errors) if errors else "no targets given")

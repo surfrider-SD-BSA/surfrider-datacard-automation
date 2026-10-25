@@ -15,6 +15,7 @@ struct FinishScreen: View {
 
     @State private var working = false
     @State private var sharing = false
+    @State private var sharingPhotos = false
 
     /// The badge lands rather than appears. One spring, once, on the one screen
     /// that is telling somebody an hour of work is finished.
@@ -23,7 +24,7 @@ struct FinishScreen: View {
 
     var body: some View {
         ScreenBody {
-            NavBar(back: "Cards") { dismiss() }
+            NavBar(back: "Cards") { dismiss() } trailing: { HomeButton(model: model) }
 
             if model.exportedFile != nil {
                 success
@@ -32,17 +33,11 @@ struct FinishScreen: View {
             }
         }
         .navigationBarBackButtonHidden()
+        .sheet(isPresented: $sharingPhotos) {
+            if let scan = model.lastRead { ShareSheet(items: [scan]) }
+        }
         .sheet(isPresented: $sharing) {
             if let file = model.exportedFile { ShareSheet(items: [file]) }
-        }
-        .sheet(isPresented: Binding(
-            get: { if case .choosingFolder = drive.stage { return true } else { return false } },
-            set: { if !$0 { drive.cancel() } }
-        )) {
-            if case .choosingFolder(let url) = drive.stage {
-                DrivePicker(url: url)
-                    .ignoresSafeArea()
-            }
         }
     }
 
@@ -54,9 +49,9 @@ struct FinishScreen: View {
     private var driveLabel: String {
         switch drive.stage {
         case .authorizing: return "Waiting for Google…"
-        case .uploading: return "Saving to Drive…"
-        case .saved: return "Saved to Drive"
-        default: return "Save to Drive"
+        case .uploading: return "Saving to Google Drive…"
+        case .saved: return "Saved to Google Drive › \(DriveUpload.folderName)"
+        default: return "Save to Google Drive"
         }
     }
 
@@ -203,13 +198,12 @@ struct FinishScreen: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
 
-                // The other direction of the capture screen's button, and the
-                // same folder: the scans arrive from Drive and the spreadsheet
-                // goes back beside them. Absent unless the build was
-                // configured, exactly as the picker is.
-                if drive.isAvailable, model.exportedFile != nil {
+                // Into this app's own "Surfrider Data Cards" folder in the
+                // volunteer's Drive -- see DriveUpload for why not a folder
+                // they pick. Absent unless the build was configured.
+                if drive.isAvailable, let file = model.exportedFile {
                     Button {
-                        Task { await drive.beginSave() }
+                        Task { await drive.beginSave(file) }
                     } label: {
                         HStack(spacing: 9) {
                             Image(systemName: driveIcon)
@@ -222,6 +216,17 @@ struct FinishScreen: View {
 
                 Button("Back to cleanups") { model.backToCleanups() }
                     .buttonStyle(SecondaryButtonStyle())
+
+                // Only ever on a tap. The pictures are the one thing that can
+                // say why a box was missed or misread -- Eric's South Ponto
+                // misses (24 Oct 2026) could not be traced because a camera
+                // scan is gone once read -- so a volunteer helping test the
+                // reader can choose to send them.
+                if model.lastRead != nil {
+                    Button("Share the photos (PDF)") { sharingPhotos = true }
+                        .buttonStyle(TextButtonStyle(size: 13))
+                        .padding(.top, 4)
+                }
             }
             .padding(.top, 30)
 
@@ -241,7 +246,7 @@ struct FinishScreen: View {
 
             // The last thing said before the file leaves, because it is the
             // one promise the whole tool is built on.
-            Text("The scan stays on this phone. Only the spreadsheet leaves.")
+            Text("The scan stays on this phone unless you share the photos. Only the spreadsheet leaves.")
                 .font(Nocturne.Face.label(12))
                 .foregroundStyle(Nocturne.text(42))
                 .multilineTextAlignment(.center)
