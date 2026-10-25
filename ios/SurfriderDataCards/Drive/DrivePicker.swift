@@ -31,8 +31,6 @@ final class DriveFlow: ObservableObject {
         /// The picker is up, choosing a scan to read.
         case picking(URL)
         case downloading(fraction: Double, name: String)
-        /// The picker is up, choosing a folder to save into.
-        case choosingFolder(URL)
         case uploading(name: String)
         /// The spreadsheet is in Drive. Held rather than cleared so the screen
         /// can say so -- a save that leaves no trace looks like one that did
@@ -123,9 +121,7 @@ final class DriveFlow: ObservableObject {
 
     /// A `datacards://picker?…` URL, handed over by RootView.
     ///
-    /// What to do with a pick depends on what was being picked, and the stage
-    /// is the record of that -- a file id means download and read, a folder id
-    /// means upload the spreadsheet into it.
+    /// Only a scan is ever picked now; saving goes to the app's own folder.
     func handleCallback(_ url: URL, model: TallyModel) {
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
@@ -146,10 +142,6 @@ final class DriveFlow: ObservableObject {
             case .picking:
                 cancel()
                 Task { await download(DriveMessage.Picked(id: id, name: name, size: size), into: model) }
-            case .choosingFolder:
-                cancel()
-                guard let file = model.exportedFile else { return }
-                Task { await save(file, toFolder: id) }
             default:
                 // A stale redirect arriving after the sheet was dismissed.
                 cancel()
@@ -165,19 +157,19 @@ final class DriveFlow: ObservableObject {
 
     // MARK: - The other direction
 
-    /// Step one of saving: a token, then the picker in folder mode.
+    /// Saving: a token, then straight into this app's own Drive folder.
     ///
-    /// A folder has to be chosen even though DriveConfig may name one. Under
-    /// `drive.file` this app cannot write into a folder it merely knows the id
-    /// of; access comes from the picker handing the folder back. See the note
-    /// at the top of DriveUpload.
-    func beginSave() async {
+    /// No picker. It cannot run on a phone (see the note at the top of
+    /// DriveUpload), and under `drive.file` a folder the app made needs none.
+    func beginSave(_ file: URL) async {
         guard let config else { return }
         problem = nil
         stage = .authorizing
         do {
             let token = try await auth.accessToken(for: config)
-            stage = .choosingFolder(pickerURL(token: token, config: config, mode: "folder"))
+            stage = .uploading(name: file.lastPathComponent)
+            let folder = try await DriveUpload.appFolder(accessToken: token)
+            await save(file, toFolder: folder)
         } catch {
             stage = .idle
             report(error)
