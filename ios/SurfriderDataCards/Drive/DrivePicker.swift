@@ -15,7 +15,7 @@
 //  web view has no access to the model, the scan or the values.
 //
 
-import SafariServices
+import AuthenticationServices
 import SwiftUI
 
 // MARK: - The flow
@@ -79,13 +79,19 @@ final class DriveFlow: ObservableObject {
     /// The consent screen is skipped when a token from earlier in this run of
     /// the app is still good, which is what makes the second scan of an evening
     /// one tap instead of a sign-in.
-    func begin() async {
+    func begin(model: TallyModel) async {
         guard let config else { return }
         problem = nil
         stage = .authorizing
         do {
             let token = try await auth.accessToken(for: config)
-            stage = .picking(pickerURL(token: token, config: config))
+            let url = pickerURL(token: token, config: config)
+            stage = .picking(url)
+            // In the sign-in's own browser session, not a Safari sheet: see
+            // `DriveAuth.browse`. The answer is the same `datacards://picker`
+            // URL as ever, handed straight to the handler RootView also uses.
+            let answer = try await auth.browse(url, callbackScheme: "datacards")
+            handleCallback(answer, model: model)
         } catch {
             stage = .idle
             report(error)
@@ -275,37 +281,4 @@ enum DriveMessage {
             return nil
         }
     }
-}
-
-// MARK: - The web view
-
-/// Google's picker, in Safari.
-///
-/// `SFSafariViewController` and not `WKWebView`, and the difference is the
-/// whole reason the picker works at all: Safari's cookies are shared with this
-/// controller, so the picker opens already signed in as the person who just
-/// came through the consent screen. A web view has its own cookie store, which
-/// Google's session never reaches -- that produced "Can't access your Google
-/// Account", with the fix suggested in the message being one nobody could act
-/// on from inside an app.
-///
-/// It answers through `datacards://picker?…`, caught by RootView, because a
-/// page in Safari cannot call back into the app any other way.
-struct DrivePicker: UIViewControllerRepresentable {
-
-    let url: URL
-
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        let configuration = SFSafariViewController.Configuration()
-        configuration.entersReaderIfAvailable = false
-        configuration.barCollapsingEnabled = false
-
-        let controller = SFSafariViewController(url: url, configuration: configuration)
-        controller.preferredBarTintColor = UIColor(Nocturne.ground)
-        controller.preferredControlTintColor = UIColor(Nocturne.accent)
-        controller.dismissButtonStyle = .cancel
-        return controller
-    }
-
-    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }

@@ -174,7 +174,7 @@ struct CaptureScreen: View {
                 // DriveConfig, where that default is argued for.
                 if drive.isAvailable {
                     Button {
-                        Task { await drive.begin() }
+                        Task { await drive.begin(model: model) }
                     } label: {
                         HStack(spacing: 9) {
                             Image(systemName: Nocturne.Icon.drive)
@@ -238,17 +238,6 @@ struct CaptureScreen: View {
             .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
-        .sheet(isPresented: Binding(
-            get: { if case .picking = drive.stage { return true } else { return false } },
-            set: { if !$0 { drive.cancel() } }
-        )) {
-            if case .picking(let url) = drive.stage {
-                // The result comes back as `datacards://picker?…` on
-                // RootView, not through this view -- see DrivePicker.
-                DrivePicker(url: url)
-                    .ignoresSafeArea()
-            }
-        }
         .sheet(isPresented: $showingTips, onDismiss: {
             if scanAfterTips {
                 scanAfterTips = false
