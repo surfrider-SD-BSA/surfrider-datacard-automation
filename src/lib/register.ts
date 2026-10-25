@@ -74,12 +74,6 @@ export interface ReferenceTargets {
  */
 export const MIN_BANNER_OVERLAP = 0.75;
 
-/**
- * `ruleOverlap` below this is not trusted either. Set from the cached real
- * pages by scripts/measure-rule-overlap.mjs -- see the figures there.
- */
-export const MIN_RULE_OVERLAP = 0.25;
-
 export interface RegisteredPage {
   pageNumber: number;
   side: CardSide;
@@ -94,11 +88,6 @@ export interface RegisteredPage {
    * are, 0-1. This is the check that decides whether the page is usable.
    */
   bannerOverlap: number;
-  /**
-   * How well the printed vertical lines land, relative to the template: the
-   * sideways check `bannerOverlap` cannot make. See `ruleOverlap`.
-   */
-  ruleOverlap: number;
   /** False when the page could not be placed well enough to crop cells from. */
   trusted: boolean;
   /** What the cheap side classifier saw. Reported, not acted on -- see `classifyPage`. */
@@ -199,62 +188,6 @@ export function bannerOverlap(registered: GrayImage, target: ReferenceTarget): n
   }
   return checked > 0 ? worst : 0;
 }
-
-/** The lines a reference has top to bottom: its strongest column peaks. */
-function strongRules(profile: Float64Array, x0: number, x1: number): number[] {
-  let top = 0;
-  for (let x = x0; x < x1; x++) top = Math.max(top, profile[x]!);
-  const out: number[] = [];
-  for (let x = x0 + 1; x < x1 - 1; x++) {
-    const v = profile[x]!;
-    if (v >= top * 0.5 && v >= profile[x - 1]! && v > profile[x + 1]!) out.push(x);
-  }
-  return out;
-}
-
-function median(values: Float64Array, x0: number, x1: number): number {
-  const s = Array.from(values.subarray(x0, x1)).sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)] ?? 0;
-}
-
-/**
- * Whether a registered page's printed vertical lines are where the template's
- * are: the sideways half of `bannerOverlap`.
- *
- * A banner is a full-width stripe, so a page out sideways still lands its
- * banners on themselves and passes. South Ponto card 1 (24 Oct 2026,
- * photographed) did, about 130px out, and every left-column TOTAL crop showed
- * the right column's printed labels. The few lines that run the height of the
- * grid -- the edges of the TOTAL columns -- are where the boxes are, so each
- * is looked for within `RULE_SLACK` pixels on the page, and scored by how dark
- * it is there against the page's own background, relative to the template.
- * The weakest line decides: one missing is enough to mean the page is out.
- */
-export function ruleOverlap(registered: GrayImage, target: ReferenceTarget): number {
-  const { image: reference, window } = target;
-  const y1 = Math.min(reference.height, registered.height, window.y + window.height);
-  const x0 = window.x;
-  const x1 = Math.min(reference.width, registered.width, window.x + window.width);
-  const ref = colProfile(reference, window.y, y1);
-  const page = colProfile(registered, window.y, y1);
-  const refBase = median(ref, x0, x1);
-  const pageBase = median(page, x0, x1);
-
-  let worst = Infinity;
-  for (const x of strongRules(ref, x0, x1)) {
-    let found = 0;
-    for (let k = Math.max(x0, x - RULE_SLACK); k <= Math.min(x1 - 1, x + RULE_SLACK); k++) {
-      found = Math.max(found, page[k]!);
-    }
-    const want = ref[x]! - refBase;
-    if (want <= 0) continue;
-    worst = Math.min(worst, (found - pageBase) / want);
-  }
-  return Number.isFinite(worst) ? Math.max(0, worst) : 0;
-}
-
-/** How far from its template position a line may be found, in pixels. */
-const RULE_SLACK = 8;
 
 /**
  * Guess whether a page is a card front or back, cheaply.
@@ -372,7 +305,6 @@ export function registerPage(img: GrayImage, target: ReferenceTarget, { wide = f
     // placed it: a fit cannot be its own evidence, and the correlation falls
     // with how much a volunteer wrote rather than with how far the page is out.
     bannerOverlap: bannerOverlap(image, target),
-    ruleOverlap: ruleOverlap(image, target),
   };
 }
 
@@ -435,7 +367,7 @@ export function registerByBlock(
     data.set(placed[1].data.subarray(row + split, row + width), row + split);
   }
   const image = { width, height, data };
-  return { ...fit, image, bannerOverlap: bannerOverlap(image, target), ruleOverlap: ruleOverlap(image, target) };
+  return { ...fit, image, bannerOverlap: bannerOverlap(image, target) };
 }
 
 /** The columns `x0`-`x1` of an image, full height. */
@@ -446,26 +378,6 @@ function strip(img: GrayImage, x0: number, x1: number): GrayImage {
     data.set(img.data.subarray(y * img.width + x0, y * img.width + x1), y * width);
   }
   return { width, height: img.height, data };
-}
-
-interface Placement {
-  bannerOverlap: number;
-  ruleOverlap: number;
-}
-
-/** Both checks pass: the banners land top to bottom and the rules sideways. */
-function placed(fit: Placement): boolean {
-  return fit.bannerOverlap >= MIN_BANNER_OVERLAP && fit.ruleOverlap >= MIN_RULE_OVERLAP;
-}
-
-/**
- * Whether `a` is a better placement than `b`: one that passes beats one that
- * does not, and otherwise the banners decide, as they always have -- so a
- * page that passed before and still passes is placed exactly as it was.
- */
-function better(a: Placement, b: Placement): boolean {
-  if (placed(a) !== placed(b)) return placed(a);
-  return a.bannerOverlap > b.bannerOverlap;
 }
 
 /**
@@ -492,21 +404,20 @@ export function registerAgainstBestSide(
   let quarterTurns = 0;
   let fit = registerPage(img, targets[side]);
 
-  if (!placed(fit)) {
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
     const alternative = registerPage(img, targets[other]);
-    if (better(alternative, fit)) {
+    if (alternative.bannerOverlap > fit.bannerOverlap) {
       side = other;
       fit = alternative;
     }
   }
 
   // Not at the scanner's size: a photographed card can come back larger or
-  // smaller, depending on where the phone found its edges. Also the retry for
-  // a page out sideways, whose column fit settled one rule over.
-  if (!placed(fit)) {
+  // smaller, depending on where the phone found its edges.
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
     for (const candidate of [side, side === "front" ? "back" : "front"] as const) {
       const attempt = registerPage(img, targets[candidate], { wide: true });
-      if (better(attempt, fit)) {
+      if (attempt.bannerOverlap > fit.bannerOverlap) {
         side = candidate;
         fit = attempt;
       }
@@ -514,9 +425,9 @@ export function registerAgainstBestSide(
   }
 
   // Placed, but not as one piece: a photographed card is rarely flat.
-  if (!placed(fit)) {
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
     const byBlock = registerByBlock(fit, targets[side]);
-    if (better(byBlock, fit)) fit = byBlock;
+    if (byBlock.bannerOverlap > fit.bannerOverlap) fit = byBlock;
   }
 
   // Still nothing. Before refusing the page, try it the other ways up.
@@ -526,12 +437,12 @@ export function registerAgainstBestSide(
   // already failed, so the cost falls on pages that would otherwise be thrown
   // away, and the banner check is what decides whether a turn actually helped
   // rather than merely scoring better than a failure.
-  if (!placed(fit)) {
+  if (fit.bannerOverlap < MIN_BANNER_OVERLAP) {
     for (const turns of [1, 2, 3]) {
       const turned = quarterTurn(img, turns);
       for (const candidate of ["front", "back"] as const) {
         const attempt = registerPage(turned, targets[candidate]);
-        if (better(attempt, fit)) {
+        if (attempt.bannerOverlap > fit.bannerOverlap) {
           side = candidate;
           quarterTurns = turns;
           fit = attempt;
@@ -548,8 +459,7 @@ export function registerAgainstBestSide(
     quarterTurns,
     transform: fit.transform,
     bannerOverlap: fit.bannerOverlap,
-    ruleOverlap: fit.ruleOverlap,
-    trusted: placed(fit),
+    trusted: fit.bannerOverlap >= MIN_BANNER_OVERLAP,
     classification: { banner: cls.banner, footer: cls.footer, agree: cls.agree },
   };
 }
@@ -570,7 +480,6 @@ export interface PageForPairing {
   side: CardSide;
   trusted: boolean;
   bannerOverlap: number;
-  ruleOverlap?: number;
 }
 
 export interface CardPages<P extends PageForPairing = RegisteredPage> {
@@ -610,16 +519,12 @@ export function pairIntoCards<P extends PageForPairing>(
 
   for (const p of pages) {
     if (!p.trusted) {
-      const sideways = p.bannerOverlap >= MIN_BANNER_OVERLAP;
       problems.push({
         kind: "misaligned-page",
         message:
           `Page ${p.pageNumber} could not be lined up with the card template ` +
-          (sideways
-            ? `(it lines up top to bottom but not side to side). `
-            : `(match ${(p.bannerOverlap * 100).toFixed(0)}%, needs ` +
-              `${(MIN_BANNER_OVERLAP * 100).toFixed(0)}%). `) +
-          `Its cells are not shown, ` +
+          `(match ${(p.bannerOverlap * 100).toFixed(0)}%, needs ` +
+          `${(MIN_BANNER_OVERLAP * 100).toFixed(0)}%). Its cells are not shown, ` +
           `because they would be read from the wrong part of the page. Check ` +
           `it is a data card, right way up, and scanned whole -- two cards fed ` +
           `through together will do this.`,

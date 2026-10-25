@@ -1,5 +1,5 @@
 //
-//  Google's picker, in a browser session, and the flow around it.
+//  Google's picker, in a web view, and the flow around it.
 //
 //  The web view is here for one reason, stated at the top of docs/ios-picker.html
 //  and worth repeating where somebody will actually be reading: the `drive.file`
@@ -9,13 +9,13 @@
 //  the sign-in, the download, the reading -- is native.
 //
 //  WHAT GOES IN AND WHAT COMES OUT. A token in, through the URL fragment so it
-//  reaches no server; a file id, name and size out, through one
-//  `datacards://picker` URL. The page is given no other way to talk to the
-//  app: anything that does not decode is dropped, and the page has no access
-//  to the model, the scan or the values.
+//  reaches no server; a file id, name and size out, through one message
+//  handler. The page is given no other way to talk to the app: `DriveMessage`
+//  is the entire vocabulary, anything that does not decode is dropped, and the
+//  web view has no access to the model, the scan or the values.
 //
 
-import AuthenticationServices
+import SafariServices
 import SwiftUI
 
 // MARK: - The flow
@@ -31,6 +31,8 @@ final class DriveFlow: ObservableObject {
         /// The picker is up, choosing a scan to read.
         case picking(URL)
         case downloading(fraction: Double, name: String)
+        /// The picker is up, choosing a folder to save into.
+        case choosingFolder(URL)
         case uploading(name: String)
         /// The spreadsheet is in Drive. Held rather than cleared so the screen
         /// can say so -- a save that leaves no trace looks like one that did
@@ -79,19 +81,13 @@ final class DriveFlow: ObservableObject {
     /// The consent screen is skipped when a token from earlier in this run of
     /// the app is still good, which is what makes the second scan of an evening
     /// one tap instead of a sign-in.
-    func begin(model: TallyModel) async {
+    func begin() async {
         guard let config else { return }
         problem = nil
         stage = .authorizing
         do {
             let token = try await auth.accessToken(for: config)
-            let url = pickerURL(token: token, config: config)
-            stage = .picking(url)
-            // In the sign-in's own browser session, not a Safari sheet: see
-            // `DriveAuth.browse`. The answer is the same `datacards://picker`
-            // URL as ever, handed straight to the handler RootView also uses.
-            let answer = try await auth.browse(url, callbackScheme: "datacards")
-            handleCallback(answer, model: model)
+            stage = .picking(pickerURL(token: token, config: config))
         } catch {
             stage = .idle
             report(error)
@@ -127,7 +123,9 @@ final class DriveFlow: ObservableObject {
 
     /// A `datacards://picker?…` URL, handed over by RootView.
     ///
-    /// Only a scan is ever picked now; saving goes to the app's own folder.
+    /// What to do with a pick depends on what was being picked, and the stage
+    /// is the record of that -- a file id means download and read, a folder id
+    /// means upload the spreadsheet into it.
     func handleCallback(_ url: URL, model: TallyModel) {
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
@@ -148,6 +146,10 @@ final class DriveFlow: ObservableObject {
             case .picking:
                 cancel()
                 Task { await download(DriveMessage.Picked(id: id, name: name, size: size), into: model) }
+            case .choosingFolder:
+                cancel()
+                guard let file = model.exportedFile else { return }
+                Task { await save(file, toFolder: id) }
             default:
                 // A stale redirect arriving after the sheet was dismissed.
                 cancel()
@@ -163,19 +165,19 @@ final class DriveFlow: ObservableObject {
 
     // MARK: - The other direction
 
-    /// Saving: a token, then straight into this app's own Drive folder.
+    /// Step one of saving: a token, then the picker in folder mode.
     ///
-    /// No picker. It cannot run on a phone (see the note at the top of
-    /// DriveUpload), and under `drive.file` a folder the app made needs none.
-    func beginSave(_ file: URL) async {
+    /// A folder has to be chosen even though DriveConfig may name one. Under
+    /// `drive.file` this app cannot write into a folder it merely knows the id
+    /// of; access comes from the picker handing the folder back. See the note
+    /// at the top of DriveUpload.
+    func beginSave() async {
         guard let config else { return }
         problem = nil
         stage = .authorizing
         do {
             let token = try await auth.accessToken(for: config)
-            stage = .uploading(name: file.lastPathComponent)
-            let folder = try await DriveUpload.appFolder(accessToken: token)
-            await save(file, toFolder: folder)
+            stage = .choosingFolder(pickerURL(token: token, config: config, mode: "folder"))
         } catch {
             stage = .idle
             report(error)
@@ -283,181 +285,35 @@ enum DriveMessage {
     }
 }
 
-// MARK: - Opening a shared link
+// MARK: - The web view
 
-/// "Choose from Google Drive", with no Google account: the chapter's scans
-/// folder, shared "anyone with the link", browsed folder by folder, or a
-/// pasted link to a scan or a folder. See `DrivePublic`.
+/// Google's picker, in Safari.
 ///
-/// This replaced Google's Picker on the phone. The Picker is a docs.google.com
-/// frame inside a github.io page, Safari blocks its cookies, and on Eric's
-/// phone it only ever said "Can't access your Google Account" (24 Oct 2026).
-struct DriveLinkSheet: View {
-    /// Called with the downloaded PDF.
-    let onOpened: (URL) -> Void
-    @Environment(\.dismiss) private var dismiss
+/// `SFSafariViewController` and not `WKWebView`, and the difference is the
+/// whole reason the picker works at all: Safari's cookies are shared with this
+/// controller, so the picker opens already signed in as the person who just
+/// came through the consent screen. A web view has its own cookie store, which
+/// Google's session never reaches -- that produced "Can't access your Google
+/// Account", with the fix suggested in the message being one nobody could act
+/// on from inside an app.
+///
+/// It answers through `datacards://picker?…`, caught by RootView, because a
+/// page in Safari cannot call back into the app any other way.
+struct DrivePicker: UIViewControllerRepresentable {
 
-    /// The folder open last time, so the next cleanup starts where this one
-    /// left off -- usually "Not entered".
-    @AppStorage("drive.publicFolderID") private var savedFolder = ""
-    @AppStorage("drive.publicFolderName") private var savedFolderName = ""
-    @State private var link = ""
-    /// The folders opened, root first; the last is the one listed.
-    @State private var trail: [(id: String, name: String)] = []
-    @State private var files: [DrivePublic.Listed] = []
-    @State private var busy: String?
-    @State private var problem: String?
+    let url: URL
 
-    var body: some View {
-        ScreenBody(ground: Nocturne.captureGround, topPadding: 28) {
-            VStack(alignment: .leading, spacing: 12) {
-                Kicker(text: "Google Drive", icon: Nocturne.Icon.drive)
-                Text(trail.last?.name ?? "Paste the link")
-                    .font(Nocturne.Face.title(24))
-                    .foregroundStyle(Nocturne.text)
-                    .lineLimit(2)
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let configuration = SFSafariViewController.Configuration()
+        configuration.entersReaderIfAvailable = false
+        configuration.barCollapsingEnabled = false
 
-                if trail.count > 1 {
-                    Button {
-                        trail.removeLast()
-                        if let up = trail.popLast() { Task { await list(up.id, name: up.name) } }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: Nocturne.Icon.back)
-                            Text(trail[trail.count - 2].name)
-                        }
-                    }
-                    .buttonStyle(TextButtonStyle(size: 14))
-                    .disabled(busy != nil)
-                }
-
-                if trail.isEmpty {
-                    Text("To the folder the scans are in, or to one scan. It has to be shared \u{201C}Anyone with the link\u{201D}. No Google account needed.")
-                        .font(Nocturne.Face.body(13))
-                        .foregroundStyle(Nocturne.text(62))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HStack(spacing: 8) {
-                    TextField(trail.isEmpty ? "https://drive.google.com/\u{2026}" : "Or paste another link", text: $link)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .submitLabel(.go)
-                        .onSubmit { Task { await open(link) } }
-                        .padding(12)
-                        .background(RoundedRectangle(cornerRadius: Nocturne.Radius.base).fill(Nocturne.surface))
-                    PasteButton(payloadType: String.self) { strings in
-                        guard let first = strings.first else { return }
-                        link = first
-                        Task { await open(first) }
-                    }
-                    .labelStyle(.iconOnly)
-                }
-
-                if let busy {
-                    HStack(spacing: 8) {
-                        ProgressView().tint(Nocturne.accent)
-                        Text(busy).font(Nocturne.Face.label(13)).foregroundStyle(Nocturne.text(60))
-                    }
-                }
-
-                if let problem {
-                    Text(problem)
-                        .font(Nocturne.Face.label(12))
-                        .foregroundStyle(Nocturne.accent400)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(files) { file in
-                            Button {
-                                if file.isFolder {
-                                    Task { await list(file.id, name: file.name) }
-                                } else {
-                                    Task { await download(file.id, name: file.name, size: Int64(file.size ?? "")) }
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: file.isFolder ? "folder" : Nocturne.Icon.scan)
-                                        .foregroundStyle(Nocturne.accent)
-                                    Text(file.name).lineLimit(2)
-                                    Spacer(minLength: 0)
-                                    if file.isFolder {
-                                        Image(systemName: Nocturne.Icon.forward).foregroundStyle(Nocturne.text(40))
-                                    }
-                                }
-                                .font(Nocturne.Face.label(15))
-                                .foregroundStyle(Nocturne.text)
-                                .padding(.vertical, 13)
-                                .contentShape(Rectangle())
-                            }
-                            .disabled(busy != nil)
-                            Divider().overlay(Nocturne.divider)
-                        }
-                    }
-                }
-
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(TextButtonStyle())
-                    .frame(maxWidth: .infinity)
-            }
-            .pageMargin()
-        }
-        .task {
-            guard trail.isEmpty else { return }
-            // Where the last cleanup left off, else the chapter's folder if the
-            // build names one (GOOGLE_DRIVE_FOLDER_ID), else a link is pasted.
-            if !savedFolder.isEmpty {
-                await list(savedFolder, name: savedFolderName.isEmpty ? "Google Drive" : savedFolderName)
-            } else if let root = DriveConfig.current?.folderId {
-                await list(root, name: "Scans")
-            }
-        }
+        let controller = SFSafariViewController(url: url, configuration: configuration)
+        controller.preferredBarTintColor = UIColor(Nocturne.ground)
+        controller.preferredControlTintColor = UIColor(Nocturne.accent)
+        controller.dismissButtonStyle = .cancel
+        return controller
     }
 
-    private func open(_ text: String) async {
-        problem = nil
-        switch DrivePublic.parse(text) {
-        case .file(let id):
-            await download(id, name: "drive-scan.pdf", size: nil)
-        case .folder(let id):
-            trail = []
-            await list(id, name: "Shared folder")
-            link = ""
-        case nil:
-            problem = "That is not a Google Drive link."
-        }
-    }
-
-    private func list(_ id: String, name: String) async {
-        busy = "Looking in the folder\u{2026}"
-        problem = nil
-        defer { busy = nil }
-        do {
-            let found = try await DrivePublic.list(folder: id, config: DriveConfig.current)
-            files = found
-            trail.append((id, name))
-            savedFolder = id
-            savedFolderName = name
-            if found.isEmpty { problem = "No PDFs or folders in there." }
-        } catch {
-            problem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-
-    private func download(_ id: String, name: String, size: Int64?) async {
-        busy = "Downloading \(name)\u{2026}"
-        problem = nil
-        do {
-            let file = try await DrivePublic.download(id: id, name: name, expectedSize: size) { _ in }
-            busy = nil
-            dismiss()
-            onOpened(file)
-        } catch {
-            busy = nil
-            problem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        }
-    }
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }

@@ -416,10 +416,7 @@ const EXPECTED_ERROR = {
   digits: [
     [13.9, 7.8, 3.1, 2.2, 1.8], // one digit
     [23.9, 12.2, 7.6, 4.2, 4.9], // two
-    // >= 0.85 was 2, from two boxes; one of them was off by 220. Every other
-    // three-digit band is off by 39-230 on average, so a confident three-digit
-    // reading is ranked with its neighbours and is among the first shown.
-    [300, 200, 60, 60, 60], // three
+    [300, 200, 60, 60, 2], // three
   ],
   tally: [
     [5.8, 3.0, 3.0, 2.9, 2.9],

@@ -253,16 +253,13 @@ describe("autoAcceptedInScan on three-digit readings", () => {
     ]);
   });
 
-  it("shows a confident hundred before an unsure single digit", () => {
-    // A three-digit reading is off by 39-230 on average in every confidence band
-    // measured; the one sure-looking pair had a miss of 220 (EXPECTED_ERROR).
-    // A four at 0.3 is off by about 8. The hundred is the one to look at.
+  it("leaves a real hundred to its confidence", () => {
     expect(autoAcceptedInScan([at(4, 0.3), at(4, 0.3), at(4, 0.3), at(4, 0.3), at(100, 0.99)])).toEqual([
-      true,
-      true,
-      true,
-      true,
       false,
+      true,
+      true,
+      true,
+      true,
     ]);
   });
 });

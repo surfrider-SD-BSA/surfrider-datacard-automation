@@ -15,14 +15,6 @@ import XCTest
 /// box, which cell of how many. A box that is not on the list -- taken as read, or
 /// never offered -- is logged as NOT ON THE LIST.
 final class HarnessUITests: XCTestCase {
-    /// The app refuses a beach and date already sent, so each run names its
-    /// own: the time it started.
-    static let runTag: String = {
-        let f = DateFormatter()
-        f.dateFormat = "HHmmss"
-        return f.string(from: Date())
-    }()
-
     private var out: URL!
     private var log = ""
 
@@ -68,7 +60,6 @@ final class HarnessUITests: XCTestCase {
     func testReadAndInspect() throws {
         let env = ProcessInfo.processInfo.environment
         if (env["WORKFLOW"] ?? "0") != "0" { return }
-        if (env["DRIVE"] ?? "0") != "0" { return }
         // One per line: an item name can hold a ";" ("Treated Wood (i.e. pallets; NOT
         // driftwood)"), and six share a name, told apart by their section.
         var targets: [(card: Int, item: String, section: String)] = []
@@ -89,7 +80,7 @@ final class HarnessUITests: XCTestCase {
         let beach = app.textFields.element(boundBy: 0)
         XCTAssertTrue(beach.waitForExistence(timeout: 60), "no event screen: is the scan in the drawer?")
         beach.tap()
-        beach.typeText("App Check Beach \(Self.runTag)\n")
+        beach.typeText("App Check Beach\n")
         let scan = app.buttons["Scan the cards"]
         XCTAssertTrue(scan.waitForExistence(timeout: 10))
         scan.tap()
@@ -99,7 +90,7 @@ final class HarnessUITests: XCTestCase {
         XCTAssertTrue(read.waitForExistence(timeout: 30), "no waiting scan")
         note("capture: \(read.label)")
         // Whether this build has the chapter's Google settings (ios/Drive.xcconfig).
-        note("capture: Choose from Drive \(app.buttons["Choose from Google Drive"].exists ? "shown" : "NOT SHOWN")")
+        note("capture: Choose from Drive \(app.buttons["Choose from Drive"].exists ? "shown" : "NOT SHOWN")")
         shot("capture")
         read.tap()
 
@@ -205,44 +196,6 @@ final class HarnessUITests: XCTestCase {
         }
     }
 
-    /// DRIVE=1: "Choose from Google Drive" with no Google account. Opens the
-    /// chapter's folder (GOOGLE_DRIVE_FOLDER_ID), goes down to "Not entered",
-    /// opens the first scan and waits for it to be read.
-    func testDriveFolder() throws {
-        let env = ProcessInfo.processInfo.environment
-        guard env["DRIVE"] == "1" else { return }
-        let app = XCUIApplication(bundleIdentifier: "com.mateobesse.surfriderdatacards")
-        app.launch()
-
-        let beach = app.textFields.element(boundBy: 0)
-        XCTAssertTrue(beach.waitForExistence(timeout: 60), "no event screen")
-        beach.tap()
-        beach.typeText("Drive Beach \(Self.runTag)\n")
-        app.buttons["Scan the cards"].tap()
-
-        let drive = app.buttons["Choose from Google Drive"]
-        XCTAssertTrue(drive.waitForExistence(timeout: 30), "no Drive button: \(texts(app))")
-        drive.tap()
-        for folder in ["Scanned Data Cards", "Not entered"] {
-            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", folder)).firstMatch
-            XCTAssertTrue(row.waitForExistence(timeout: 30), "no \(folder): \(texts(app))")
-            note("drive: \(texts(app))")
-            shot("drive-\(folder.prefix(8))")
-            row.tap()
-        }
-        let pdf = app.buttons.matching(NSPredicate(format: "label CONTAINS '.pdf'")).firstMatch
-        XCTAssertTrue(pdf.waitForExistence(timeout: 30), "no PDFs: \(texts(app))")
-        note("drive pdfs: \(texts(app))")
-        shot("drive-pdfs")
-        note("opening \(pdf.label)")
-        pdf.tap()
-
-        let start = app.buttons["Start checking"]
-        XCTAssertTrue(start.waitForExistence(timeout: 900), "never read: \(texts(app))")
-        note("read from Drive: \(texts(app))")
-        shot("drive-read")
-    }
-
     /// WORKFLOW=1: what a volunteer does besides reading. Leaves the app while it reads
     /// and comes back; corrects three boxes on the keypad (a typed number, "Nothing
     /// there", a typed number fixed with the delete key); quits the app mid-review and
@@ -257,7 +210,7 @@ final class HarnessUITests: XCTestCase {
         let beach = app.textFields.element(boundBy: 0)
         XCTAssertTrue(beach.waitForExistence(timeout: 60), "no event screen: is the scan in the drawer?")
         beach.tap()
-        beach.typeText("Workflow Beach \(Self.runTag)\n")
+        beach.typeText("Workflow Beach\n")
         XCTAssertTrue(app.buttons["Scan the cards"].waitForExistence(timeout: 10))
         app.buttons["Scan the cards"].tap()
         let read = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Read '")).firstMatch
@@ -291,14 +244,13 @@ final class HarnessUITests: XCTestCase {
         start.tap()
         XCTAssertTrue(app.buttons["All cards"].waitForExistence(timeout: 30))
 
-        // Three corrections. The review screen's texts are: Back, "Card c",
-        // "of n · side · page p", "Cell n of m", "Column X in the sheet", item,
-        // section, tag, hint, the number, Next.
+        // Three corrections. The review screen's texts are: Back, "Cell n of m",
+        // "Card c → column X", item, section, tag, hint, the number, Next.
         func current() -> (card: Int, item: String, section: String, label: String) {
             let t = texts(app)
             let cardText = t.first { $0.hasPrefix("Card ") } ?? ""
             let card = Int(cardText.dropFirst(5).prefix { $0.isNumber }) ?? 0
-            let i = t.firstIndex { $0.hasPrefix("Column ") } ?? 0
+            let i = t.firstIndex(of: cardText) ?? 0
             let item = i + 1 < t.count ? t[i + 1] : ""
             let section = i + 2 < t.count ? t[i + 2] : ""
             return (card, item, section, t.first { $0.hasPrefix("Cell ") } ?? "")

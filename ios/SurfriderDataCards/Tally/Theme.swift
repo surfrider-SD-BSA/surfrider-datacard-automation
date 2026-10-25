@@ -124,7 +124,6 @@ enum Nocturne {
 
     enum Icon {
         static let add = "plus"                          // ph-plus
-        static let home = "house"                        // ph-house
         static let back = "chevron.left"                 // ph-caret-left
         static let forward = "chevron.right"             // ph-caret-right
         static let capture = "camera"                    // ph-camera

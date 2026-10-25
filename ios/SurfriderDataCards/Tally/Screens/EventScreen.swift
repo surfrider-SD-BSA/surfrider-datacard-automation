@@ -77,7 +77,7 @@ struct EventScreen: View {
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!model.event.isComplete || model.nameAlreadySent)
+                    .disabled(!model.event.isComplete)
 
                     // Name what is actually missing. "A date and a beach" is no
                     // help when one of the two is already filled in and the
@@ -95,9 +95,6 @@ struct EventScreen: View {
     private var gateCaption: String {
         let noDate = model.event.date.isEmpty
         let noBeach = model.event.shoreline.trimmingCharacters(in: .whitespaces).isEmpty
-        if !noDate, !noBeach, model.nameAlreadySent {
-            return "A cleanup with this name and date was already sent. Give this one its own name."
-        }
         switch (noDate, noBeach) {
         case (false, false): return "Everything needed is here."
         case (true, true): return "A date and a beach, and you can start."

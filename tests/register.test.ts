@@ -25,12 +25,10 @@ import {
 } from "../src/lib/image";
 import {
   MIN_BANNER_OVERLAP,
-  MIN_RULE_OVERLAP,
   alignmentWindow,
   bannerOverlap,
   pairIntoCards,
   referenceTargets,
-  ruleOverlap,
   registerAgainstBestSide,
   registerPage,
   type RegisteredPage,
@@ -241,39 +239,6 @@ describe("banner overlap", () => {
   });
 });
 
-describe("rule overlap", () => {
-  // The synthetic card with what the real one has and the banners cannot
-  // stand in for: the edges of the TOTAL column, running the grid's height.
-  const ruled = (() => {
-    const data = new Uint8Array(CARD.data);
-    for (const x of [230, 280, 500, 550]) {
-      for (let y = 140; y < 780; y++) data[y * WIDTH + x] = 60;
-    }
-    return { width: WIDTH, height: HEIGHT, data };
-  })();
-  const target = referenceTargets({ front: ruled, back: ruled }, MAPS).front;
-  const sideways = (dx: number) =>
-    resampleToReference(ruled, WIDTH, HEIGHT, {
-      x: { scale: 1, offset: dx, score: 1 },
-      y: { scale: 1, offset: 0, score: 1 },
-    });
-
-  it("passes a page that is in register", () => {
-    expect(ruleOverlap(ruled, target)).toBeGreaterThan(0.9);
-  });
-
-  it("refuses a page out sideways that the banners still pass", () => {
-    // South Ponto card 1: right top to bottom, a box width out side to side.
-    const out = sideways(30);
-    expect(bannerOverlap(out, target)).toBeGreaterThan(MIN_BANNER_OVERLAP);
-    expect(ruleOverlap(out, target)).toBeLessThan(MIN_RULE_OVERLAP);
-  });
-
-  it("tolerates the few pixels resampling moves a line", () => {
-    expect(ruleOverlap(sideways(3), target)).toBeGreaterThan(MIN_RULE_OVERLAP);
-  });
-});
-
 describe("alignmentWindow", () => {
   it("covers the cells and opens upward to take in the banner above them", () => {
     const w = alignmentWindow(MAPS.front);
@@ -426,7 +391,6 @@ describe("pairIntoCards", () => {
     quarterTurns: 0,
     transform: { x: { scale: 1, offset: 0, score: 1 }, y: { scale: 1, offset: 0, score: 1 } },
     bannerOverlap: trusted ? 0.95 : 0.4,
-    ruleOverlap: 1,
     trusted,
     classification: { banner: 0.2, footer: 0.08, agree: true },
   });

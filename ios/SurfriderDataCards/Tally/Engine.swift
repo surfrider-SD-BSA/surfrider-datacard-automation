@@ -66,12 +66,7 @@ struct ScanCell: Decodable, Identifiable, Hashable {
     }
 
     let row: Int
-    /// The template's name, which the spreadsheet keeps.
     let itemName: String
-    /// The card's printed words, which the screens show. Optional, so a build
-    /// against an older web bundle falls back to the template's name.
-    let cardLabel: String?
-    let cardNote: String?
     let section: String
     let side: String
     let hasValue: Bool
@@ -80,9 +75,6 @@ struct ScanCell: Decodable, Identifiable, Hashable {
     var prefill: Prefill?
 
     var id: Int { row }
-
-    /// What to call the item on screen: what is printed on the paper card.
-    var label: String { cardLabel ?? itemName }
 }
 
 struct ScanCard: Decodable, Identifiable, Hashable {

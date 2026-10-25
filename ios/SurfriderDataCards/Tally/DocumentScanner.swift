@@ -99,24 +99,11 @@ enum CapturedPages {
     ///
     /// One page at a time, each in its own autorelease pool, and each stored
     /// as JPEG, so memory stays at one page whatever the length of the scan.
-    ///
-    /// THE SCAN IS ONLY TOUCHED ON THE MAIN THREAD. Each page is taken out of
-    /// it there, and only the resampling and the JPEG happen off it. Apple does
-    /// not say `VNDocumentCameraScan` may be used from another thread, and the
-    /// document camera is drawn in Liquid Glass: Eric's TestFlight build died
-    /// inside the system's glass code on a background thread (24 Oct 2026,
-    /// iOS 27.0.1) about the time he started a camera round, with this file
-    /// reading the scan from a background task while the camera was still
-    /// closing. Not proven to be the cause; the one thing here that could be.
-    static func pdf(from scan: VNDocumentCameraScan) async throws -> URL {
-        let held = HeldScan(scan)
-        let count = await MainActor.run { held.scan.pageCount }
-        return try await pdf(pageCount: count) { index in
-            await MainActor.run { held.scan.imageOfPage(at: index) }
-        }
+    static func pdf(from scan: VNDocumentCameraScan) throws -> URL {
+        try pdf(pageCount: scan.pageCount) { scan.imageOfPage(at: $0) }
     }
 
-    static func pdf(pageCount: Int, page: (Int) async -> UIImage) async throws -> URL {
+    static func pdf(pageCount: Int, page: (Int) -> UIImage) throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -129,8 +116,8 @@ enum CapturedPages {
         }
 
         for index in 0..<pageCount {
-            let image = await page(index)
             try autoreleasepool {
+                let image = page(index)
                 // `size` has the orientation applied; `cgImage` does not.
                 guard image.size.width > 0, image.size.height > 0 else { return }
                 // The SHORT edge is the card's 8.5 inches: a card photographed
@@ -175,65 +162,12 @@ enum CapturedPages {
         return file
     }
 
-    /// Join several camera sessions into the one PDF a cleanup is read from.
-    ///
-    /// The document camera stops at 24 pages a session -- twelve cards, front
-    /// and back -- so a pile bigger than that is scanned in rounds. Reading
-    /// each round as its own cleanup gave Eric three spreadsheets for one
-    /// South Ponto pile (24 Oct 2026). The pages go in session order, which is
-    /// card order as long as each round carried on where the last one stopped.
-    static func merge(_ files: [URL]) throws -> URL {
-        if files.count == 1, let only = files.first { return only }
-        let joined = PDFDocument()
-        for file in files {
-            guard let part = PDFDocument(url: file) else { throw CaptureError.couldNotWrite }
-            for index in 0..<part.pageCount {
-                guard let page = part.page(at: index) else { continue }
-                joined.insert(page, at: joined.pageCount)
-            }
-        }
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let file = dir.appendingPathComponent("photographed-cards.pdf")
-        guard joined.write(to: file) else { throw CaptureError.couldNotWrite }
-        return file
-    }
-
-    /// The scan with one page swapped for a new photograph of it.
-    ///
-    /// For a page that was refused: rather than scanning the whole pile again,
-    /// the volunteer photographs that one card side and the rest stays as read.
-    /// `pageNumber` is 1-based, as the refusal names it.
-    static func replacing(page pageNumber: Int, in file: URL, with scan: VNDocumentCameraScan) async throws -> URL {
-        let photo = try await pdf(from: scan)
-        guard let document = PDFDocument(url: file), (1...document.pageCount).contains(pageNumber)
-        else { throw CaptureError.couldNotWrite }
-        guard let page = PDFDocument(url: photo)?.page(at: 0) else { throw CaptureError.couldNotWrite }
-        document.removePage(at: pageNumber - 1)
-        document.insert(page, at: pageNumber - 1)
-
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let out = dir.appendingPathComponent(file.lastPathComponent)
-        guard document.write(to: out) else { throw CaptureError.couldNotWrite }
-        return out
-    }
-
     /// What `pdf.ts` rasterizes at, and what the cell map's coordinates are in.
     private static let dpi: CGFloat = 200
     /// High enough that the JPEG is not what the digit reader sees.
     private static let jpegQuality: CGFloat = 0.95
     /// A letter card's 8.5 inches at that resolution.
     private static let pageWidthPixels: CGFloat = 8.5 * dpi
-
-    /// Carries the scan across to the background task that reads it, which only
-    /// ever touches it through `MainActor.run`.
-    private struct HeldScan: @unchecked Sendable {
-        let scan: VNDocumentCameraScan
-        init(_ scan: VNDocumentCameraScan) { self.scan = scan }
-    }
 
     enum CaptureError: LocalizedError {
         case couldNotWrite

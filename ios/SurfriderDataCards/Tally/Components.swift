@@ -76,9 +76,6 @@ struct PrimaryButtonStyle: ButtonStyle {
                 fill: Nocturne.accent.opacity(configuration.isPressed ? 0.22 : 0),
                 stroke: Nocturne.hasGlass ? Nocturne.accent.opacity(0.55) : Nocturne.accent
             )
-            // The press, drawn here now that the glass no longer answers it.
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.45)
     }
 }
@@ -103,8 +100,6 @@ struct SecondaryButtonStyle: ButtonStyle {
                 fill: Nocturne.text.opacity(configuration.isPressed ? 0.14 : 0),
                 stroke: Nocturne.divider
             )
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.45)
     }
 }
@@ -155,31 +150,6 @@ struct NavBar<Trailing: View>: View {
         }
         .frame(height: Nocturne.navBar)
         .padding(.horizontal, 14)
-    }
-}
-
-/// Straight back to the cleanups list, from anywhere past screen 2.
-///
-/// Back walks the stack one screen at a time, and from the checking screen
-/// that is four taps through screens that each do something on the way. This
-/// asks first, because it leaves the cleanup; what was checked is kept as the
-/// draft screen 1 offers back.
-struct HomeButton: View {
-    @ObservedObject var model: TallyModel
-    @State private var asking = false
-
-    var body: some View {
-        Button { asking = true } label: {
-            Image(systemName: Nocturne.Icon.home).font(.system(size: 16, weight: .medium))
-        }
-        .buttonStyle(ChromeButtonStyle())
-        .accessibilityLabel("Home")
-        .confirmationDialog("Go back to the cleanups?", isPresented: $asking, titleVisibility: .visible) {
-            Button("Go to cleanups") { model.leaveToCleanups() }
-            Button("Stay here", role: .cancel) {}
-        } message: {
-            Text("What has been checked so far is kept as a draft you can pick up again.")
-        }
     }
 }
 

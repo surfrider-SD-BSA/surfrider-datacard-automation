@@ -82,22 +82,6 @@ export interface ExportInput {
   generatedAt?: Date;
   /** Boxes a person checked, with their pictures: the hidden Training sheet. */
   training?: TrainingBox[];
-  /** What was written beside "Other (write-in)" rows: a list on the provenance sheet. */
-  writeIns?: WriteIn[];
-}
-
-/**
- * The item a volunteer wrote beside an "Other (write-in)" row, typed in by
- * whoever checked it. The template has one "Other" count per section and no
- * column for names, so the names are listed beside the provenance table rather
- * than squeezed into the chapter's sheet.
- */
-export interface WriteIn {
-  cardNumber: number;
-  row: number;
-  name: string;
-  /** The count in that box, if there is one. */
-  value: number | null;
 }
 
 /**
@@ -296,12 +280,6 @@ function provenanceSheetXml(input: ExportInput): string {
   textRow(["Shoreline", input.event.shoreline]);
   textRow(["Cards", String(input.cards.length)]);
   textRow([]);
-  // The key, said in the sheet itself. Eric asked what "human" meant
-  // (South Ponto, 24 Oct 2026); a column nobody can read is not provenance.
-  textRow(["Source", "human: typed, corrected, or accepted with Next on the checking screen by the person checking"]);
-  textRow(["", "recognized: filled in by the app and not confirmed by anyone -- either read confidently and never shown, or shown and left unanswered"]);
-  textRow(["Confidence", "the app's own certainty, 0-1, for recognized values; 1 for human ones"]);
-  textRow([]);
   textRow([
     "Card",
     "Column",
@@ -328,23 +306,6 @@ function provenanceSheetXml(input: ExportInput): string {
         String(v.value),
         v.confidence.toFixed(3),
         v.corrected ? "human" : "recognized",
-      ]);
-    }
-  }
-
-  const writeIns = [...(input.writeIns ?? [])].sort((a, b) => a.cardNumber - b.cardNumber || a.row - b.row);
-  if (writeIns.length > 0) {
-    textRow([]);
-    textRow(["Write-ins", "what was written beside \"Other (write-in)\", as typed in when checking"]);
-    textRow(["Card", "Column", "Section", "Item row", "Count", "Written in"]);
-    for (const w of writeIns) {
-      textRow([
-        String(w.cardNumber),
-        columnName(FIRST_DATA_COLUMN + w.cardNumber - 1),
-        itemForRow(w.row)?.section ?? "?",
-        String(w.row),
-        w.value === null ? "" : String(w.value),
-        w.name,
       ]);
     }
   }
