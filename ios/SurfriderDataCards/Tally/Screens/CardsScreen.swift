@@ -74,7 +74,7 @@ struct CardsScreen: View {
                 .frame(width: 26, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(flat.cell.itemName)
+                Text(flat.cell.label)
                     .font(Nocturne.Face.label(14))
                     .foregroundStyle(Nocturne.text)
                     .lineLimit(2)

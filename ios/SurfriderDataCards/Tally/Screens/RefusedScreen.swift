@@ -8,9 +8,10 @@
 //  somebody the thing is broken; the real overlap tells them it was probably a
 //  shadow, which is something they can do about.
 //
-//  "Retake page 7" is not offered, because photographing a card is not switched
-//  on -- see CaptureScreen. What can be done is scan it again, so that is what
-//  it says.
+//  "Retake page 7" photographs that one card side and reads the scan again
+//  with it in place, so a refusal no longer means scanning the whole pile
+//  again (Eric, South Ponto: "first side of card 2 was skipped because of a
+//  scan error -- what is the behavior?").
 //
 
 import SwiftUI
@@ -19,6 +20,9 @@ struct RefusedScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingTips = false
+    /// The page being photographed again, while the camera is up.
+    @State private var retaking: Int?
+    @State private var retakeProblem: String?
 
     var body: some View {
         ScreenBody {
@@ -36,7 +40,7 @@ struct RefusedScreen: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.bottom, 10)
 
-                    Text("The printed section banners did not land where they should, so we do not know which row is which. A page that is a little off gives ordinary-looking numbers attached to the wrong items, and nothing later would catch it. So it is refused rather than cropped from.")
+                    Text("The card's printed banners and lines did not land where they should, so we do not know which box is which. A page that is a little off gives ordinary-looking numbers attached to the wrong items, and nothing later would catch it. So it is refused rather than cropped from.")
                         .font(Nocturne.Face.body(13))
                         .lineSpacing(3.5)
                         .foregroundStyle(Nocturne.text(65))
@@ -60,8 +64,31 @@ struct RefusedScreen: View {
 
     // MARK: -
 
+    private var canRetake: Bool {
+        Camera.offered && CapturedPages.scanningAvailable && model.lastRead != nil
+    }
+
     private var actions: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if canRetake {
+                ForEach(model.refusedPages.prefix(3), id: \.pageNumber) { page in
+                    Button {
+                        retaking = page.pageNumber
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: Nocturne.Icon.capture)
+                            Text("Retake page \(page.pageNumber) (\(page.side))")
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle(minHeight: 50, size: 15))
+                }
+                if let retakeProblem {
+                    Text(retakeProblem)
+                        .font(Nocturne.Face.label(12))
+                        .foregroundStyle(Nocturne.accent400)
+                }
+            }
+
             Button {
                 // Back to the picker. A better scan of the same cards is
                 // the only fix available until capture is switched on.
@@ -72,7 +99,7 @@ struct RefusedScreen: View {
                     Text("Try a better scan")
                 }
             }
-            .buttonStyle(PrimaryButtonStyle(minHeight: 50, size: 15))
+            .buttonStyle(SecondaryButtonStyle(minHeight: 50, size: 15))
 
             // The same advice the camera opens with, for whoever skipped it.
             Button("How to get a good scan") { showingTips = true }
@@ -96,6 +123,29 @@ struct RefusedScreen: View {
         }
         .pinnedActions()
         .sheet(isPresented: $showingTips) { ScanTipsSheet() }
+        .fullScreenCover(isPresented: Binding(get: { retaking != nil }, set: { if !$0 { retaking = nil } })) {
+            DocumentScanner { scan in
+                let page = retaking
+                retaking = nil
+                guard let page, let pdf = model.lastRead else { return }
+                retakeProblem = nil
+                Task.detached(priority: .userInitiated) {
+                    let result = Result { try CapturedPages.replacing(page: page, in: pdf, with: scan) }
+                    await MainActor.run {
+                        switch result {
+                        case .success(let fixed):
+                            model.path.removeAll { $0 == .reading || $0 == .refused }
+                            Task { await model.read(pdf: fixed) }
+                        case .failure(let error):
+                            retakeProblem = "That picture could not be used: \(error.localizedDescription)"
+                        }
+                    }
+                }
+            } onCancel: {
+                retaking = nil
+            }
+            .ignoresSafeArea()
+        }
     }
 
     private var refusedLabel: String {
@@ -140,7 +190,13 @@ struct RefusedScreen: View {
             .rotationEffect(.degrees(-3))
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Page \(page.pageNumber), read as a \(page.side). Banner overlap \(overlap(page.bannerOverlap)) — below the \(overlap(model.scan?.minBannerOverlap ?? 0.75)) we trust.")
+                if page.bannerOverlap >= (model.scan?.minBannerOverlap ?? 0.75) {
+                    // Refused by the sideways check, not the banners: quoting
+                    // a banner figure above the bar would read as a mistake.
+                    Text("Page \(page.pageNumber), read as a \(page.side). It lines up top to bottom but not side to side, so its boxes would be read from the wrong column.")
+                } else {
+                    Text("Page \(page.pageNumber), read as a \(page.side). Banner overlap \(overlap(page.bannerOverlap)) — below the \(overlap(model.scan?.minBannerOverlap ?? 0.75)) we trust.")
+                }
                 Text("Usually a shadow across one side, or a page that moved. Scanning it again in flatter light generally fixes it.")
             }
             .font(Nocturne.Face.body(13))

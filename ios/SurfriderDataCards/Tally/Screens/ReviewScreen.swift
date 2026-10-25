@@ -135,8 +135,11 @@ struct ReviewScreen: View {
         VStack(alignment: .leading, spacing: 5) {
             // The names run long -- "Plastic Food Wrappers (candy, chip bags)"
             // -- so they wrap rather than truncate.
-            Text(flat.cell.itemName)
-                .font(Nocturne.Face.item)
+            // The card's own second line, where it has one, at the card's own
+            // smaller size -- in the same Text, so the item stays one line of
+            // text to anything reading the screen.
+            (Text(flat.cell.label).font(Nocturne.Face.item)
+                + Text(flat.cell.cardNote.map { "\n" + $0 } ?? "").font(Nocturne.Face.body(14)))
                 .tracking(-0.21)
                 .lineSpacing(3)
                 .foregroundStyle(Nocturne.text)

@@ -187,6 +187,28 @@ enum CapturedPages {
         return file
     }
 
+    /// The scan with one page swapped for a new photograph of it.
+    ///
+    /// For a page that was refused: rather than scanning the whole pile again,
+    /// the volunteer photographs that one card side and the rest stays as read.
+    /// `pageNumber` is 1-based, as the refusal names it.
+    static func replacing(page pageNumber: Int, in file: URL, with scan: VNDocumentCameraScan) throws -> URL {
+        guard scan.pageCount > 0, let document = PDFDocument(url: file),
+              (1...document.pageCount).contains(pageNumber)
+        else { throw CaptureError.couldNotWrite }
+        let photo = try pdf(pageCount: 1) { _ in scan.imageOfPage(at: 0) }
+        guard let page = PDFDocument(url: photo)?.page(at: 0) else { throw CaptureError.couldNotWrite }
+        document.removePage(at: pageNumber - 1)
+        document.insert(page, at: pageNumber - 1)
+
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let out = dir.appendingPathComponent(file.lastPathComponent)
+        guard document.write(to: out) else { throw CaptureError.couldNotWrite }
+        return out
+    }
+
     /// What `pdf.ts` rasterizes at, and what the cell map's coordinates are in.
     private static let dpi: CGFloat = 200
     /// High enough that the JPEG is not what the digit reader sees.

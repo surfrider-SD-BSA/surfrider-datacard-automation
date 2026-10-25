@@ -269,7 +269,7 @@ final class TallyModel: ObservableObject {
 
     /// The PDF most recently read, kept across `clearScan` so that leaving a
     /// cleanup and picking its draft back up does not need the file again.
-    private var lastRead: URL?
+    private(set) var lastRead: URL?
 
     private func isOurs(_ url: URL) -> Bool {
         let temp = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
