@@ -58,6 +58,18 @@ struct CaptureScreen: View {
     /// Set by the tips' "Start scanning", so the camera opens once the sheet
     /// has gone: presenting it while the sheet is still dismissing drops it.
     @State private var scanAfterTips = false
+    /// Camera rounds bound into PDFs and not read yet. The document camera
+    /// stops at 24 pages, so a pile of more than twelve cards is several
+    /// rounds, read together as one cleanup. See `CapturedPages.merge`.
+    @State private var rounds: [Round] = []
+    @State private var openingDriveLink = false
+
+    private struct Round {
+        let file: URL
+        let pages: Int
+    }
+
+    private var roundPages: Int { rounds.reduce(0) { $0 + $1.pages } }
 
     var body: some View {
         ScreenBody(ground: Nocturne.captureGround, topPadding: Nocturne.safeTop) {
@@ -107,18 +119,29 @@ struct CaptureScreen: View {
                     .buttonStyle(PrimaryButtonStyle())
                 }
 
-                if Camera.offered {
-                    Button {
-                        // Every time, on purpose: whoever is holding the
-                        // phone may not be whoever read it last time.
-                        showingTips = true
-                    } label: {
+                if !rounds.isEmpty {
+                    Button(action: readRounds) {
                         HStack(spacing: 9) {
-                            Image(systemName: Nocturne.Icon.capture)
-                            Text("Take pictures of the cards")
+                            Image(systemName: Nocturne.Icon.spreadsheet)
+                            Text("Read \(roundPages) \(roundPages == 1 ? "page" : "pages")")
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
+                    .disabled(preparing != nil)
+                }
+
+                if Camera.offered {
+                    // Primary until there is something to read; then reading
+                    // is the next step and scanning more is the other one.
+                    Group {
+                        if rounds.isEmpty {
+                            Button(action: openCamera) { cameraLabel }
+                                .buttonStyle(PrimaryButtonStyle())
+                        } else {
+                            Button(action: openCamera) { cameraLabel }
+                                .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
+                        }
+                    }
                     .disabled(!CapturedPages.scanningAvailable || preparing != nil)
                 }
 
@@ -150,17 +173,21 @@ struct CaptureScreen: View {
                 // same file, not a second kind of scan. Absent entirely unless
                 // the build was configured with a Google project -- see
                 // DriveConfig, where that default is argued for.
-                if drive.isAvailable {
-                    Button {
-                        Task { await drive.begin() }
-                    } label: {
-                        HStack(spacing: 9) {
-                            Image(systemName: Nocturne.Icon.drive)
-                            Text(drive.stage == .authorizing ? "Waiting for Google…" : "Choose from Drive")
-                        }
+                // A pasted link, no Google account: the chapter's scans are
+                // shared "anyone with the link". See DrivePublic.
+                Button {
+                    openingDriveLink = true
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: Nocturne.Icon.drive)
+                        Text("Choose from Google Drive")
                     }
-                    .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
-                    .disabled(drive.isBusy)
+                }
+                .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
+                .sheet(isPresented: $openingDriveLink) {
+                    DriveLinkSheet { pdf in
+                        Task { await model.read(pdf: pdf) }
+                    }
                 }
 
                 if case .downloading(let fraction, let name) = drive.stage {
@@ -191,6 +218,17 @@ struct CaptureScreen: View {
                         .multilineTextAlignment(.center)
                         .foregroundStyle(Nocturne.accent400)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if !rounds.isEmpty {
+                    VStack(spacing: 6) {
+                        Text(roundsHint)
+                            .font(Nocturne.Face.label(12))
+                            .lineSpacing(2)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(roundPages.isMultiple(of: 2) ? Nocturne.text(60) : Nocturne.accent400)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Throw these pictures away") { rounds = [] }
+                            .buttonStyle(TextButtonStyle(size: 12))
+                    }
                 } else {
                     Text(hint)
                         .font(Nocturne.Face.label(12))
@@ -205,17 +243,6 @@ struct CaptureScreen: View {
             .padding(.bottom, Nocturne.safeBottom)
         }
         .navigationBarBackButtonHidden()
-        .sheet(isPresented: Binding(
-            get: { if case .picking = drive.stage { return true } else { return false } },
-            set: { if !$0 { drive.cancel() } }
-        )) {
-            if case .picking(let url) = drive.stage {
-                // The result comes back as `datacards://picker?…` on
-                // RootView, not through this view -- see DrivePicker.
-                DrivePicker(url: url)
-                    .ignoresSafeArea()
-            }
-        }
         .sheet(isPresented: $showingTips, onDismiss: {
             if scanAfterTips {
                 scanAfterTips = false
@@ -235,13 +262,17 @@ struct CaptureScreen: View {
                 problem = nil
                 // Off the main thread: 100+ pages resampled one by one takes
                 // seconds, and the screen should not freeze while it does.
+                let pages = scan.pageCount
                 Task.detached(priority: .userInitiated) {
-                    let result = Result { try CapturedPages.pdf(from: scan) }
+                    let result: Result<URL, Error>
+                    do { result = .success(try await CapturedPages.pdf(from: scan)) } catch { result = .failure(error) }
                     await MainActor.run {
                         preparing = nil
                         switch result {
                         case .success(let pdf):
-                            Task { await model.read(pdf: pdf) }
+                            // Not read yet: there may be more cards than one
+                            // round of the camera holds.
+                            rounds.append(Round(file: pdf, pages: pages))
                         case .failure(let error):
                             problem = "Those pictures could not be prepared: \(error.localizedDescription)"
                         }
@@ -252,6 +283,55 @@ struct CaptureScreen: View {
             }
             .ignoresSafeArea()
         }
+    }
+
+    private var cameraLabel: some View {
+        HStack(spacing: 9) {
+            Image(systemName: Nocturne.Icon.capture)
+            Text(rounds.isEmpty ? "Take pictures of the cards" : "Scan more cards")
+        }
+    }
+
+    private func openCamera() {
+        if rounds.isEmpty {
+            // Every time, on purpose: whoever is holding the phone may not be
+            // whoever read it last time.
+            showingTips = true
+        } else {
+            // The same person, a minute later, carrying on with the pile.
+            scanning = true
+        }
+    }
+
+    private func readRounds() {
+        let files = rounds.map(\.file)
+        preparing = roundPages
+        problem = nil
+        Task.detached(priority: .userInitiated) {
+            let result = Result { try CapturedPages.merge(files) }
+            await MainActor.run {
+                preparing = nil
+                switch result {
+                case .success(let pdf):
+                    rounds = []
+                    Task { await model.read(pdf: pdf) }
+                case .failure(let error):
+                    problem = "Those pictures could not be put together: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    /// Where the pile stands between rounds of the camera.
+    private var roundsHint: String {
+        let pages = roundPages
+        var text = "\(pages) \(pages == 1 ? "page" : "pages") so far"
+        if rounds.count > 1 { text += ", in \(rounds.count) rounds" }
+        text += ". The camera takes 24 pages (12 cards) at a time: scan the rest of the pile, carrying on in card order, then read them all together."
+        if !pages.isMultiple(of: 2) {
+            text += " That is an odd number of pages, so a card is missing a side."
+        }
+        return text
     }
 
     private var pickLabel: some View {

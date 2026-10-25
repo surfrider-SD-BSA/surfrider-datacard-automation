@@ -41,11 +41,14 @@ struct Draft: Codable {
     /// reached, and every prefilled box came back as checked. Nil in drafts saved
     /// before it was kept.
     var unchecked: [CellKey]?
+    /// What was written beside "Other (write-in)", where somebody typed it.
+    /// Nil in drafts saved before it was kept.
+    var writeIns: [CellKey: String]?
 
     /// Boxes a person typed or kept, which is what "checked" means on screen 1.
     var checkedCount: Int { values.count - (unchecked?.count ?? 0) }
 
-    init(scan: ScanResult, event: EventForm, values: [CellKey: Int], unchecked: [CellKey]) {
+    init(scan: ScanResult, event: EventForm, values: [CellKey: Int], unchecked: [CellKey], writeIns: [CellKey: String] = [:]) {
         self.fileName = scan.fileName
         self.fileSize = scan.fileSize
         self.cardCount = scan.cards.count
@@ -54,6 +57,7 @@ struct Draft: Codable {
         self.event = event
         self.values = values
         self.unchecked = unchecked
+        self.writeIns = writeIns.isEmpty ? nil : writeIns
     }
 
     /// Is this draft for the scan now in memory?

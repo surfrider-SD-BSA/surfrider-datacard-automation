@@ -154,6 +154,19 @@ final class TallyModel: ObservableObject {
 
     func markSeen(_ key: CellKey) { seen.insert(key) }
 
+    /// What was written beside an "Other (write-in)" box, where somebody typed
+    /// it in. The card asks volunteers to write the item; the template has no
+    /// column for it, so these go to a list of their own on the provenance
+    /// sheet (Eric, South Ponto: "how to handle the write in fields ...
+    /// provide a list?").
+    @Published private(set) var writeIns: [CellKey: String] = [:]
+
+    func setWriteIn(_ name: String, for key: CellKey) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { writeIns.removeValue(forKey: key) } else { writeIns[key] = trimmed }
+        scheduleSave()
+    }
+
     /// Where the reviewer is, and what is on the keypad.
     @Published var index = 0
     @Published var entry = ""
@@ -257,6 +270,28 @@ final class TallyModel: ObservableObject {
         // asked for, and the draft is applied once it matches.
         pendingRestore = draft
         path = [.capture]
+
+        // A camera scan exists nowhere but this phone's temporary folder, so
+        // there is no PDF to pick again. If the one last read is still there
+        // and is the draft's file, read it straight away.
+        if let pdf = lastRead, isOurs(pdf), Self.fileSize(pdf) == draft.fileSize,
+           pdf.lastPathComponent == draft.fileName {
+            Task { await read(pdf: pdf) }
+        }
+    }
+
+    /// The PDF most recently read, kept across `clearScan` so that leaving a
+    /// cleanup and picking its draft back up does not need the file again.
+    private(set) var lastRead: URL?
+
+    private func isOurs(_ url: URL) -> Bool {
+        let temp = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
+        return url.resolvingSymlinksInPath().path.hasPrefix(temp)
+            && FileManager.default.fileExists(atPath: url.path)
+    }
+
+    private static func fileSize(_ url: URL) -> Int? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue
     }
 
     func discardDraft() {
@@ -272,6 +307,7 @@ final class TallyModel: ObservableObject {
     func read(pdf url: URL) async {
         readingError = nil
         clearScan()
+        lastRead = url
         path.append(.reading)
 
         // A picked file lives outside the sandbox until it is copied in.
@@ -333,6 +369,7 @@ final class TallyModel: ObservableObject {
         guard draft.matches(scan) else { return }
 
         values = draft.values
+        writeIns = draft.writeIns ?? [:]
         // A restored draft is a person's work, except the boxes it records as
         // still the tool's reading: those stay machine-read, so a draft picked up
         // halfway does not turn the boxes nobody reached into checked ones. Only
@@ -356,7 +393,9 @@ final class TallyModel: ObservableObject {
         values = [:]
         untouched = [:]
         seen = []
+        writeIns = [:]
         index = 0
+        startIndex = 0
         entry = ""
         exportedFile = nil
         crops.clear()
@@ -419,6 +458,66 @@ final class TallyModel: ObservableObject {
         }
     }
 
+    /// Where "Start checking" begins: cell 1, or the first cell of the cards
+    /// just added to a cleanup that was already being checked.
+    @Published var startIndex = 0
+
+    /// Cards found after the scan was read -- the bottom of the bag -- added to
+    /// the same cleanup rather than started as a second one (Eric, South Ponto:
+    /// "add new scans to existing sheet?").
+    ///
+    /// `pdf` is the scan read so far with the new pages after it. The earlier
+    /// cards keep their numbers, because pages pair in order, so what has been
+    /// checked on them is put back by key -- but only when every earlier card
+    /// came out of the same pages as before. If the pairing moved (an odd page
+    /// in the new ones), a value could land on the wrong card, so nothing is
+    /// carried over and the reading starts fresh.
+    /// Returns whether the earlier values were kept.
+    @discardableResult
+    func addCards(from pdf: URL) async -> Bool {
+        flush()
+        let before = scan?.cards ?? []
+        let keptValues = values
+        let keptUntouched = untouched
+        let keptSeen = seen
+        let keptWriteIns = writeIns
+
+        path = [.event, .capture]
+        await read(pdf: pdf)
+        guard let after = scan?.cards, readingError == nil else { return false }
+
+        let pagesOf = { (card: ScanCard) in Set(card.cells.map(\.pageNumber)) }
+        let samePairing = after.count >= before.count
+            && zip(before, after).allSatisfy { $0.cardNumber == $1.cardNumber && pagesOf($0) == pagesOf($1) }
+        guard samePairing else { return false }
+
+        for (key, value) in keptValues where key.card <= before.count {
+            values[key] = value
+            if keptUntouched[key] == nil { untouched.removeValue(forKey: key) }
+        }
+        seen.formUnion(keptSeen)
+        writeIns = keptWriteIns.filter { $0.key.card <= before.count }
+        startIndex = cells.firstIndex { $0.key.card > before.count } ?? 0
+        scheduleSave()
+        return true
+    }
+
+    /// Whether cards can be added without moving the earlier ones: every card
+    /// so far has both its sides, so pages added after them pair among
+    /// themselves.
+    var canAddCards: Bool {
+        guard let cards = scan?.cards, !cards.isEmpty, lastRead != nil else { return false }
+        return cards.allSatisfy { $0.missingSides.isEmpty } && refusedPages.isEmpty
+    }
+
+    /// Back one cell, to look at it again or change it. A number typed and not
+    /// yet committed with Next is dropped, as it would be by "All cards".
+    func previous() {
+        guard index > 0 else { return }
+        index -= 1
+        syncEntryToCurrentCell()
+    }
+
     func jump(to key: CellKey) {
         guard let at = cells.firstIndex(where: { $0.key == key }) else { return }
         index = at
@@ -460,7 +559,7 @@ final class TallyModel: ObservableObject {
 
     private func currentDraft() -> Draft? {
         guard let scan, !values.isEmpty else { return nil }
-        return Draft(scan: scan, event: event, values: values, unchecked: Array(untouched.keys))
+        return Draft(scan: scan, event: event, values: values, unchecked: Array(untouched.keys), writeIns: writeIns)
     }
 
     // MARK: - Export
@@ -533,6 +632,19 @@ final class TallyModel: ObservableObject {
         return items
     }
 
+    /// A cleanup already sent under this beach and date.
+    ///
+    /// The sheet is named from the two, so a second cleanup with the same pair
+    /// comes out as a second file with the same name -- Eric's three South Ponto
+    /// rounds arrived as "Test", "Test 2" and "Test 3" (24 Oct 2026), and which
+    /// was which was anybody's guess. Screen 2 asks for a different name.
+    var nameAlreadySent: Bool {
+        let beach = event.shoreline.trimmingCharacters(in: .whitespaces)
+        return finished.events.contains {
+            $0.date == event.date && $0.beach.caseInsensitiveCompare(beach) == .orderedSame
+        }
+    }
+
     var exportName: String {
         let slug = event.shoreline
             .trimmingCharacters(in: .whitespaces)
@@ -559,6 +671,7 @@ final class TallyModel: ObservableObject {
             "prefilled": untouched.keys.map { [$0.card, $0.row] },
             "confidences": untouched.map { [$0.key.card, $0.key.row, $0.value.confidence] as [Any] },
             "seen": seen.map { [$0.card, $0.row] },
+            "writeIns": writeIns.map { [$0.key.card, $0.key.row, $0.value] as [Any] },
         ]
 
         do {
@@ -584,6 +697,13 @@ final class TallyModel: ObservableObject {
         } catch {
             exportError = error.localizedDescription
         }
+    }
+
+    /// Home from the middle of a cleanup. Whatever has been checked is written
+    /// to the draft first, so screen 1 offers it back.
+    func leaveToCleanups() {
+        flush()
+        backToCleanups()
     }
 
     func backToCleanups() {
