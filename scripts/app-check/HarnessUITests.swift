@@ -15,6 +15,14 @@ import XCTest
 /// box, which cell of how many. A box that is not on the list -- taken as read, or
 /// never offered -- is logged as NOT ON THE LIST.
 final class HarnessUITests: XCTestCase {
+    /// The app refuses a beach and date already sent, so each run names its
+    /// own: the time it started.
+    static let runTag: String = {
+        let f = DateFormatter()
+        f.dateFormat = "HHmmss"
+        return f.string(from: Date())
+    }()
+
     private var out: URL!
     private var log = ""
 
@@ -80,7 +88,7 @@ final class HarnessUITests: XCTestCase {
         let beach = app.textFields.element(boundBy: 0)
         XCTAssertTrue(beach.waitForExistence(timeout: 60), "no event screen: is the scan in the drawer?")
         beach.tap()
-        beach.typeText("App Check Beach\n")
+        beach.typeText("App Check Beach \(Self.runTag)\n")
         let scan = app.buttons["Scan the cards"]
         XCTAssertTrue(scan.waitForExistence(timeout: 10))
         scan.tap()
@@ -210,7 +218,7 @@ final class HarnessUITests: XCTestCase {
         let beach = app.textFields.element(boundBy: 0)
         XCTAssertTrue(beach.waitForExistence(timeout: 60), "no event screen: is the scan in the drawer?")
         beach.tap()
-        beach.typeText("Workflow Beach\n")
+        beach.typeText("Workflow Beach \(Self.runTag)\n")
         XCTAssertTrue(app.buttons["Scan the cards"].waitForExistence(timeout: 10))
         app.buttons["Scan the cards"].tap()
         let read = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Read '")).firstMatch
