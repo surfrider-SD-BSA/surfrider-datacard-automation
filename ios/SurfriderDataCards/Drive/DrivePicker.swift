@@ -1,5 +1,5 @@
 //
-//  Google's picker, in a web view, and the flow around it.
+//  Google's picker, in a browser session, and the flow around it.
 //
 //  The web view is here for one reason, stated at the top of docs/ios-picker.html
 //  and worth repeating where somebody will actually be reading: the `drive.file`
@@ -9,10 +9,10 @@
 //  the sign-in, the download, the reading -- is native.
 //
 //  WHAT GOES IN AND WHAT COMES OUT. A token in, through the URL fragment so it
-//  reaches no server; a file id, name and size out, through one message
-//  handler. The page is given no other way to talk to the app: `DriveMessage`
-//  is the entire vocabulary, anything that does not decode is dropped, and the
-//  web view has no access to the model, the scan or the values.
+//  reaches no server; a file id, name and size out, through one
+//  `datacards://picker` URL. The page is given no other way to talk to the
+//  app: anything that does not decode is dropped, and the page has no access
+//  to the model, the scan or the values.
 //
 
 import AuthenticationServices
