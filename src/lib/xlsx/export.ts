@@ -280,6 +280,12 @@ function provenanceSheetXml(input: ExportInput): string {
   textRow(["Shoreline", input.event.shoreline]);
   textRow(["Cards", String(input.cards.length)]);
   textRow([]);
+  // The key, said in the sheet itself. Eric asked what "human" meant
+  // (South Ponto, 24 Oct 2026); a column nobody can read is not provenance.
+  textRow(["Source", "human: typed, corrected, or accepted with Next on the checking screen by the person checking"]);
+  textRow(["", "recognized: filled in by the app and not confirmed by anyone -- either read confidently and never shown, or shown and left unanswered"]);
+  textRow(["Confidence", "the app's own certainty, 0-1, for recognized values; 1 for human ones"]);
+  textRow([]);
   textRow([
     "Card",
     "Column",
