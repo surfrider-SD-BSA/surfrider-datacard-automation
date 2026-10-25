@@ -44,8 +44,10 @@ def taxonomy() -> list[tuple[str, str, str]]:
         raise SystemExit("could not read the item list from src/lib/taxonomy.ts")
     printed = (ROOT / "src" / "lib" / "card-labels.ts").read_text()
     other = re.search(r'const OTHER: CardLabel = \{ label: "([^"]*)"', printed).group(1)
-    labels = {int(r): l for r, l in re.findall(r'^\s*(\d+): \{ label: "([^"]*)"', printed, re.M)}
-    labels.update({int(r): other for r in re.findall(r'^\s*(\d+): OTHER,', printed, re.M)})
+    labels = {
+        int(r): label for r, label in re.findall(r'^\s*(\d+): \{ label: "([^"]*)"', printed, re.M)
+    }
+    labels.update({int(r): other for r in re.findall(r"^\s*(\d+): OTHER,", printed, re.M)})
     return [(name, labels.get(int(row), name), section) for row, name, section in found]
 
 
