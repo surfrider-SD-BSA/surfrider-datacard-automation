@@ -595,6 +595,12 @@ interface ExportParams {
    * one nobody opened: both are still as the tool put them.
    */
   seen?: [number, number][];
+  /**
+   * What was written beside "Other (write-in)", as [card, row, name], where
+   * somebody typed it in. Listed on the provenance sheet; the template has no
+   * column for it.
+   */
+  writeIns?: [number, number, string][];
 }
 
 /**
@@ -668,10 +674,17 @@ async function exportWorkbook(params: ExportParams) {
     });
   }
 
+  const valueOf = new Map(params.values.flatMap(([card, rows]) => rows.map(([row, v]) => [`${card}:${row}`, v] as const)));
   const bytes = fillTemplate(template, {
     sourcePdfName: state.fileName,
     event: params.event,
     cards,
+    writeIns: (params.writeIns ?? []).map(([cardNumber, row, name]) => ({
+      cardNumber,
+      row,
+      name,
+      value: valueOf.get(`${cardNumber}:${row}`) ?? null,
+    })),
     training: trainingBoxes(
       params.values,
       untouched,

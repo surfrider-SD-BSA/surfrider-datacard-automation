@@ -52,6 +52,9 @@ struct ReviewScreen: View {
     /// nothing has to be tapped, and the box cannot go missing.
     @AppStorage("tally.showWholeRow") private var showWholeRow = true
 
+    @State private var writingIn = false
+    @State private var writeInDraft = ""
+
     var body: some View {
         ScreenBody {
             NavBar(back: "Back") { dismiss() } trailing: {
@@ -154,6 +157,29 @@ struct ReviewScreen: View {
                 // know which claim they are being asked to check.
                 if let prefill = model.untouched[flat.key] {
                     Tag(text: prefill.tag)
+                }
+            }
+
+            // "Other (write-in):" asks the volunteer to write the item. The
+            // number goes in the template as ever; the name, if somebody types
+            // it, goes to the write-ins list. Optional: nothing waits on it.
+            if flat.cell.itemName.hasPrefix("Other") {
+                Button {
+                    writeInDraft = model.writeIns[flat.key] ?? ""
+                    writingIn = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "pencil")
+                        Text(model.writeIns[flat.key].map { "Written in: \($0)" } ?? "Add what was written")
+                    }
+                }
+                .buttonStyle(TextButtonStyle(size: 13))
+                .alert("What was written next to Other?", isPresented: $writingIn) {
+                    TextField("e.g. golf ball", text: $writeInDraft)
+                    Button("Save") { model.setWriteIn(writeInDraft, for: flat.key) }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Goes in the write-ins list on the Provenance sheet. The number still goes in the template's Other row.")
                 }
             }
         }

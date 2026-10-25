@@ -154,6 +154,19 @@ final class TallyModel: ObservableObject {
 
     func markSeen(_ key: CellKey) { seen.insert(key) }
 
+    /// What was written beside an "Other (write-in)" box, where somebody typed
+    /// it in. The card asks volunteers to write the item; the template has no
+    /// column for it, so these go to a list of their own on the provenance
+    /// sheet (Eric, South Ponto: "how to handle the write in fields ...
+    /// provide a list?").
+    @Published private(set) var writeIns: [CellKey: String] = [:]
+
+    func setWriteIn(_ name: String, for key: CellKey) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { writeIns.removeValue(forKey: key) } else { writeIns[key] = trimmed }
+        scheduleSave()
+    }
+
     /// Where the reviewer is, and what is on the keypad.
     @Published var index = 0
     @Published var entry = ""
@@ -356,6 +369,7 @@ final class TallyModel: ObservableObject {
         guard draft.matches(scan) else { return }
 
         values = draft.values
+        writeIns = draft.writeIns ?? [:]
         // A restored draft is a person's work, except the boxes it records as
         // still the tool's reading: those stay machine-read, so a draft picked up
         // halfway does not turn the boxes nobody reached into checked ones. Only
@@ -379,6 +393,7 @@ final class TallyModel: ObservableObject {
         values = [:]
         untouched = [:]
         seen = []
+        writeIns = [:]
         index = 0
         startIndex = 0
         entry = ""
@@ -465,6 +480,7 @@ final class TallyModel: ObservableObject {
         let keptValues = values
         let keptUntouched = untouched
         let keptSeen = seen
+        let keptWriteIns = writeIns
 
         path = [.event, .capture]
         await read(pdf: pdf)
@@ -480,6 +496,7 @@ final class TallyModel: ObservableObject {
             if keptUntouched[key] == nil { untouched.removeValue(forKey: key) }
         }
         seen.formUnion(keptSeen)
+        writeIns = keptWriteIns.filter { $0.key.card <= before.count }
         startIndex = cells.firstIndex { $0.key.card > before.count } ?? 0
         scheduleSave()
         return true
@@ -542,7 +559,7 @@ final class TallyModel: ObservableObject {
 
     private func currentDraft() -> Draft? {
         guard let scan, !values.isEmpty else { return nil }
-        return Draft(scan: scan, event: event, values: values, unchecked: Array(untouched.keys))
+        return Draft(scan: scan, event: event, values: values, unchecked: Array(untouched.keys), writeIns: writeIns)
     }
 
     // MARK: - Export
@@ -654,6 +671,7 @@ final class TallyModel: ObservableObject {
             "prefilled": untouched.keys.map { [$0.card, $0.row] },
             "confidences": untouched.map { [$0.key.card, $0.key.row, $0.value.confidence] as [Any] },
             "seen": seen.map { [$0.card, $0.row] },
+            "writeIns": writeIns.map { [$0.key.card, $0.key.row, $0.value] as [Any] },
         ]
 
         do {

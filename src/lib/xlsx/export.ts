@@ -82,6 +82,22 @@ export interface ExportInput {
   generatedAt?: Date;
   /** Boxes a person checked, with their pictures: the hidden Training sheet. */
   training?: TrainingBox[];
+  /** What was written beside "Other (write-in)" rows: a list on the provenance sheet. */
+  writeIns?: WriteIn[];
+}
+
+/**
+ * The item a volunteer wrote beside an "Other (write-in)" row, typed in by
+ * whoever checked it. The template has one "Other" count per section and no
+ * column for names, so the names are listed beside the provenance table rather
+ * than squeezed into the chapter's sheet.
+ */
+export interface WriteIn {
+  cardNumber: number;
+  row: number;
+  name: string;
+  /** The count in that box, if there is one. */
+  value: number | null;
 }
 
 /**
@@ -312,6 +328,23 @@ function provenanceSheetXml(input: ExportInput): string {
         String(v.value),
         v.confidence.toFixed(3),
         v.corrected ? "human" : "recognized",
+      ]);
+    }
+  }
+
+  const writeIns = [...(input.writeIns ?? [])].sort((a, b) => a.cardNumber - b.cardNumber || a.row - b.row);
+  if (writeIns.length > 0) {
+    textRow([]);
+    textRow(["Write-ins", "what was written beside \"Other (write-in)\", as typed in when checking"]);
+    textRow(["Card", "Column", "Section", "Item row", "Count", "Written in"]);
+    for (const w of writeIns) {
+      textRow([
+        String(w.cardNumber),
+        columnName(FIRST_DATA_COLUMN + w.cardNumber - 1),
+        itemForRow(w.row)?.section ?? "?",
+        String(w.row),
+        w.value === null ? "" : String(w.value),
+        w.name,
       ]);
     }
   }
