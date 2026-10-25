@@ -380,6 +380,7 @@ final class TallyModel: ObservableObject {
         untouched = [:]
         seen = []
         index = 0
+        startIndex = 0
         entry = ""
         exportedFile = nil
         crops.clear()
@@ -440,6 +441,56 @@ final class TallyModel: ObservableObject {
             index += 1
             syncEntryToCurrentCell()
         }
+    }
+
+    /// Where "Start checking" begins: cell 1, or the first cell of the cards
+    /// just added to a cleanup that was already being checked.
+    @Published var startIndex = 0
+
+    /// Cards found after the scan was read -- the bottom of the bag -- added to
+    /// the same cleanup rather than started as a second one (Eric, South Ponto:
+    /// "add new scans to existing sheet?").
+    ///
+    /// `pdf` is the scan read so far with the new pages after it. The earlier
+    /// cards keep their numbers, because pages pair in order, so what has been
+    /// checked on them is put back by key -- but only when every earlier card
+    /// came out of the same pages as before. If the pairing moved (an odd page
+    /// in the new ones), a value could land on the wrong card, so nothing is
+    /// carried over and the reading starts fresh.
+    /// Returns whether the earlier values were kept.
+    @discardableResult
+    func addCards(from pdf: URL) async -> Bool {
+        flush()
+        let before = scan?.cards ?? []
+        let keptValues = values
+        let keptUntouched = untouched
+        let keptSeen = seen
+
+        path = [.event, .capture]
+        await read(pdf: pdf)
+        guard let after = scan?.cards, readingError == nil else { return false }
+
+        let pagesOf = { (card: ScanCard) in Set(card.cells.map(\.pageNumber)) }
+        let samePairing = after.count >= before.count
+            && zip(before, after).allSatisfy { $0.cardNumber == $1.cardNumber && pagesOf($0) == pagesOf($1) }
+        guard samePairing else { return false }
+
+        for (key, value) in keptValues where key.card <= before.count {
+            values[key] = value
+            if keptUntouched[key] == nil { untouched.removeValue(forKey: key) }
+        }
+        seen.formUnion(keptSeen)
+        startIndex = cells.firstIndex { $0.key.card > before.count } ?? 0
+        scheduleSave()
+        return true
+    }
+
+    /// Whether cards can be added without moving the earlier ones: every card
+    /// so far has both its sides, so pages added after them pair among
+    /// themselves.
+    var canAddCards: Bool {
+        guard let cards = scan?.cards, !cards.isEmpty, lastRead != nil else { return false }
+        return cards.allSatisfy { $0.missingSides.isEmpty } && refusedPages.isEmpty
     }
 
     /// Back one cell, to look at it again or change it. A number typed and not

@@ -129,8 +129,8 @@ struct ReadingScreen: View {
                         Button("See the cards") { model.path.append(.cards) }
                             .buttonStyle(PrimaryButtonStyle())
                     } else {
-                        Button("Start checking") {
-                            model.index = 0
+                        Button(model.startIndex > 0 ? "Check the new cards" : "Start checking") {
+                            model.index = model.startIndex
                             model.syncEntryToCurrentCell()
                             model.path.append(.review)
                         }
