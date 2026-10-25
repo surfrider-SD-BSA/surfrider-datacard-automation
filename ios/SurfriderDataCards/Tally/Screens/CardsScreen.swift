@@ -13,13 +13,10 @@ import SwiftUI
 struct CardsScreen: View {
     @ObservedObject var model: TallyModel
     @Environment(\.dismiss) private var dismiss
-    @State private var adding = false
-    @State private var addProblem: String?
 
     var body: some View {
         ScreenBody {
             NavBar(back: "Checking") { dismiss() } trailing: {
-                HomeButton(model: model)
                 Button("Finish") { model.path.append(.finish) }
                     .buttonStyle(ChromeButtonStyle(size: 15))
             }
@@ -48,24 +45,6 @@ struct CardsScreen: View {
                         }
                     }
 
-                    if Camera.offered, CapturedPages.scanningAvailable, model.canAddCards {
-                        Button { adding = true } label: {
-                            HStack(spacing: 9) {
-                                Image(systemName: Nocturne.Icon.capture)
-                                Text("Add more cards")
-                            }
-                        }
-                        .buttonStyle(SecondaryButtonStyle(minHeight: 48, size: 15))
-                        .pageMargin()
-                        .padding(.top, 16)
-                        if let addProblem {
-                            Text(addProblem)
-                                .font(Nocturne.Face.label(12))
-                                .foregroundStyle(Nocturne.accent400)
-                                .pageMargin()
-                        }
-                    }
-
                     Text(blankNote)
                         .font(Nocturne.Face.label(12))
                         .lineSpacing(2)
@@ -84,33 +63,6 @@ struct CardsScreen: View {
             }
         }
         .navigationBarBackButtonHidden()
-        .fullScreenCover(isPresented: $adding) {
-            DocumentScanner { scan in
-                adding = false
-                guard scan.pageCount > 0, let read = model.lastRead else { return }
-                addProblem = nil
-                Task.detached(priority: .userInitiated) {
-                    let result: Result<URL, Error>
-                    do { result = .success(try CapturedPages.merge([read, try await CapturedPages.pdf(from: scan)])) } catch { result = .failure(error) }
-                    await MainActor.run {
-                        switch result {
-                        case .success(let pdf):
-                            Task {
-                                let kept = await model.addCards(from: pdf)
-                                if !kept, model.readingError == nil {
-                                    addProblem = "The new pages changed how the earlier ones pair into cards, so the checking starts again from the top."
-                                }
-                            }
-                        case .failure(let error):
-                            addProblem = "Those pictures could not be added: \(error.localizedDescription)"
-                        }
-                    }
-                }
-            } onCancel: {
-                adding = false
-            }
-            .ignoresSafeArea()
-        }
     }
 
     private func row(_ flat: FlatCell) -> some View {
@@ -121,7 +73,7 @@ struct CardsScreen: View {
                 .frame(width: 26, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(flat.cell.label)
+                Text(flat.cell.itemName)
                     .font(Nocturne.Face.label(14))
                     .foregroundStyle(Nocturne.text)
                     .lineLimit(2)

@@ -118,7 +118,7 @@ boot
 # Only a spreadsheet made after this is this run's: a failed run must not show an older one.
 touch "$out/.started"
 status=0
-TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPORT:-0}" TEST_RUNNER_WORKFLOW="${WORKFLOW:-0}" TEST_RUNNER_DRIVE="${DRIVE:-0}" \
+TEST_RUNNER_OUT="$out" TEST_RUNNER_TARGETS="$targets" TEST_RUNNER_EXPORT="${EXPORT:-0}" TEST_RUNNER_WORKFLOW="${WORKFLOW:-0}" \
   xcodebuild test-without-building -project ios/build-uitest/Harness.xcodeproj -scheme Harness \
   -destination "id=$udid" -derivedDataPath "$dd" > "$out/xcodebuild.log" 2>&1 || status=$?
 

@@ -8,15 +8,12 @@
 //  on the same consent screen. Had this wanted `drive` or `drive.readonly` it
 //  would have been a different conversation.
 //
-//  WHERE IT GOES: A FOLDER THIS APP MADE. Under `drive.file` the app cannot
-//  write into a folder it was not handed by Google's Picker -- but it can always
-//  write into one it created itself. Saving used to open the Picker in folder
-//  mode, and on a phone the Picker does not work: it runs in a docs.google.com
-//  frame inside the github.io page, Safari blocks that frame's cookies, and
-//  Google answers "Can't access your Google Account ... allowing cookie access"
-//  (Eric's phone at South Ponto, 24 Oct 2026). So the spreadsheet goes into a
-//  "Surfrider Data Cards" folder in the volunteer's Drive, made on the first
-//  save and found again after, with no page in between.
+//  THE DESTINATION HAS TO BE PICKED, and that is not a UI preference. Under
+//  `drive.file` this app cannot name a folder it was not handed: writing into
+//  one requires that the folder itself came back from Google's Picker, which is
+//  what grants access to it. So saving opens the picker in folder mode. The
+//  configured folder from DriveConfig cannot be used as a silent default for
+//  the same reason -- the app knows its id, and knowing an id is not access.
 //
 //  Small files, one request. The spreadsheet is tens of kilobytes -- a few
 //  hundred values in the chapter's template -- so this is a single multipart
@@ -79,70 +76,6 @@ enum DriveUpload {
             throw DriveError.uploadUnconfirmed(name: url.lastPathComponent)
         }
         return created.id
-    }
-
-    /// The folder name in the volunteer's Drive.
-    static let folderName = "Surfrider Data Cards"
-
-    /// The id of this app's folder, made if there is none.
-    ///
-    /// A search under `drive.file` only sees what this app created, so a
-    /// folder of the same name the volunteer made by hand is not found and not
-    /// written into; one of ours is. Remembered between saves, and looked up
-    /// again if it has since been deleted.
-    static func appFolder(accessToken: String) async throws -> String {
-        if let known = UserDefaults.standard.string(forKey: folderKey),
-           try await exists(known, accessToken: accessToken) {
-            return known
-        }
-
-        var search = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
-        search.queryItems = [
-            .init(name: "q", value: "mimeType = 'application/vnd.google-apps.folder' and name = '\(folderName)' and trashed = false"),
-            .init(name: "spaces", value: "drive"),
-            .init(name: "fields", value: "files(id)"),
-        ]
-        struct Listing: Decodable { struct File: Decodable { let id: String }; let files: [File] }
-        let listing: Listing = try await json(search.url, accessToken: accessToken)
-        if let found = listing.files.first?.id {
-            UserDefaults.standard.set(found, forKey: folderKey)
-            return found
-        }
-
-        var create = URLRequest(url: URL(string: "https://www.googleapis.com/drive/v3/files?fields=id")!)
-        create.httpMethod = "POST"
-        create.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        create.httpBody = try JSONSerialization.data(withJSONObject: [
-            "name": folderName, "mimeType": "application/vnd.google-apps.folder",
-        ])
-        struct Created: Decodable { let id: String }
-        let made: Created = try await json(create, accessToken: accessToken)
-        UserDefaults.standard.set(made.id, forKey: folderKey)
-        return made.id
-    }
-
-    private static let folderKey = "drive.appFolderId"
-
-    private static func exists(_ id: String, accessToken: String) async throws -> Bool {
-        let url = URL(string: "https://www.googleapis.com/drive/v3/files/\(id)?fields=trashed")
-        struct State: Decodable { let trashed: Bool? }
-        guard let state: State = try? await json(url, accessToken: accessToken) else { return false }
-        return state.trashed != true
-    }
-
-    private static func json<T: Decodable>(_ url: URL?, accessToken: String) async throws -> T {
-        guard let url else { throw DriveError.malformedRequest }
-        return try await json(URLRequest(url: url), accessToken: accessToken)
-    }
-
-    private static func json<T: Decodable>(_ request: URLRequest, accessToken: String) async throws -> T {
-        var request = request
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let decoded = try? JSONDecoder().decode(T.self, from: data)
-        else { throw DriveError.upload(name: folderName, status: (response as? HTTPURLResponse)?.statusCode ?? 0) }
-        return decoded
     }
 
     // MARK: -

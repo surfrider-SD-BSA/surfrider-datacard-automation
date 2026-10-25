@@ -406,22 +406,6 @@ describe("fillTemplate against the real template", () => {
     expect(prov).toContain("human");
     expect(prov).toContain("Plastic Bags (other: zip-lock, trash, etc.)");
   });
-
-  it("lists write-ins beside the provenance table, and only when there are some", () => {
-    expect(text(after["xl/worksheets/sheet2.xml"])).not.toContain("Write-ins");
-    const withNames = parts(
-      fillTemplate(template, {
-        ...baseInput,
-        writeIns: [{ cardNumber: 2, row: 82, name: "golf ball", value: 3 }],
-      }),
-    );
-    const prov = text(withNames["xl/worksheets/sheet2.xml"]);
-    expect(prov).toContain("Write-ins");
-    expect(prov).toContain("golf ball");
-    expect(prov).toContain("Glass");
-    // The chapter's sheet is untouched by it.
-    expect(text(withNames["xl/worksheets/sheet1.xml"])).not.toContain("golf ball");
-  });
 });
 
 /**

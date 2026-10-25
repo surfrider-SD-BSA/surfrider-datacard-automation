@@ -43,7 +43,6 @@ self.onmessage = (e: MessageEvent<Init | Page>) => {
         side: registered.side,
         trusted: registered.trusted,
         bannerOverlap: registered.bannerOverlap,
-        ruleOverlap: registered.ruleOverlap,
         cells: registered.trusted
           ? cellsForSide(registered.image, msg.pageNumber, refs.maps[registered.side], registered.side, refs.digits)
           : [],
