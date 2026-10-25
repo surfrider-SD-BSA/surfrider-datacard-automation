@@ -76,6 +76,9 @@ struct PrimaryButtonStyle: ButtonStyle {
                 fill: Nocturne.accent.opacity(configuration.isPressed ? 0.22 : 0),
                 stroke: Nocturne.hasGlass ? Nocturne.accent.opacity(0.55) : Nocturne.accent
             )
+            // The press, drawn here now that the glass no longer answers it.
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.45)
     }
 }
@@ -100,6 +103,8 @@ struct SecondaryButtonStyle: ButtonStyle {
                 fill: Nocturne.text.opacity(configuration.isPressed ? 0.14 : 0),
                 stroke: Nocturne.divider
             )
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.45)
     }
 }

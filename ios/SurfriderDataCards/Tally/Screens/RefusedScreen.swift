@@ -130,7 +130,8 @@ struct RefusedScreen: View {
                 guard let page, let pdf = model.lastRead else { return }
                 retakeProblem = nil
                 Task.detached(priority: .userInitiated) {
-                    let result = Result { try CapturedPages.replacing(page: page, in: pdf, with: scan) }
+                    let result: Result<URL, Error>
+                    do { result = .success(try await CapturedPages.replacing(page: page, in: pdf, with: scan)) } catch { result = .failure(error) }
                     await MainActor.run {
                         switch result {
                         case .success(let fixed):

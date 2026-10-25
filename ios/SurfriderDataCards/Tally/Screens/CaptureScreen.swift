@@ -259,7 +259,8 @@ struct CaptureScreen: View {
                 // seconds, and the screen should not freeze while it does.
                 let pages = scan.pageCount
                 Task.detached(priority: .userInitiated) {
-                    let result = Result { try CapturedPages.pdf(from: scan) }
+                    let result: Result<URL, Error>
+                    do { result = .success(try await CapturedPages.pdf(from: scan)) } catch { result = .failure(error) }
                     await MainActor.run {
                         preparing = nil
                         switch result {

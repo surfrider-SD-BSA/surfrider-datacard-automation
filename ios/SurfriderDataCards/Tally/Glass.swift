@@ -71,16 +71,18 @@ extension View {
     ///   - shape: The control's outline. Also the glass's, so the specular edge
     ///     and the border are the same curve rather than two near-misses.
     ///   - tint: Colour lent to the glass. Ignored off the glass path.
-    ///   - interactive: Let the glass answer a press itself -- it lifts and
-    ///     brightens under the finger, which is a better pressed state than
-    ///     anything drawn by hand.
+    ///   - interactive: Let the glass answer a press itself. Off by default
+    ///     since Eric's TestFlight crash (24 Oct 2026, iOS 27.0.1): the app
+    ///     died inside the system's glass code on a background thread, and
+    ///     interactive glass is the part of it that runs its own animations.
+    ///     The button styles draw their own press instead.
     ///   - fill: The flat ground, used off the glass path only.
     ///   - stroke: The outline, drawn on both paths.
     @ViewBuilder
     func controlSurface(
         _ shape: some Shape,
         tint: Color? = nil,
-        interactive: Bool = true,
+        interactive: Bool = false,
         fill: Color = .clear,
         stroke: Color? = nil,
         lineWidth: CGFloat = 1

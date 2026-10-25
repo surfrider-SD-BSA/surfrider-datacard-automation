@@ -90,7 +90,8 @@ struct CardsScreen: View {
                 guard scan.pageCount > 0, let read = model.lastRead else { return }
                 addProblem = nil
                 Task.detached(priority: .userInitiated) {
-                    let result = Result { try CapturedPages.merge([read, try CapturedPages.pdf(from: scan)]) }
+                    let result: Result<URL, Error>
+                    do { result = .success(try CapturedPages.merge([read, try await CapturedPages.pdf(from: scan)])) } catch { result = .failure(error) }
                     await MainActor.run {
                         switch result {
                         case .success(let pdf):
