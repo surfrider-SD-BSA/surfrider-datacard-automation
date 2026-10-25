@@ -68,6 +68,7 @@ final class HarnessUITests: XCTestCase {
     func testReadAndInspect() throws {
         let env = ProcessInfo.processInfo.environment
         if (env["WORKFLOW"] ?? "0") != "0" { return }
+        if (env["DRIVE"] ?? "0") != "0" { return }
         // One per line: an item name can hold a ";" ("Treated Wood (i.e. pallets; NOT
         // driftwood)"), and six share a name, told apart by their section.
         var targets: [(card: Int, item: String, section: String)] = []
@@ -202,6 +203,44 @@ final class HarnessUITests: XCTestCase {
             note("exported: \(texts(app))")
             shot("exported")
         }
+    }
+
+    /// DRIVE=1: "Choose from Google Drive" with no Google account. Opens the
+    /// chapter's folder (GOOGLE_DRIVE_FOLDER_ID), goes down to "Not entered",
+    /// opens the first scan and waits for it to be read.
+    func testDriveFolder() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard env["DRIVE"] == "1" else { return }
+        let app = XCUIApplication(bundleIdentifier: "com.mateobesse.surfriderdatacards")
+        app.launch()
+
+        let beach = app.textFields.element(boundBy: 0)
+        XCTAssertTrue(beach.waitForExistence(timeout: 60), "no event screen")
+        beach.tap()
+        beach.typeText("Drive Beach \(Self.runTag)\n")
+        app.buttons["Scan the cards"].tap()
+
+        let drive = app.buttons["Choose from Google Drive"]
+        XCTAssertTrue(drive.waitForExistence(timeout: 30), "no Drive button: \(texts(app))")
+        drive.tap()
+        for folder in ["Scanned Data Cards", "Not entered"] {
+            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", folder)).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 30), "no \(folder): \(texts(app))")
+            note("drive: \(texts(app))")
+            shot("drive-\(folder.prefix(8))")
+            row.tap()
+        }
+        let pdf = app.buttons.matching(NSPredicate(format: "label CONTAINS '.pdf'")).firstMatch
+        XCTAssertTrue(pdf.waitForExistence(timeout: 30), "no PDFs: \(texts(app))")
+        note("drive pdfs: \(texts(app))")
+        shot("drive-pdfs")
+        note("opening \(pdf.label)")
+        pdf.tap()
+
+        let start = app.buttons["Start checking"]
+        XCTAssertTrue(start.waitForExistence(timeout: 900), "never read: \(texts(app))")
+        note("read from Drive: \(texts(app))")
+        shot("drive-read")
     }
 
     /// WORKFLOW=1: what a volunteer does besides reading. Leaves the app while it reads

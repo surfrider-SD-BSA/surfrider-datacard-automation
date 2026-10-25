@@ -282,3 +282,182 @@ enum DriveMessage {
         }
     }
 }
+
+// MARK: - Opening a shared link
+
+/// "Choose from Google Drive", with no Google account: the chapter's scans
+/// folder, shared "anyone with the link", browsed folder by folder, or a
+/// pasted link to a scan or a folder. See `DrivePublic`.
+///
+/// This replaced Google's Picker on the phone. The Picker is a docs.google.com
+/// frame inside a github.io page, Safari blocks its cookies, and on Eric's
+/// phone it only ever said "Can't access your Google Account" (24 Oct 2026).
+struct DriveLinkSheet: View {
+    /// Called with the downloaded PDF.
+    let onOpened: (URL) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    /// The folder open last time, so the next cleanup starts where this one
+    /// left off -- usually "Not entered".
+    @AppStorage("drive.publicFolderID") private var savedFolder = ""
+    @AppStorage("drive.publicFolderName") private var savedFolderName = ""
+    @State private var link = ""
+    /// The folders opened, root first; the last is the one listed.
+    @State private var trail: [(id: String, name: String)] = []
+    @State private var files: [DrivePublic.Listed] = []
+    @State private var busy: String?
+    @State private var problem: String?
+
+    var body: some View {
+        ScreenBody(ground: Nocturne.captureGround, topPadding: 28) {
+            VStack(alignment: .leading, spacing: 12) {
+                Kicker(text: "Google Drive", icon: Nocturne.Icon.drive)
+                Text(trail.last?.name ?? "Paste the link")
+                    .font(Nocturne.Face.title(24))
+                    .foregroundStyle(Nocturne.text)
+                    .lineLimit(2)
+
+                if trail.count > 1 {
+                    Button {
+                        trail.removeLast()
+                        if let up = trail.popLast() { Task { await list(up.id, name: up.name) } }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: Nocturne.Icon.back)
+                            Text(trail[trail.count - 2].name)
+                        }
+                    }
+                    .buttonStyle(TextButtonStyle(size: 14))
+                    .disabled(busy != nil)
+                }
+
+                if trail.isEmpty {
+                    Text("To the folder the scans are in, or to one scan. It has to be shared \u{201C}Anyone with the link\u{201D}. No Google account needed.")
+                        .font(Nocturne.Face.body(13))
+                        .foregroundStyle(Nocturne.text(62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 8) {
+                    TextField(trail.isEmpty ? "https://drive.google.com/\u{2026}" : "Or paste another link", text: $link)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .submitLabel(.go)
+                        .onSubmit { Task { await open(link) } }
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: Nocturne.Radius.base).fill(Nocturne.surface))
+                    PasteButton(payloadType: String.self) { strings in
+                        guard let first = strings.first else { return }
+                        link = first
+                        Task { await open(first) }
+                    }
+                    .labelStyle(.iconOnly)
+                }
+
+                if let busy {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(Nocturne.accent)
+                        Text(busy).font(Nocturne.Face.label(13)).foregroundStyle(Nocturne.text(60))
+                    }
+                }
+
+                if let problem {
+                    Text(problem)
+                        .font(Nocturne.Face.label(12))
+                        .foregroundStyle(Nocturne.accent400)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(files) { file in
+                            Button {
+                                if file.isFolder {
+                                    Task { await list(file.id, name: file.name) }
+                                } else {
+                                    Task { await download(file.id, name: file.name, size: Int64(file.size ?? "")) }
+                                }
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: file.isFolder ? "folder" : Nocturne.Icon.scan)
+                                        .foregroundStyle(Nocturne.accent)
+                                    Text(file.name).lineLimit(2)
+                                    Spacer(minLength: 0)
+                                    if file.isFolder {
+                                        Image(systemName: Nocturne.Icon.forward).foregroundStyle(Nocturne.text(40))
+                                    }
+                                }
+                                .font(Nocturne.Face.label(15))
+                                .foregroundStyle(Nocturne.text)
+                                .padding(.vertical, 13)
+                                .contentShape(Rectangle())
+                            }
+                            .disabled(busy != nil)
+                            Divider().overlay(Nocturne.divider)
+                        }
+                    }
+                }
+
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(TextButtonStyle())
+                    .frame(maxWidth: .infinity)
+            }
+            .pageMargin()
+        }
+        .task {
+            guard trail.isEmpty else { return }
+            // Where the last cleanup left off, else the chapter's folder if the
+            // build names one (GOOGLE_DRIVE_FOLDER_ID), else a link is pasted.
+            if !savedFolder.isEmpty {
+                await list(savedFolder, name: savedFolderName.isEmpty ? "Google Drive" : savedFolderName)
+            } else if let root = DriveConfig.current?.folderId {
+                await list(root, name: "Scans")
+            }
+        }
+    }
+
+    private func open(_ text: String) async {
+        problem = nil
+        switch DrivePublic.parse(text) {
+        case .file(let id):
+            await download(id, name: "drive-scan.pdf", size: nil)
+        case .folder(let id):
+            trail = []
+            await list(id, name: "Shared folder")
+            link = ""
+        case nil:
+            problem = "That is not a Google Drive link."
+        }
+    }
+
+    private func list(_ id: String, name: String) async {
+        busy = "Looking in the folder\u{2026}"
+        problem = nil
+        defer { busy = nil }
+        do {
+            let found = try await DrivePublic.list(folder: id, config: DriveConfig.current)
+            files = found
+            trail.append((id, name))
+            savedFolder = id
+            savedFolderName = name
+            if found.isEmpty { problem = "No PDFs or folders in there." }
+        } catch {
+            problem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func download(_ id: String, name: String, size: Int64?) async {
+        busy = "Downloading \(name)\u{2026}"
+        problem = nil
+        do {
+            let file = try await DrivePublic.download(id: id, name: name, expectedSize: size) { _ in }
+            busy = nil
+            dismiss()
+            onOpened(file)
+        } catch {
+            busy = nil
+            problem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+}

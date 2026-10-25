@@ -62,6 +62,7 @@ struct CaptureScreen: View {
     /// stops at 24 pages, so a pile of more than twelve cards is several
     /// rounds, read together as one cleanup. See `CapturedPages.merge`.
     @State private var rounds: [Round] = []
+    @State private var openingDriveLink = false
 
     private struct Round {
         let file: URL
@@ -172,17 +173,21 @@ struct CaptureScreen: View {
                 // same file, not a second kind of scan. Absent entirely unless
                 // the build was configured with a Google project -- see
                 // DriveConfig, where that default is argued for.
-                if drive.isAvailable {
-                    Button {
-                        Task { await drive.begin(model: model) }
-                    } label: {
-                        HStack(spacing: 9) {
-                            Image(systemName: Nocturne.Icon.drive)
-                            Text(drive.stage == .authorizing ? "Waiting for Google…" : "Choose from Google Drive")
-                        }
+                // A pasted link, no Google account: the chapter's scans are
+                // shared "anyone with the link". See DrivePublic.
+                Button {
+                    openingDriveLink = true
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: Nocturne.Icon.drive)
+                        Text("Choose from Google Drive")
                     }
-                    .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
-                    .disabled(drive.isBusy)
+                }
+                .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
+                .sheet(isPresented: $openingDriveLink) {
+                    DriveLinkSheet { pdf in
+                        Task { await model.read(pdf: pdf) }
+                    }
                 }
 
                 if case .downloading(let fraction, let name) = drive.stage {
