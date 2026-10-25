@@ -109,27 +109,6 @@ extension Nocturne {
     }
 }
 
-// MARK: - Grouping
-
-/// A `GlassEffectContainer` where there is one, and nothing at all where there
-/// is not.
-///
-/// Glass shapes inside a container are sampled and lit together, so twelve
-/// keypad keys refract one scene rather than twelve. Without it they each pick
-/// up their own, and the grid reads as twelve unrelated panes.
-struct GlassStack<Content: View>: View {
-    var spacing: CGFloat?
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        if #available(iOS 26, *) {
-            GlassEffectContainer(spacing: spacing) { content }
-        } else {
-            content
-        }
-    }
-}
-
 // MARK: - Something for the glass to bend
 
 /// The ambient light behind every screen, on the glass path only.

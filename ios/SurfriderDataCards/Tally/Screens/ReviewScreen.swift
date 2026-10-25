@@ -318,7 +318,12 @@ struct ReviewScreen: View {
     /// container is nothing at all and the keys are the flat Nocturne surface
     /// they always were.
     private var keypad: some View {
-        GlassStack(spacing: 8) {
+        // Not in a GlassStack. A glass container blends neighbouring glass
+        // and animates the blend whenever a shape in it changes, and on this
+        // screen that was every key press for hours, on the system's glass
+        // thread -- where Eric's TestFlight build crashed (24 Oct 2026). Each
+        // key is its own pane now, at the cost of a little less unity.
+        Group {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "<"], id: \.self) { key in
                     Button {
@@ -466,12 +471,21 @@ private struct KeypadKeyStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(clearing ? Nocturne.accent300 : Nocturne.text)
+            // The press is a plain fill over the glass, not a change of the
+            // glass's own tint: re-tinting glass animates it on the system's
+            // glass thread, once per key press. See `keypad`.
+            .background {
+                if Nocturne.hasGlass, configuration.isPressed {
+                    RoundedRectangle(cornerRadius: Nocturne.Radius.glassKey, style: .continuous)
+                        .fill(Nocturne.accent.opacity(0.35))
+                }
+            }
             .controlSurface(
                 RoundedRectangle(
                     cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glassKey : Nocturne.Radius.key,
                     style: .continuous
                 ),
-                tint: tint(pressed: configuration.isPressed),
+                tint: tint,
                 // Not interactive. The key draws its own press (the tint and
                 // the scale below), and interactive glass re-tinted on every
                 // press was the busiest glass in the app when Eric's TestFlight
@@ -494,8 +508,7 @@ private struct KeypadKeyStyle: ButtonStyle {
     /// worse than the flat `surface` the design started from. So the digits
     /// carry a neutral lift -- not accent, which would make ten keys look like
     /// ten affirmative actions -- and only `C` and backspace are tinted.
-    private func tint(pressed: Bool) -> Color? {
-        if pressed { return Nocturne.accent.opacity(0.45) }
-        return clearing ? Nocturne.accent.opacity(0.20) : Nocturne.text.opacity(0.10)
+    private var tint: Color {
+        clearing ? Nocturne.accent.opacity(0.20) : Nocturne.text.opacity(0.10)
     }
 }
