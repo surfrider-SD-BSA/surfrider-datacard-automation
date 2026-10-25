@@ -129,8 +129,11 @@ struct ReadingScreen: View {
                         Button("See the cards") { model.path.append(.cards) }
                             .buttonStyle(PrimaryButtonStyle())
                     } else {
-                        Button(model.startIndex > 0 ? "Check the new cards" : "Start checking") {
-                            model.index = model.startIndex
+                        // Back from checking lands here, and starting over at
+                        // cell 1 lost the volunteer's place (Eric: "Back goes
+                        // all the way back to the beginning"). So it carries on.
+                        Button(startLabel) {
+                            model.index = model.index > 0 ? model.index : model.startIndex
                             model.syncEntryToCurrentCell()
                             model.path.append(.review)
                         }
@@ -214,6 +217,11 @@ struct ReadingScreen: View {
                 done: scan != nil || readers
             ),
         ]
+    }
+
+    private var startLabel: String {
+        if model.index > 0 { return "Carry on from cell \(model.index + 1)" }
+        return model.startIndex > 0 ? "Check the new cards" : "Start checking"
     }
 
     private func summary(_ scan: ScanResult) -> String {
