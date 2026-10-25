@@ -23,7 +23,7 @@ struct FinishScreen: View {
 
     var body: some View {
         ScreenBody {
-            NavBar(back: "Cards") { dismiss() }
+            NavBar(back: "Cards") { dismiss() } trailing: { HomeButton(model: model) }
 
             if model.exportedFile != nil {
                 success
@@ -54,9 +54,9 @@ struct FinishScreen: View {
     private var driveLabel: String {
         switch drive.stage {
         case .authorizing: return "Waiting for Google…"
-        case .uploading: return "Saving to Drive…"
-        case .saved: return "Saved to Drive"
-        default: return "Save to Drive"
+        case .uploading: return "Saving to Google Drive…"
+        case .saved: return "Saved to Google Drive"
+        default: return "Save to Google Drive"
         }
     }
 

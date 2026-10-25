@@ -22,7 +22,7 @@ struct RefusedScreen: View {
 
     var body: some View {
         ScreenBody {
-            NavBar(back: "Back") { dismiss() }
+            NavBar(back: "Back") { dismiss() } trailing: { HomeButton(model: model) }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {

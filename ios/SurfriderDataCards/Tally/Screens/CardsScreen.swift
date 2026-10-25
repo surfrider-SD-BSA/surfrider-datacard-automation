@@ -17,6 +17,7 @@ struct CardsScreen: View {
     var body: some View {
         ScreenBody {
             NavBar(back: "Checking") { dismiss() } trailing: {
+                HomeButton(model: model)
                 Button("Finish") { model.path.append(.finish) }
                     .buttonStyle(ChromeButtonStyle(size: 15))
             }

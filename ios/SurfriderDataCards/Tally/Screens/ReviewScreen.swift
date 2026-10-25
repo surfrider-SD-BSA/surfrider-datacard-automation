@@ -55,11 +55,20 @@ struct ReviewScreen: View {
     var body: some View {
         ScreenBody {
             NavBar(back: "Back") { dismiss() } trailing: {
+                HomeButton(model: model)
                 Button("All cards") { model.path.append(.cards) }
                     .buttonStyle(ChromeButtonStyle(size: 15))
             }
 
             if let flat = model.current {
+                // Read here so that bumping it redraws. SwiftUI only redraws
+                // for state the body reads, and nothing else did: the first
+                // cell's picture landed in the cache with the spinner still up
+                // until some unrelated change came along -- up to a minute at
+                // South Ponto -- while Back and "Start checking" showed it at
+                // once, from the cache (24 Oct 2026). Later cells hid it by
+                // being prefetched before they were drawn.
+                let _ = revision
                 progressBlock(flat)
                 itemBlock(flat)
                 cropBlock(flat)
@@ -88,11 +97,26 @@ struct ReviewScreen: View {
 
     private func progressBlock(_ flat: FlatCell) -> some View {
         VStack(spacing: 7) {
+            // Which paper card to pick up from the pile, big enough to find it
+            // by: the card's place in the pile, the side, and the page of the
+            // scan. Eric was reading it off the old 12pt corner label.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Card \(flat.key.card)")
+                    .font(Nocturne.Face.title(22))
+                    .foregroundStyle(Nocturne.text)
+                Text("of \(model.scan?.cards.count ?? 0) · \(flat.cell.side) · page \(flat.cell.pageNumber)")
+                    .font(Nocturne.Face.label(14))
+                    .foregroundStyle(Nocturne.accent300)
+                Spacer()
+            }
+            .contentTransition(.numericText())
+            .animation(Nocturne.Motion.entry, value: flat.key.card)
+
             HStack {
                 Text("Cell \(model.index + 1) of \(model.cells.count)")
                     .contentTransition(.numericText())
                 Spacer()
-                Text("Card \(flat.key.card) → column \(flat.column)")
+                Text("Column \(flat.column) in the sheet")
             }
             .font(Nocturne.Face.label(12))
             .foregroundStyle(Nocturne.text(52))
@@ -293,6 +317,20 @@ struct ReviewScreen: View {
 
     private func footer(_ flat: FlatCell) -> some View {
         HStack(spacing: 10) {
+            // Back one cell. "Back" in the bar leaves checking altogether, and
+            // "Start checking" begins again at cell 1, so without this a box
+            // passed by mistake was a trip through "All cards" to reach.
+            Button {
+                Haptics.advance()
+                model.previous()
+            } label: {
+                Image(systemName: Nocturne.Icon.back)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .frame(width: 64)
+            .disabled(model.index == 0)
+            .accessibilityLabel("Previous cell")
+
             // A true zero. Blank is normal -- volunteers are unpaid and leave
             // things blank -- but a zero somebody looked at and a box nobody
             // reached are not the same fact.
@@ -388,8 +426,8 @@ struct ReviewScreen: View {
 /// 54pt, and the pressed state tints from the accent ramp rather than fading.
 ///
 /// On glass the tint is the same idea at a strength a lens can carry, and the
-/// lift under the finger is the system's own -- `interactive` glass answers a
-/// press better than anything drawn by hand, and it is the same 54pt target.
+/// press is drawn here rather than left to `interactive` glass -- see the note
+/// on `interactive` below.
 private struct KeypadKeyStyle: ButtonStyle {
     /// `C` and backspace. They take a value away rather than add one, and a
     /// keypad worked for an hour is easier to hit blind when the two keys you
@@ -405,6 +443,14 @@ private struct KeypadKeyStyle: ButtonStyle {
                     style: .continuous
                 ),
                 tint: tint(pressed: configuration.isPressed),
+                // Not interactive. The key draws its own press (the tint and
+                // the scale below), and interactive glass re-tinted on every
+                // press was the busiest glass in the app when Eric's TestFlight
+                // build died inside the system's glass code, on a background
+                // render thread with none of ours on the stack (24 Oct 2026,
+                // iPhone 18 Pro, iOS 27.0.1, four hours into a cleanup). A
+                // guess at the trigger, not a proven fix.
+                interactive: false,
                 fill: configuration.isPressed ? Nocturne.accent.opacity(0.22) : Nocturne.surface,
                 stroke: configuration.isPressed ? Nocturne.accent : Nocturne.divider
             )

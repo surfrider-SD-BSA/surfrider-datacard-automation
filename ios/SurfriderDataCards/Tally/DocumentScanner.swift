@@ -162,6 +162,31 @@ enum CapturedPages {
         return file
     }
 
+    /// Join several camera sessions into the one PDF a cleanup is read from.
+    ///
+    /// The document camera stops at 24 pages a session -- twelve cards, front
+    /// and back -- so a pile bigger than that is scanned in rounds. Reading
+    /// each round as its own cleanup gave Eric three spreadsheets for one
+    /// South Ponto pile (24 Oct 2026). The pages go in session order, which is
+    /// card order as long as each round carried on where the last one stopped.
+    static func merge(_ files: [URL]) throws -> URL {
+        if files.count == 1, let only = files.first { return only }
+        let joined = PDFDocument()
+        for file in files {
+            guard let part = PDFDocument(url: file) else { throw CaptureError.couldNotWrite }
+            for index in 0..<part.pageCount {
+                guard let page = part.page(at: index) else { continue }
+                joined.insert(page, at: joined.pageCount)
+            }
+        }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("photographed-cards.pdf")
+        guard joined.write(to: file) else { throw CaptureError.couldNotWrite }
+        return file
+    }
+
     /// What `pdf.ts` rasterizes at, and what the cell map's coordinates are in.
     private static let dpi: CGFloat = 200
     /// High enough that the JPEG is not what the digit reader sees.

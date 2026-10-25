@@ -257,6 +257,28 @@ final class TallyModel: ObservableObject {
         // asked for, and the draft is applied once it matches.
         pendingRestore = draft
         path = [.capture]
+
+        // A camera scan exists nowhere but this phone's temporary folder, so
+        // there is no PDF to pick again. If the one last read is still there
+        // and is the draft's file, read it straight away.
+        if let pdf = lastRead, isOurs(pdf), Self.fileSize(pdf) == draft.fileSize,
+           pdf.lastPathComponent == draft.fileName {
+            Task { await read(pdf: pdf) }
+        }
+    }
+
+    /// The PDF most recently read, kept across `clearScan` so that leaving a
+    /// cleanup and picking its draft back up does not need the file again.
+    private var lastRead: URL?
+
+    private func isOurs(_ url: URL) -> Bool {
+        let temp = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
+        return url.resolvingSymlinksInPath().path.hasPrefix(temp)
+            && FileManager.default.fileExists(atPath: url.path)
+    }
+
+    private static func fileSize(_ url: URL) -> Int? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue
     }
 
     func discardDraft() {
@@ -272,6 +294,7 @@ final class TallyModel: ObservableObject {
     func read(pdf url: URL) async {
         readingError = nil
         clearScan()
+        lastRead = url
         path.append(.reading)
 
         // A picked file lives outside the sandbox until it is copied in.
@@ -419,6 +442,14 @@ final class TallyModel: ObservableObject {
         }
     }
 
+    /// Back one cell, to look at it again or change it. A number typed and not
+    /// yet committed with Next is dropped, as it would be by "All cards".
+    func previous() {
+        guard index > 0 else { return }
+        index -= 1
+        syncEntryToCurrentCell()
+    }
+
     func jump(to key: CellKey) {
         guard let at = cells.firstIndex(where: { $0.key == key }) else { return }
         index = at
@@ -533,6 +564,19 @@ final class TallyModel: ObservableObject {
         return items
     }
 
+    /// A cleanup already sent under this beach and date.
+    ///
+    /// The sheet is named from the two, so a second cleanup with the same pair
+    /// comes out as a second file with the same name -- Eric's three South Ponto
+    /// rounds arrived as "Test", "Test 2" and "Test 3" (24 Oct 2026), and which
+    /// was which was anybody's guess. Screen 2 asks for a different name.
+    var nameAlreadySent: Bool {
+        let beach = event.shoreline.trimmingCharacters(in: .whitespaces)
+        return finished.events.contains {
+            $0.date == event.date && $0.beach.caseInsensitiveCompare(beach) == .orderedSame
+        }
+    }
+
     var exportName: String {
         let slug = event.shoreline
             .trimmingCharacters(in: .whitespaces)
@@ -584,6 +628,13 @@ final class TallyModel: ObservableObject {
         } catch {
             exportError = error.localizedDescription
         }
+    }
+
+    /// Home from the middle of a cleanup. Whatever has been checked is written
+    /// to the draft first, so screen 1 offers it back.
+    func leaveToCleanups() {
+        flush()
+        backToCleanups()
     }
 
     func backToCleanups() {
