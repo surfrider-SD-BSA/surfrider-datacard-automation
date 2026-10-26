@@ -122,7 +122,7 @@ for (const scan of cachedScans()) {
   for (const r of records) {
     const [c] = cellsForSide(page(r), r.pageNumber, map(r), r.side, model);
     const read = c && prefillFor(c);
-    if (c) cells.push({ r, c, p: read && mainReading(read, tuned[r.key]) });
+    if (c) cells.push({ r, c, p: read && mainReading(read, tuned[r.key], second[r.key]) });
   }
   const taken = autoAcceptedInScan(
     cells.map((x) => x.p),
