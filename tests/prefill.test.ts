@@ -320,6 +320,12 @@ describe("mainReading", () => {
     expect(mainReading({ ...digits, value: 120, digits: 120 }, "112")).toMatchObject({ value: 112 });
   });
 
+  it("takes the tuned hundred where Apple read it too, or where ours is its start", () => {
+    expect(mainReading({ ...digits, value: 2, digits: 2 }, "200", 200)).toMatchObject({ value: 200 });
+    expect(mainReading({ ...digits, value: 20, digits: 20 }, "200")).toMatchObject({ value: 200 });
+    expect(mainReading({ ...digits, value: 2, digits: 2 }, "200")).toMatchObject({ value: 2 });
+  });
+
   it("keeps ours, at its own confidence, where Apple read what ours read", () => {
     const ours = { ...digits, value: 7, digits: 7, confidence: 0.8 };
     expect(mainReading(ours, "1", 7)).toMatchObject({ value: 7, confidence: 0.8 });
