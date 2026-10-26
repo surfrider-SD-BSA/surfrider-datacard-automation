@@ -314,4 +314,9 @@ describe("mainReading", () => {
     expect(mainReading(digits, "—")).toBe(digits);
     expect(mainReading({ ...digits, source: "tally" }, "15").value).toBe(5);
   });
+
+  it("keeps ours, doubted, where the tuned reader jumps to a hundred or more", () => {
+    expect(mainReading({ ...digits, value: 12, digits: 12 }, "112")).toMatchObject({ value: 12, confidence: TUNED_DISAGREES });
+    expect(mainReading({ ...digits, value: 120, digits: 120 }, "112")).toMatchObject({ value: 112 });
+  });
 });

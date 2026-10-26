@@ -580,8 +580,18 @@ export const TUNED_DISAGREES = 0.4;
 export function mainReading(r: Reading, tuned: string | null | undefined): Reading {
   const t = numberFromReader(tuned);
   if (r.source !== "digits" || t === null || t === r.value) return r;
+  // A jump to a hundred or more from a smaller number of ours is the tuned
+  // reader's commonest wild miss (a stroke or the box edge read as a leading
+  // "1"): ours stands, doubted. Measured 25 October 2026 with nobody checking
+  // (out/exp/fake/complete.mjs, every box taken as read): total off
+  // 19,614 -> 18,790, 19,617 -> 19,014, 19,627 -> 19,015 on three seeds,
+  // better on both halves of every one.
+  if (t >= TUNED_HUNDREDS && r.value < TUNED_HUNDREDS) return { ...r, confidence: Math.min(r.confidence, TUNED_DISAGREES) };
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
+
+/** Where the tuned reader's number stops being trusted over a smaller one of ours. */
+export const TUNED_HUNDREDS = 100;
 
 /**
  * A tally reader's text as a count, or null where it is not one clean number:
