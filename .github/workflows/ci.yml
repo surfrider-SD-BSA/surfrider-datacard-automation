@@ -1,12 +1,12 @@
 name: CI
 
-# Both app branches carry the same tree, and every change goes to both, so
-# both get the same checks.
+# One branch, main (ios/main until 25 Oct 2026; android/main was merged in on
+# 11 Oct), and every change reaches it through a pull request.
 on:
   push:
-    branches: [ios/main, android/main]
+    branches: [main]
   pull_request:
-    branches: [ios/main, android/main]
+    branches: [main]
 
 # Read-only by default. Any job needing more asks for it explicitly.
 permissions:
