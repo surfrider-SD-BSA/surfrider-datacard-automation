@@ -52,14 +52,26 @@ struct ReviewScreen: View {
     /// nothing has to be tapped, and the box cannot go missing.
     @AppStorage("tally.showWholeRow") private var showWholeRow = true
 
+    @State private var writingIn = false
+    @State private var writeInDraft = ""
+
     var body: some View {
         ScreenBody {
             NavBar(back: "Back") { dismiss() } trailing: {
+                HomeButton(model: model)
                 Button("All cards") { model.path.append(.cards) }
                     .buttonStyle(ChromeButtonStyle(size: 15))
             }
 
             if let flat = model.current {
+                // Read here so that bumping it redraws. SwiftUI only redraws
+                // for state the body reads, and nothing else did: the first
+                // cell's picture landed in the cache with the spinner still up
+                // until some unrelated change came along -- up to a minute at
+                // South Ponto -- while Back and "Start checking" showed it at
+                // once, from the cache (24 Oct 2026). Later cells hid it by
+                // being prefetched before they were drawn.
+                let _ = revision
                 progressBlock(flat)
                 itemBlock(flat)
                 cropBlock(flat)
@@ -88,11 +100,26 @@ struct ReviewScreen: View {
 
     private func progressBlock(_ flat: FlatCell) -> some View {
         VStack(spacing: 7) {
+            // Which paper card to pick up from the pile, big enough to find it
+            // by: the card's place in the pile, the side, and the page of the
+            // scan. Eric was reading it off the old 12pt corner label.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Card \(flat.key.card)")
+                    .font(Nocturne.Face.title(22))
+                    .foregroundStyle(Nocturne.text)
+                Text("of \(model.scan?.cards.count ?? 0) · \(flat.cell.side) · page \(flat.cell.pageNumber)")
+                    .font(Nocturne.Face.label(14))
+                    .foregroundStyle(Nocturne.accent300)
+                Spacer()
+            }
+            .contentTransition(.numericText())
+            .animation(Nocturne.Motion.entry, value: flat.key.card)
+
             HStack {
                 Text("Cell \(model.index + 1) of \(model.cells.count)")
                     .contentTransition(.numericText())
                 Spacer()
-                Text("Card \(flat.key.card) → column \(flat.column)")
+                Text("Column \(flat.column) in the sheet")
             }
             .font(Nocturne.Face.label(12))
             .foregroundStyle(Nocturne.text(52))
@@ -111,8 +138,11 @@ struct ReviewScreen: View {
         VStack(alignment: .leading, spacing: 5) {
             // The names run long -- "Plastic Food Wrappers (candy, chip bags)"
             // -- so they wrap rather than truncate.
-            Text(flat.cell.itemName)
-                .font(Nocturne.Face.item)
+            // The card's own second line, where it has one, at the card's own
+            // smaller size -- in the same Text, so the item stays one line of
+            // text to anything reading the screen.
+            (Text(flat.cell.label).font(Nocturne.Face.item)
+                + Text(flat.cell.cardNote.map { "\n" + $0 } ?? "").font(Nocturne.Face.body(14)))
                 .tracking(-0.21)
                 .lineSpacing(3)
                 .foregroundStyle(Nocturne.text)
@@ -127,6 +157,29 @@ struct ReviewScreen: View {
                 // know which claim they are being asked to check.
                 if let prefill = model.untouched[flat.key] {
                     Tag(text: prefill.tag)
+                }
+            }
+
+            // "Other (write-in):" asks the volunteer to write the item. The
+            // number goes in the template as ever; the name, if somebody types
+            // it, goes to the write-ins list. Optional: nothing waits on it.
+            if flat.cell.itemName.hasPrefix("Other") {
+                Button {
+                    writeInDraft = model.writeIns[flat.key] ?? ""
+                    writingIn = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "pencil")
+                        Text(model.writeIns[flat.key].map { "Written in: \($0)" } ?? "Add what was written")
+                    }
+                }
+                .buttonStyle(TextButtonStyle(size: 13))
+                .alert("What was written next to Other?", isPresented: $writingIn) {
+                    TextField("e.g. golf ball", text: $writeInDraft)
+                    Button("Save") { model.setWriteIn(writeInDraft, for: flat.key) }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Goes in the write-ins list on the Provenance sheet. The number still goes in the template's Other row.")
                 }
             }
         }
@@ -265,7 +318,12 @@ struct ReviewScreen: View {
     /// container is nothing at all and the keys are the flat Nocturne surface
     /// they always were.
     private var keypad: some View {
-        GlassStack(spacing: 8) {
+        // Not in a GlassStack. A glass container blends neighbouring glass
+        // and animates the blend whenever a shape in it changes, and on this
+        // screen that was every key press for hours, on the system's glass
+        // thread -- where Eric's TestFlight build crashed (24 Oct 2026). Each
+        // key is its own pane now, at the cost of a little less unity.
+        Group {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "<"], id: \.self) { key in
                     Button {
@@ -293,6 +351,20 @@ struct ReviewScreen: View {
 
     private func footer(_ flat: FlatCell) -> some View {
         HStack(spacing: 10) {
+            // Back one cell. "Back" in the bar leaves checking altogether, and
+            // "Start checking" begins again at cell 1, so without this a box
+            // passed by mistake was a trip through "All cards" to reach.
+            Button {
+                Haptics.advance()
+                model.previous()
+            } label: {
+                Image(systemName: Nocturne.Icon.back)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .frame(width: 64)
+            .disabled(model.index == 0)
+            .accessibilityLabel("Previous cell")
+
             // A true zero. Blank is normal -- volunteers are unpaid and leave
             // things blank -- but a zero somebody looked at and a box nobody
             // reached are not the same fact.
@@ -388,8 +460,8 @@ struct ReviewScreen: View {
 /// 54pt, and the pressed state tints from the accent ramp rather than fading.
 ///
 /// On glass the tint is the same idea at a strength a lens can carry, and the
-/// lift under the finger is the system's own -- `interactive` glass answers a
-/// press better than anything drawn by hand, and it is the same 54pt target.
+/// press is drawn here rather than left to `interactive` glass -- see the note
+/// on `interactive` below.
 private struct KeypadKeyStyle: ButtonStyle {
     /// `C` and backspace. They take a value away rather than add one, and a
     /// keypad worked for an hour is easier to hit blind when the two keys you
@@ -399,12 +471,29 @@ private struct KeypadKeyStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(clearing ? Nocturne.accent300 : Nocturne.text)
+            // The press is a plain fill over the glass, not a change of the
+            // glass's own tint: re-tinting glass animates it on the system's
+            // glass thread, once per key press. See `keypad`.
+            .background {
+                if Nocturne.hasGlass, configuration.isPressed {
+                    RoundedRectangle(cornerRadius: Nocturne.Radius.glassKey, style: .continuous)
+                        .fill(Nocturne.accent.opacity(0.35))
+                }
+            }
             .controlSurface(
                 RoundedRectangle(
                     cornerRadius: Nocturne.hasGlass ? Nocturne.Radius.glassKey : Nocturne.Radius.key,
                     style: .continuous
                 ),
-                tint: tint(pressed: configuration.isPressed),
+                tint: tint,
+                // Not interactive. The key draws its own press (the tint and
+                // the scale below), and interactive glass re-tinted on every
+                // press was the busiest glass in the app when Eric's TestFlight
+                // build died inside the system's glass code, on a background
+                // render thread with none of ours on the stack (24 Oct 2026,
+                // iPhone 18 Pro, iOS 27.0.1, four hours into a cleanup). A
+                // guess at the trigger, not a proven fix.
+                interactive: false,
                 fill: configuration.isPressed ? Nocturne.accent.opacity(0.22) : Nocturne.surface,
                 stroke: configuration.isPressed ? Nocturne.accent : Nocturne.divider
             )
@@ -419,8 +508,7 @@ private struct KeypadKeyStyle: ButtonStyle {
     /// worse than the flat `surface` the design started from. So the digits
     /// carry a neutral lift -- not accent, which would make ten keys look like
     /// ten affirmative actions -- and only `C` and backspace are tinted.
-    private func tint(pressed: Bool) -> Color? {
-        if pressed { return Nocturne.accent.opacity(0.45) }
-        return clearing ? Nocturne.accent.opacity(0.20) : Nocturne.text.opacity(0.10)
+    private var tint: Color {
+        clearing ? Nocturne.accent.opacity(0.20) : Nocturne.text.opacity(0.10)
     }
 }

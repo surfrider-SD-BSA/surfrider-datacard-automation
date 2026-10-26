@@ -166,6 +166,34 @@ final class DriveAuth: NSObject, ObservableObject {
         return try Self.code(from: callback, expecting: state)
     }
 
+    /// Open a page in the same browser session the sign-in used, and wait for
+    /// it to send the app a `scheme://` URL.
+    ///
+    /// For Google's Picker. In an `SFSafariViewController` it has a cookie jar
+    /// of its own, so Google's frame inside the picker page found nobody signed
+    /// in and said "Can't access your Google Account" (Eric's phone, 24 Oct
+    /// 2026). This session shares Safari's, where the consent screen has just
+    /// signed the volunteer in.
+    func browse(_ url: URL, callbackScheme: String) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackScheme) { callback, error in
+                if let callback {
+                    continuation.resume(returning: callback)
+                } else if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
+                    continuation.resume(throwing: DriveError.cancelled)
+                } else {
+                    continuation.resume(throwing: error ?? DriveError.cancelled)
+                }
+            }
+            session.presentationContextProvider = self
+            session.prefersEphemeralWebBrowserSession = false
+            self.session = session
+            if !session.start() {
+                continuation.resume(throwing: DriveError.cannotPresent)
+            }
+        }
+    }
+
     /// Pull the authorisation code out of the redirect, refusing anything that
     /// does not match the request that was sent.
     ///

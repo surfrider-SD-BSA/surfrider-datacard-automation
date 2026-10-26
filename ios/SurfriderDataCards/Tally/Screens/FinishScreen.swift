@@ -23,7 +23,7 @@ struct FinishScreen: View {
 
     var body: some View {
         ScreenBody {
-            NavBar(back: "Cards") { dismiss() }
+            NavBar(back: "Cards") { dismiss() } trailing: { HomeButton(model: model) }
 
             if model.exportedFile != nil {
                 success
@@ -35,15 +35,6 @@ struct FinishScreen: View {
         .sheet(isPresented: $sharing) {
             if let file = model.exportedFile { ShareSheet(items: [file]) }
         }
-        .sheet(isPresented: Binding(
-            get: { if case .choosingFolder = drive.stage { return true } else { return false } },
-            set: { if !$0 { drive.cancel() } }
-        )) {
-            if case .choosingFolder(let url) = drive.stage {
-                DrivePicker(url: url)
-                    .ignoresSafeArea()
-            }
-        }
     }
 
     private var driveIcon: String {
@@ -54,9 +45,9 @@ struct FinishScreen: View {
     private var driveLabel: String {
         switch drive.stage {
         case .authorizing: return "Waiting for Google…"
-        case .uploading: return "Saving to Drive…"
-        case .saved: return "Saved to Drive"
-        default: return "Save to Drive"
+        case .uploading: return "Saving to Google Drive…"
+        case .saved: return "Saved to Google Drive › \(DriveUpload.folderName)"
+        default: return "Save to Google Drive"
         }
     }
 
@@ -203,13 +194,12 @@ struct FinishScreen: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
 
-                // The other direction of the capture screen's button, and the
-                // same folder: the scans arrive from Drive and the spreadsheet
-                // goes back beside them. Absent unless the build was
-                // configured, exactly as the picker is.
-                if drive.isAvailable, model.exportedFile != nil {
+                // Into this app's own "Surfrider Data Cards" folder in the
+                // volunteer's Drive -- see DriveUpload for why not a folder
+                // they pick. Absent unless the build was configured.
+                if drive.isAvailable, let file = model.exportedFile {
                     Button {
-                        Task { await drive.beginSave() }
+                        Task { await drive.beginSave(file) }
                     } label: {
                         HStack(spacing: 9) {
                             Image(systemName: driveIcon)
