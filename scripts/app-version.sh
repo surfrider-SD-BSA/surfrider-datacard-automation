@@ -9,7 +9,7 @@
 # highest such number in the history is the newest change a build contains --
 # and it counts up by itself, with nothing to remember to bump. The whole
 # history is searched rather than the first-parent line, because android/main
-# takes ios/main by merge and its own first parents are merge commits.
+# used to take ios/main (now main) by merge and its first parents were merges.
 #
 # "dev" when there is no pull request in the history at all, which is a fresh
 # fork. The commit is there for whoever needs to know exactly which one.
