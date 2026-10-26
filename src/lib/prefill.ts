@@ -574,10 +574,10 @@ export const TUNED_DISAGREES = 0.4;
 /**
  * A written box's reading with our tuned reader's number in it: unchanged where
  * it read what ours read, its number at `TUNED_DISAGREES` where it read another.
- * Ours where the tuned reader read nothing, and for every reading that is not
- * of written digits.
+ * Ours where the tuned reader read nothing or Apple's reader (`apple`) read
+ * ours, and for every reading that is not of written digits.
  */
-export function mainReading(r: Reading, tuned: string | null | undefined): Reading {
+export function mainReading(r: Reading, tuned: string | null | undefined, apple?: number | null): Reading {
   const t = numberFromReader(tuned);
   if (r.source !== "digits" || t === null || t === r.value) return r;
   // A jump to a hundred or more from a smaller number of ours is the tuned
@@ -587,6 +587,12 @@ export function mainReading(r: Reading, tuned: string | null | undefined): Readi
   // 19,614 -> 18,790, 19,617 -> 19,014, 19,627 -> 19,015 on three seeds,
   // better on both halves of every one.
   if (t >= TUNED_HUNDREDS && r.value < TUNED_HUNDREDS) return { ...r, confidence: Math.min(r.confidence, TUNED_DISAGREES) };
+  // Two readers against one: where Apple's text reader read the same number as
+  // ours, ours stands, at its own confidence. Measured 26 October 2026 the same
+  // way (scripts/apps-rule.mjs): total off 19,374 -> 19,168, 19,591 -> 19,302,
+  // 19,592 -> 19,400 on three seeds; half B 200-300 better on each, half A
+  // within 5 either way.
+  if (apple === r.value) return r;
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
 

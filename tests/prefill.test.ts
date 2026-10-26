@@ -319,4 +319,11 @@ describe("mainReading", () => {
     expect(mainReading({ ...digits, value: 12, digits: 12 }, "112")).toMatchObject({ value: 12, confidence: TUNED_DISAGREES });
     expect(mainReading({ ...digits, value: 120, digits: 120 }, "112")).toMatchObject({ value: 112 });
   });
+
+  it("keeps ours, at its own confidence, where Apple read what ours read", () => {
+    const ours = { ...digits, value: 7, digits: 7, confidence: 0.8 };
+    expect(mainReading(ours, "1", 7)).toMatchObject({ value: 7, confidence: 0.8 });
+    expect(mainReading(ours, "1", 1)).toMatchObject({ value: 1, confidence: TUNED_DISAGREES });
+    expect(mainReading(ours, "1", null)).toMatchObject({ value: 1, confidence: TUNED_DISAGREES });
+  });
 });

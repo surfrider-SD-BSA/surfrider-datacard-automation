@@ -175,7 +175,7 @@ function rankedCells() {
       const key = `${card.cardNumber}:${cell.row}`;
       const read = prefillFor(cell);
       const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
-      return { card, cell, read, prefill: counted && mainReading(counted, state.tuned.get(key)) };
+      return { card, cell, read, prefill: counted && mainReading(counted, state.tuned.get(key), state.second.get(key)) };
     }),
   );
   const accepted = autoAcceptedInScan(
