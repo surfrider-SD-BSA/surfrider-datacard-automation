@@ -152,7 +152,9 @@ def easyocr(tmp: pathlib.Path) -> None:
     (OUT / "easyocr-rec.vocab.json").write_text(json.dumps(list(reader.converter.character)))
 
 
-def trocr(tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False, only_check: bool = False) -> None:
+def trocr(
+    tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False, only_check: bool = False
+) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
     models = [
@@ -171,7 +173,7 @@ def trocr(tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False, 
     if check.exists():
         models.append((str(check), "trocr-check"))
     else:
-        print(f"no {check}: the second tuned reader is left out (scripts/train-trocr-check.py makes it)")
+        print(f"no {check}: the second tuned reader is left out (train-trocr-check.py makes it)")
     # Our tally readers, if scripts/train-tally.py has made them.
     for name in ["tally-a", "tally-b"]:
         tally = ROOT / "out" / "models" / name
