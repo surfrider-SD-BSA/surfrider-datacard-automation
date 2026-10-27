@@ -583,6 +583,14 @@ export function mainReading(
   apple?: number | null,
   check?: string | null,
 ): Reading {
+  // An X where the tuned reader read nothing but the letter: some volunteers
+  // cross every box they leave empty, and our digit reader reads the cross as
+  // a 1, 4 or 8. Measured 26 October 2026 with nobody checking: 32 boxes
+  // fixed and none broken on each of three seeds (seaport-7.05), -47 / -45 /
+  // -58 total off. Sure enough to stay out of `middleReading`'s vote, which
+  // would put most of the 1s and 4s back.
+  if (r.source === "digits" && /^\s*[xX×]+\s*$/.test(tuned ?? "") && r.value !== 0)
+    return { ...r, value: 0, confidence: X_EMPTY };
   const t = numberFromReader(tuned);
   if (r.source !== "digits" || t === null || t === r.value) return r;
   // A jump to a hundred or more from a smaller number of ours is the tuned
@@ -611,6 +619,9 @@ export function mainReading(
   if (apple === r.value) return r;
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
+
+/** How sure a box the tuned reader read as an X is to be empty (`mainReading`). */
+export const X_EMPTY = 0.6;
 
 /**
  * How sure a written number may be and still get more readers' say
