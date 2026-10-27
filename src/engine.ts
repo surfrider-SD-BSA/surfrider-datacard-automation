@@ -162,6 +162,8 @@ const state = {
   others: new Map<string, (number | null)[]>(),
   /** Our tuned reader's text for a written box, keyed "card:row" (mainReading in lib/prefill.ts). */
   tuned: new Map<string, string>(),
+  /** A second tuned reader's text, only where the first read a hundred or more (mainReading). */
+  check: new Map<string, string>(),
   /** Our two tally readers' text for a tally-only box, keyed "card:row" (tallyFromReaders in lib/prefill.ts). */
   tally: new Map<string, (string | null)[]>(),
 };
@@ -175,7 +177,7 @@ function rankedCells() {
       const key = `${card.cardNumber}:${cell.row}`;
       const read = prefillFor(cell);
       const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
-      return { card, cell, read, prefill: counted && mainReading(counted, state.tuned.get(key), state.second.get(key)) };
+      return { card, cell, read, prefill: counted && mainReading(counted, state.tuned.get(key), state.second.get(key), state.check.get(key)) };
     }),
   );
   const accepted = autoAcceptedInScan(
@@ -365,6 +367,7 @@ async function process(params: ProcessParams) {
   state.second.clear();
   state.others.clear();
   state.tuned.clear();
+  state.check.clear();
   state.tally.clear();
   progress("done", 1);
 
@@ -545,7 +548,7 @@ function tallyStripBoxes() {
 function secondOpinions(params: {
   opinions: [number, number, number][];
   others?: [number, number, (string | null)[]][];
-  tuned?: [number, number, string][];
+  tuned?: [number, number, string, (string | null)?][];
   tally?: [number, number, (string | null)[]][];
 }) {
   state.second.clear();
@@ -553,7 +556,11 @@ function secondOpinions(params: {
   state.others.clear();
   for (const [card, row, texts] of params.others ?? []) state.others.set(`${card}:${row}`, texts.map(numberFromReader));
   state.tuned.clear();
-  for (const [card, row, text] of params.tuned ?? []) state.tuned.set(`${card}:${row}`, text);
+  state.check.clear();
+  for (const [card, row, text, check] of params.tuned ?? []) {
+    state.tuned.set(`${card}:${row}`, text);
+    if (check) state.check.set(`${card}:${row}`, check);
+  }
   state.tally.clear();
   for (const [card, row, texts] of params.tally ?? []) state.tally.set(`${card}:${row}`, texts);
   // Each cell's taken/shown answer, and the tuned reader's number and confidence where it differs from ours.
@@ -712,6 +719,7 @@ function reset() {
   state.second.clear();
   state.others.clear();
   state.tuned.clear();
+  state.check.clear();
   state.tally.clear();
   return { ok: true };
 }

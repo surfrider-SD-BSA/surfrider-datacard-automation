@@ -320,6 +320,12 @@ describe("mainReading", () => {
     expect(mainReading({ ...digits, value: 120, digits: 120 }, "112")).toMatchObject({ value: 112 });
   });
 
+  it("takes the tuned hundred where the second tuned reader read it too", () => {
+    expect(mainReading({ ...digits, value: 13, digits: 13 }, "103", null, "103")).toMatchObject({ value: 103 });
+    expect(mainReading({ ...digits, value: 13, digits: 13 }, "103", null, "13")).toMatchObject({ value: 13 });
+    expect(mainReading({ ...digits, value: 13, digits: 13 }, "103", null, null)).toMatchObject({ value: 13 });
+  });
+
   it("takes the tuned hundred where Apple read it too, or where ours is its start", () => {
     expect(mainReading({ ...digits, value: 2, digits: 2 }, "200", 200)).toMatchObject({ value: 200 });
     expect(mainReading({ ...digits, value: 20, digits: 20 }, "200")).toMatchObject({ value: 200 });
