@@ -15,8 +15,8 @@ function readSheet(path){
   if(parts["xl/sharedStrings.xml"]){for(const si of dec.decode(parts["xl/sharedStrings.xml"]).split("<si>").slice(1))
     shared.push([...si.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(m=>m[1]).join(""));}
   const sheet=dec.decode(parts["xl/worksheets/sheet1.xml"]);const values=new Map();
-  for(const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*)>([\s\S]*?)<\/c>/g)){
-    const [,col,row,attrs,body]=m; if(body.includes("<f"))continue;
+  for(const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){
+    const [,col,row,attrs,body]=m; if(body===undefined)continue; if(body.includes("<f"))continue;
     const v=/<v>([\s\S]*?)<\/v>/.exec(body); if(!v)continue;
     const val=attrs.includes('t="s"')?shared[Number(v[1])]:v[1]; if(val===undefined||val==="")continue;
     if(!values.has(col))values.set(col,new Map()); values.get(col).set(Number(row),val);
