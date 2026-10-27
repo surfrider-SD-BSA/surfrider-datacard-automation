@@ -18,6 +18,7 @@ import {
   isAutoAccepted,
   OTHER_READERS_DISAGREE,
   mainReading,
+  middleReading,
   tallyFromReaders,
   tallyNumber,
   TUNED_DISAGREES,
@@ -318,6 +319,15 @@ describe("mainReading", () => {
   it("keeps ours, doubted, where the tuned reader jumps to a hundred or more", () => {
     expect(mainReading({ ...digits, value: 12, digits: 12 }, "112")).toMatchObject({ value: 12, confidence: TUNED_DISAGREES });
     expect(mainReading({ ...digits, value: 120, digits: 120 }, "112")).toMatchObject({ value: 112 });
+  });
+
+  it("takes the lower middle of more readers for a doubtful number", () => {
+    const doubtful = { ...digits, value: 18, digits: 18, confidence: 0.4 };
+    expect(middleReading(doubtful, ["13", "13"], 18)).toMatchObject({ value: 13, confidence: 0.4 });
+    expect(middleReading(doubtful, ["13", "12"], null)).toMatchObject({ value: 13 });
+    expect(middleReading(doubtful, ["13", null], null)).toMatchObject({ value: 18 });
+    expect(middleReading({ ...doubtful, confidence: 0.9 }, ["13", "13"], 13)).toMatchObject({ value: 18 });
+    expect(middleReading(doubtful, undefined, 13)).toMatchObject({ value: 18 });
   });
 
   it("takes the tuned hundred where the second tuned reader read it too", () => {

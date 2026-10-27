@@ -40,7 +40,15 @@ import {
   viewRect,
 } from "./lib/extract";
 import { cropToCanvas, toGray, type GrayImage } from "./lib/image";
-import { autoAcceptedInScan, mainReading, numberFromReader, prefillFor, tallyFromReaders } from "./lib/prefill";
+import {
+  autoAcceptedInScan,
+  mainReading,
+  MIDDLE_DOUBT,
+  middleReading,
+  numberFromReader,
+  prefillFor,
+  tallyFromReaders,
+} from "./lib/prefill";
 import { rasterizePdf } from "./lib/pdf";
 import {
   pairIntoCards,
@@ -164,6 +172,8 @@ const state = {
   tuned: new Map<string, string>(),
   /** A second tuned reader's text, only where the first read a hundred or more (mainReading). */
   check: new Map<string, string>(),
+  /** More tuned readers' text for a doubtful written box, keyed "card:row" (middleReading). */
+  middle: new Map<string, (string | null)[]>(),
   /** Our two tally readers' text for a tally-only box, keyed "card:row" (tallyFromReaders in lib/prefill.ts). */
   tally: new Map<string, (string | null)[]>(),
 };
@@ -177,7 +187,8 @@ function rankedCells() {
       const key = `${card.cardNumber}:${cell.row}`;
       const read = prefillFor(cell);
       const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
-      return { card, cell, read, prefill: counted && mainReading(counted, state.tuned.get(key), state.second.get(key), state.check.get(key)) };
+      const main = counted && mainReading(counted, state.tuned.get(key), state.second.get(key), state.check.get(key));
+      return { card, cell, read, prefill: main && middleReading(main, state.middle.get(key), state.second.get(key)) };
     }),
   );
   const accepted = autoAcceptedInScan(
@@ -368,6 +379,7 @@ async function process(params: ProcessParams) {
   state.others.clear();
   state.tuned.clear();
   state.check.clear();
+  state.middle.clear();
   state.tally.clear();
   progress("done", 1);
 
@@ -550,6 +562,7 @@ function secondOpinions(params: {
   others?: [number, number, (string | null)[]][];
   tuned?: [number, number, string, (string | null)?][];
   tally?: [number, number, (string | null)[]][];
+  middle?: [number, number, (string | null)[]][];
 }) {
   state.second.clear();
   for (const [card, row, value] of params.opinions) state.second.set(`${card}:${row}`, value);
@@ -563,15 +576,22 @@ function secondOpinions(params: {
   }
   state.tally.clear();
   for (const [card, row, texts] of params.tally ?? []) state.tally.set(`${card}:${row}`, texts);
+  state.middle.clear();
+  for (const [card, row, texts] of params.middle ?? []) state.middle.set(`${card}:${row}`, texts);
+  const ranked = rankedCells();
   // Each cell's taken/shown answer, and the tuned reader's number and confidence where it differs from ours.
   return {
-    accepted: rankedCells().map(({ card, cell, accepted, read, prefill }) => [
+    accepted: ranked.map(({ card, cell, accepted, read, prefill }) => [
       card.cardNumber,
       cell.row,
       accepted,
       prefill && read && prefill.value !== read.value ? prefill.value : null,
       prefill && read && prefill.value !== read.value ? prefill.confidence : null,
     ]),
+    // The written boxes doubtful enough for more readers (middleReading), as [card, row].
+    doubtful: ranked
+      .filter(({ prefill }) => prefill?.source === "digits" && prefill.confidence <= MIDDLE_DOUBT)
+      .map(({ card, cell }) => [card.cardNumber, cell.row]),
   };
 }
 
@@ -720,6 +740,7 @@ function reset() {
   state.others.clear();
   state.tuned.clear();
   state.check.clear();
+  state.middle.clear();
   state.tally.clear();
   return { ok: true };
 }

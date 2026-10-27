@@ -162,6 +162,8 @@ struct SecondRanked: Decodable {
         }
     }
     let accepted: [Entry]
+    /// The written boxes doubtful enough for more readers, as [card, row] (`middleReading`).
+    let doubtful: [[Int]]?
 }
 
 struct CropResult: Decodable {
@@ -368,9 +370,26 @@ final class Engine: NSObject, ObservableObject {
         let tallyParams: [[Any]] = zip(strips, counts).map { strip, t in
             [strip.cardNumber, strip.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
         }
-        guard let ranked: SecondRanked = try? await call(
-            "secondOpinions",
-            params: ["opinions": opinions, "others": others, "tuned": tunedParams, "tally": tallyParams]) else { return }
+        let params: [String: Any] = ["opinions": opinions, "others": others, "tuned": tunedParams, "tally": tallyParams]
+        guard var ranked: SecondRanked = try? await call("secondOpinions", params: params) else { return }
+        // Then more tuned readers on the boxes still doubtful, and the cells ranked again with them.
+        let doubtful = Set((ranked.doubtful ?? []).map { "\($0[0]):\($0[1])" })
+        let picked = boxes.filter { doubtful.contains("\($0.cardNumber):\($0.row)") }
+        if !picked.isEmpty {
+            let readings = picked.count * OtherReaders.middleNames.count
+            let middle = await Task.detached(priority: .userInitiated) {
+                OtherReaders.readMiddle(picked.map { Data(base64Encoded: $0.wide ?? $0.png) ?? Data() }) { done in
+                    if done % 4 == 0 || done == readings {
+                        Task { @MainActor in self.readersProgress(done, of: readings, stage: "middle") }
+                    }
+                }
+            }.value
+            var again = params
+            again["middle"] = zip(picked, middle).map { box, t in
+                [box.cardNumber, box.row, t.map { $0.map { $0 as Any } ?? NSNull() }] as [Any]
+            }
+            if let reranked: SecondRanked = try? await call("secondOpinions", params: again) { ranked = reranked }
+        }
         var taken: [String: Bool] = [:], better: [String: (value: Int, confidence: Double?)] = [:]
         for entry in ranked.accepted {
             taken["\(entry.card):\(entry.row)"] = entry.accepted

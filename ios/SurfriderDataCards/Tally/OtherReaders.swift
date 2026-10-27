@@ -148,6 +148,33 @@ enum OtherReaders {
         return texts
     }
 
+    /// Two more tuned readers (TrOCR-base revisions: `readers/trocr-rev2`, with
+    /// machine-labelled extra boxes, and `readers/trocr-rev4`, with heavier
+    /// picture noise; each trained on half the scans) for the written boxes the
+    /// engine still doubts (`middleReading` in src/lib/prefill.ts).
+    static let middleNames = ["trocr-rev2", "trocr-rev4"]
+
+    /// Each doubtful box's text from each of `middleNames`, nil where a reader
+    /// is missing or read nothing. No time limit (about 92 boxes a scan, two
+    /// readings each), as `mainBudget`: the owner's call, 26 October 2026.
+    static func readMiddle(_ pngs: [Data], onBox: (Int) -> Void = { _ in }) -> [[String?]] {
+        var texts = Array(repeating: [String?](repeating: nil, count: middleNames.count), count: pngs.count)
+        guard !pngs.isEmpty, let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
+              let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
+        let images = pngs.map(Pixels.init(png:))
+        for (r, name) in middleNames.enumerated() {
+            autoreleasepool {
+                guard let reader = load(name, in: folder, env: env) else { return }
+                for b in images.indices {
+                    guard let image = images[b] else { continue }
+                    texts[b][r] = try? reader(image)
+                    onBox(r * images.count + b + 1)
+                }
+            }
+        }
+        return texts
+    }
+
     /// Our two tally readers (TrOCR-small taught to count tally strips,
     /// scripts/train-tally.py, in `readers/tally-a` and `readers/tally-b`).
     static let tallyNames = ["tally-a", "tally-b"]
