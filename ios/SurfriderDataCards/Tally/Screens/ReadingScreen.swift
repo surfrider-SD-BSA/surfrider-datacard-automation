@@ -156,7 +156,7 @@ struct ReadingScreen: View {
         let p = engine.progress
         switch p.stage {
         case "readers": return 0.85 + 0.12 * p.fraction
-        case "tally": return 0.97 + 0.03 * p.fraction
+        case "tally", "middle": return 0.97 + 0.03 * p.fraction
         case "opening": return 0
         default: return 0.85 * min(1, p.fraction)
         }
@@ -171,6 +171,9 @@ struct ReadingScreen: View {
         }
         if p.stage == "tally", let done = p.pageNumber, let total = p.total {
             return "Counting tally marks: \(done) of \(total)."
+        }
+        if p.stage == "middle", let done = p.pageNumber, let total = p.total {
+            return "A second look at doubtful numbers: \(done) of \(total)."
         }
         if p.stage == "pairing" || p.stage == "done" {
             return "Reading the handwriting…"
@@ -191,7 +194,7 @@ struct ReadingScreen: View {
         let scan = model.scan
         let aligned = scan.map { $0.pages.filter(\.trusted).count }
         // While the readers run, the engine's count is boxes, not pages.
-        let readers = engine.progress.stage == "readers" || engine.progress.stage == "tally"
+        let readers = ["readers", "tally", "middle"].contains(engine.progress.stage)
         let total = scan?.pageCount ?? (readers ? nil : engine.progress.total) ?? 0
         let cells = model.allCells.count
 

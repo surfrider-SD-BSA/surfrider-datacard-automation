@@ -612,6 +612,31 @@ export function mainReading(
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
 
+/**
+ * How sure a written number may be and still get more readers' say
+ * (`middleReading`).
+ */
+export const MIDDLE_DOUBT = 0.5;
+
+/**
+ * A doubtful written number (at most `MIDDLE_DOUBT` sure, after `mainReading`)
+ * becomes the lower middle of ours, two more tuned readers' (`texts`:
+ * TrOCR-base revisions in readers/trocr-rev2, trained with machine-labelled
+ * extra boxes, and readers/trocr-rev4, with heavier picture noise) and Apple's,
+ * where at least three of them read a number. Its confidence stays: it is still
+ * doubtful. Measured 26 October 2026 with nobody checking
+ * (out/exp/fake/complete.mjs, the corrected answer key): total off
+ * 9,250 -> 8,155, 9,259 -> 8,158, 9,266 -> 8,075 on three seeds, both halves
+ * better on each; about 92 boxes a scan read twice more.
+ */
+export function middleReading(r: Reading, texts: (string | null)[] | undefined, apple?: number | null): Reading {
+  if (!texts || r.source !== "digits" || r.confidence > MIDDLE_DOUBT) return r;
+  const values = [r.value, ...texts.map(numberFromReader), apple ?? null]
+    .filter((v): v is number => v !== null && v < 999)
+    .sort((x, y) => x - y);
+  return values.length < 3 ? r : { ...r, value: values[(values.length - 1) >> 1]! };
+}
+
 /** Where the tuned reader's number stops being trusted over a smaller one of ours. */
 export const TUNED_HUNDREDS = 100;
 
