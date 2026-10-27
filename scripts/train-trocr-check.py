@@ -12,7 +12,7 @@ epochs); the shipped model was trained on the 4,449 boxes in BOXES=out/boxes-wid
 (the wide crop at ink floor 0.001).
 
     BOXES=out/boxes-wide python scripts/train-trocr-check.py   about 55 minutes on an M-series Mac
-    python scripts/export-readers.py --ours                     converts it with the others
+    python scripts/export-readers.py --check                    converts it alone
 
 Writes out/models/trocr-check, or with --half N out/models/trocr-check-hN and
 its readings of the held-out half.

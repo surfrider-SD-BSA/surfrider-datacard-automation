@@ -30,6 +30,7 @@ rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
                                                 all the app runs while OtherReaders.voteEnabled
                                                 is false
     python scripts/export-readers.py --tally    only the two tally readers (2 x 123 MB)
+    python scripts/export-readers.py --check    only trocr-check
 """
 
 from __future__ import annotations
@@ -151,7 +152,7 @@ def easyocr(tmp: pathlib.Path) -> None:
     (OUT / "easyocr-rec.vocab.json").write_text(json.dumps(list(reader.converter.character)))
 
 
-def trocr(tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False) -> None:
+def trocr(tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False, only_check: bool = False) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
     models = [
@@ -180,6 +181,8 @@ def trocr(tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False) 
             print(f"no {tally}: that tally reader is left out (scripts/train-tally.py makes it)")
     if only_tally:
         models = [m for m in models if m[1].startswith("tally-")]
+    if only_check:
+        models = [m for m in models if m[1] == "trocr-check"]
     for name, folder in models:
         proc = TrOCRProcessor.from_pretrained(name)
         model = VisionEncoderDecoderModel.from_pretrained(name).eval()
@@ -251,6 +254,10 @@ def main() -> None:
         sys.exit("no out/models/trocr-ours: run scripts/train-trocr.py first")
     with tempfile.TemporaryDirectory() as t:
         tmp = pathlib.Path(t)
+        if "--check" in sys.argv[1:]:
+            trocr(tmp, only_ours=True, only_check=True)
+            print(f"wrote {OUT}")
+            return
         if only_ours or "--tally" in sys.argv[1:]:
             trocr(tmp, only_ours=only_ours, only_tally=not only_ours)
             print(f"wrote {OUT}")
