@@ -128,6 +128,26 @@ enum OtherReaders {
         return texts
     }
 
+    /// A second tuned reader (TrOCR-small fine-tuned on the same wide crops,
+    /// out/exp/fake/train_wide.py, in `readers/trocr-check`) on the boxes where
+    /// ours read a hundred or more, nil elsewhere: where it reads the same
+    /// hundred, the hundreds guard lets it stand (`mainReading` in
+    /// src/lib/prefill.ts). About 2 boxes a scan (48 over 28 scans).
+    static func readCheck(_ pngs: [Data], main: [String?]) -> [String?] {
+        var texts = [String?](repeating: nil, count: pngs.count)
+        let big = pngs.indices.filter { (number(main[$0]) ?? 0) >= 100 }
+        guard !big.isEmpty, let folder = Bundle.main.url(forResource: "readers", withExtension: nil),
+              let env = try? ORTEnv(loggingLevel: .warning) else { return texts }
+        autoreleasepool {
+            guard let reader = load("trocr-check", in: folder, env: env) else { return }
+            for b in big {
+                guard let image = Pixels(png: pngs[b]) else { continue }
+                texts[b] = try? reader(image)
+            }
+        }
+        return texts
+    }
+
     /// Our two tally readers (TrOCR-small taught to count tally strips,
     /// scripts/train-tally.py, in `readers/tally-a` and `readers/tally-b`).
     static let tallyNames = ["tally-a", "tally-b"]

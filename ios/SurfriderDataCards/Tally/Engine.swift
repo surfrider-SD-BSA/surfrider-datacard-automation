@@ -310,7 +310,7 @@ final class Engine: NSObject, ObservableObject {
         // Off the main thread, and many boxes to a picture: Vision is ten times
         // faster on 36 boxes tiled 3 by 12 than on each alone, and as good
         // (out/exp/vis/mosaic.swift). Running pictures side by side is slower.
-        let (opinions, texts, tuned, counts) = await Task.detached(priority: .userInitiated) {
+        let (opinions, texts, tuned, check, counts) = await Task.detached(priority: .userInitiated) {
             let apple = stride(from: 0, to: boxes.count, by: Self.tileColumns * Self.tileRows).flatMap { start in
                 Self.appleReadings(Array(boxes[start..<min(start + Self.tileColumns * Self.tileRows, boxes.count)]))
             }
@@ -320,12 +320,14 @@ final class Engine: NSObject, ObservableObject {
             let pngs = boxes.map { Data(base64Encoded: $0.png) ?? Data() }
             // Our tuned reader first, on every written box: its number is the
             // one filled in (mainReading in prefill.ts), so the others vote on it.
-            let tuned = OtherReaders.readMain(boxes.map { Data(base64Encoded: $0.wide ?? $0.png) ?? Data() }) { done in
+            let wide = boxes.map { Data(base64Encoded: $0.wide ?? $0.png) ?? Data() }
+            let tuned = OtherReaders.readMain(wide) { done in
                 // Every 8 boxes is plenty for a bar, and keeps the main thread free.
                 if done % 8 == 0 || done == pngs.count {
                     Task { @MainActor in self.readersProgress(done, of: pngs.count) }
                 }
             }
+            let check = OtherReaders.readCheck(wide, main: tuned)
             let main = zip(boxes, tuned).map { box, t in OtherReaders.number(t) ?? box.value }
             var appleDisagrees = Set<Int>()
             for o in apple where o.count == 3 {
@@ -355,12 +357,14 @@ final class Engine: NSObject, ObservableObject {
                 try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("other-readers.json"))
             }
             #endif
-            return (apple, texts, tuned, counts)
+            return (apple, texts, tuned, check, counts)
         }.value
         let others: [[Any]] = zip(boxes, texts).map { box, t in
             [box.cardNumber, box.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
         }
-        let tunedParams: [[Any]] = zip(boxes, tuned).compactMap { box, t in t.map { [box.cardNumber, box.row, $0] } }
+        let tunedParams: [[Any]] = zip(boxes, zip(tuned, check)).compactMap { box, tc in
+            tc.0.map { [box.cardNumber, box.row, $0, tc.1.map { $0 as Any } ?? NSNull()] }
+        }
         let tallyParams: [[Any]] = zip(strips, counts).map { strip, t in
             [strip.cardNumber, strip.row, t.map { $0.map { $0 as Any } ?? NSNull() }]
         }

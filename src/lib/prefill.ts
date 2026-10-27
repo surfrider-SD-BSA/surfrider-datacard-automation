@@ -577,7 +577,12 @@ export const TUNED_DISAGREES = 0.4;
  * Ours where the tuned reader read nothing or Apple's reader (`apple`) read
  * ours, and for every reading that is not of written digits.
  */
-export function mainReading(r: Reading, tuned: string | null | undefined, apple?: number | null): Reading {
+export function mainReading(
+  r: Reading,
+  tuned: string | null | undefined,
+  apple?: number | null,
+  check?: string | null,
+): Reading {
   const t = numberFromReader(tuned);
   if (r.source !== "digits" || t === null || t === r.value) return r;
   // A jump to a hundred or more from a smaller number of ours is the tuned
@@ -591,7 +596,12 @@ export function mainReading(r: Reading, tuned: string | null | undefined, apple?
   // 26 October 2026 with the skipped sheet numbers checked by eye: total off
   // 13,260 -> 12,965 on seed 1.
   const start = r.value >= 10 && String(t).startsWith(String(r.value));
-  if (t >= TUNED_HUNDREDS && r.value < TUNED_HUNDREDS && apple !== t && !start)
+  // Or a second tuned reader (`check`: TrOCR-small on the same wide crop, read
+  // only where the main one read a hundred or more) read it too. Measured
+  // 26 October 2026 the same way: total off 9,625 -> 9,250, 9,733 -> 9,259,
+  // 9,640 -> 9,266 on three seeds; 3-4 boxes fixed and none broken on each.
+  const checked = numberFromReader(check) === t;
+  if (t >= TUNED_HUNDREDS && r.value < TUNED_HUNDREDS && apple !== t && !start && !checked)
     return { ...r, confidence: Math.min(r.confidence, TUNED_DISAGREES) };
   // Two readers against one: where Apple's text reader read the same number as
   // ours, ours stands, at its own confidence. Measured 26 October 2026 the same

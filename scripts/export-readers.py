@@ -8,8 +8,10 @@ Eight readers, all free and open, downloaded from their publishers:
     paddle-v5                                PaddleOCR PP-OCRv5 server recognizer
     easyocr-rec                              EasyOCR's English recognizer
     trocr-small, trocr-base, trocr-large     Microsoft TrOCR, handwritten
-    trocr-ours                               TrOCR-small fine-tuned on the chapter's boxes,
+    trocr-ours                               TrOCR-base fine-tuned on the chapter's boxes,
                                              if scripts/train-trocr.py has run
+    trocr-check                              TrOCR-small fine-tuned on the same wide crops,
+                                             if scripts/train-trocr-check.py has run
     tally-a, tally-b                         TrOCR-small taught to count tally strips, if
                                              scripts/train-tally.py has run
 
@@ -24,7 +26,7 @@ Needs Python with torch, transformers, python-doctr, easyocr,
 rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
 
     python scripts/export-readers.py            about 10 minutes, ~5 GB of downloads
-    python scripts/export-readers.py --ours     only trocr-ours and the tally readers (~370 MB),
+    python scripts/export-readers.py --ours     only trocr-ours, trocr-check and the tally readers,
                                                 all the app runs while OtherReaders.voteEnabled
                                                 is false
     python scripts/export-readers.py --tally    only the two tally readers (2 x 123 MB)
@@ -163,6 +165,12 @@ def trocr(tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False) 
         models.append((str(ours), "trocr-ours"))
     else:
         print(f"no {ours}: the tuned reader is left out (scripts/train-trocr.py makes it)")
+    # The second tuned reader, if scripts/train-trocr-check.py has made it.
+    check = ROOT / "out" / "models" / "trocr-check"
+    if check.exists():
+        models.append((str(check), "trocr-check"))
+    else:
+        print(f"no {check}: the second tuned reader is left out (scripts/train-trocr-check.py makes it)")
     # Our tally readers, if scripts/train-tally.py has made them.
     for name in ["tally-a", "tally-b"]:
         tally = ROOT / "out" / "models" / name
