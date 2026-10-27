@@ -586,7 +586,13 @@ export function mainReading(r: Reading, tuned: string | null | undefined, apple?
   // (out/exp/fake/complete.mjs, every box taken as read): total off
   // 19,614 -> 18,790, 19,617 -> 19,014, 19,627 -> 19,015 on three seeds,
   // better on both halves of every one.
-  if (t >= TUNED_HUNDREDS && r.value < TUNED_HUNDREDS) return { ...r, confidence: Math.min(r.confidence, TUNED_DISAGREES) };
+  // Except where it is not wild: Apple read the same number, or ours is its
+  // start ("20" / "200") -- the hundreds the box's edge cut off ours. Measured
+  // 26 October 2026 with the skipped sheet numbers checked by eye: total off
+  // 13,260 -> 12,965 on seed 1.
+  const start = r.value >= 10 && String(t).startsWith(String(r.value));
+  if (t >= TUNED_HUNDREDS && r.value < TUNED_HUNDREDS && apple !== t && !start)
+    return { ...r, confidence: Math.min(r.confidence, TUNED_DISAGREES) };
   // Two readers against one: where Apple's text reader read the same number as
   // ours, ours stands, at its own confidence. Measured 26 October 2026 the same
   // way (scripts/apps-rule.mjs): total off 19,374 -> 19,168, 19,591 -> 19,302,
