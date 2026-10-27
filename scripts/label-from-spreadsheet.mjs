@@ -160,8 +160,10 @@ function readSpreadsheet(path) {
   const sheet = dec.decode(parts["xl/worksheets/sheet1.xml"]);
   const values = new Map();
 
-  for (const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*)>([\s\S]*?)<\/c>/g)) {
+  for (const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
     const [, col, rowStr, attrs, body] = m;
+    // An empty cell is written <c r="F18" s="7"/>: no body, and not the next cell's.
+    if (body === undefined) continue;
     // Skip formula cells: column B holds the SUM totals, not volunteer data.
     if (body.includes("<f")) continue;
 

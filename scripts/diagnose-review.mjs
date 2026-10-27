@@ -78,8 +78,10 @@ export function readSpreadsheet(path) {
 
   const sheet = dec.decode(parts["xl/worksheets/sheet1.xml"]);
   const values = new Map();
-  for (const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*)>([\s\S]*?)<\/c>/g)) {
+  for (const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
     const [, col, rowStr, attrs, body] = m;
+    // An empty cell is written <c r="F18" s="7"/>: no body, and not the next cell's.
+    if (body === undefined) continue;
     if (body.includes("<f")) continue; // column B holds SUM formulas, not data
     const v = /<v>([\s\S]*?)<\/v>/.exec(body);
     if (!v) continue;
