@@ -321,6 +321,15 @@ describe("mainReading", () => {
     expect(mainReading({ ...digits, value: 120, digits: 120 }, "112")).toMatchObject({ value: 112 });
   });
 
+  it("reads a box the tuned reader read as an X as empty", () => {
+    expect(mainReading({ ...digits, value: 4, digits: 4 }, "X")).toMatchObject({ value: 0 });
+    expect(mainReading({ ...digits, value: 1, digits: 1 }, " x ")).toMatchObject({ value: 0 });
+    expect(mainReading({ ...digits, value: 4, digits: 4 }, "X4")).toMatchObject({ value: 4 });
+    // and the vote leaves it alone
+    const x = mainReading({ ...digits, value: 4, digits: 4, confidence: 0.3 }, "X");
+    expect(middleReading(x, ["4", "4"], 4)).toMatchObject({ value: 0 });
+  });
+
   it("takes the lower middle of more readers for a doubtful number", () => {
     const doubtful = { ...digits, value: 18, digits: 18, confidence: 0.4 };
     expect(middleReading(doubtful, ["13", "13"], 18)).toMatchObject({ value: 13, confidence: 0.4 });
