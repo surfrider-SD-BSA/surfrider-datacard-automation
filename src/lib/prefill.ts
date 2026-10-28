@@ -624,6 +624,25 @@ export function mainReading(
 export const X_EMPTY = 0.6;
 
 /**
+ * Our tuned reader's text for a doubtful written box, voted with two more
+ * TrOCR-base readers trained another way (`votes`: readers/trocr-vote1 on the
+ * spreadsheet's numbers read right, readers/trocr-vote2 on by-eye answers, X
+ * and slashed zeros as 0): the number two of the three give, else the middle
+ * one, where all three read a number; else ours. Measured 27 October 2026 with
+ * nobody checking (out/exp/fake/complete.mjs, the corrected answer key), each
+ * reader trained on the other half of the scans: total off 8,476 -> 8,344,
+ * 8,427 -> 8,195, 8,560 -> 8,425 on three seeds; only boxes `MIDDLE_DOUBT`
+ * doubtful are read twice more.
+ */
+export function votedTuned(tuned: string | undefined, votes: (string | null)[] | undefined): string | undefined {
+  if (tuned === undefined || !votes || votes.length < 2) return tuned;
+  const v = [tuned, votes[0]!, votes[1]!].map(numberFromReader);
+  if (v.some((x) => x === null)) return tuned;
+  const [a, b, c] = v as [number, number, number];
+  return String(b === c ? b : [a, b, c].sort((x, y) => x - y)[1]);
+}
+
+/**
  * How sure a written number may be and still get more readers' say
  * (`middleReading`).
  */
