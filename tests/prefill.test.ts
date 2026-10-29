@@ -19,6 +19,7 @@ import {
   OTHER_READERS_DISAGREE,
   mainReading,
   middleReading,
+  votedTuned,
   tallyFromReaders,
   tallyNumber,
   TUNED_DISAGREES,
@@ -337,6 +338,16 @@ describe("mainReading", () => {
     expect(middleReading(doubtful, ["13", null], null)).toMatchObject({ value: 18 });
     expect(middleReading({ ...doubtful, confidence: 0.9 }, ["13", "13"], 13)).toMatchObject({ value: 18 });
     expect(middleReading(doubtful, undefined, 13)).toMatchObject({ value: 18 });
+  });
+
+  it("votes the tuned text with two more readers", () => {
+    expect(votedTuned("35", ["350", "350"])).toBe("350");
+    expect(votedTuned("185", ["5", "185"])).toBe("185");
+    expect(votedTuned("12", ["128", "122"])).toBe("122");
+    expect(votedTuned("X", ["4", "4"])).toBe("X");
+    expect(votedTuned("14", ["4", null])).toBe("14");
+    expect(votedTuned("14", undefined)).toBe("14");
+    expect(votedTuned(undefined, ["4", "4"])).toBeUndefined();
   });
 
   it("takes the tuned hundred where the second tuned reader read it too", () => {

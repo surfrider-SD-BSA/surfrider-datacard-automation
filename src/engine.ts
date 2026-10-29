@@ -45,6 +45,7 @@ import {
   mainReading,
   MIDDLE_DOUBT,
   middleReading,
+  votedTuned,
   numberFromReader,
   prefillFor,
   tallyFromReaders,
@@ -187,8 +188,11 @@ function rankedCells() {
       const key = `${card.cardNumber}:${cell.row}`;
       const read = prefillFor(cell);
       const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
-      const main = counted && mainReading(counted, state.tuned.get(key), state.second.get(key), state.check.get(key));
-      return { card, cell, read, prefill: main && middleReading(main, state.middle.get(key), state.second.get(key)) };
+      // A doubtful box's more readers: two for middleReading, then two that vote on the tuned text.
+      const more = state.middle.get(key);
+      const tuned = votedTuned(state.tuned.get(key), more?.slice(2));
+      const main = counted && mainReading(counted, tuned, state.second.get(key), state.check.get(key));
+      return { card, cell, read, prefill: main && middleReading(main, more?.slice(0, 2), state.second.get(key)) };
     }),
   );
   const accepted = autoAcceptedInScan(
