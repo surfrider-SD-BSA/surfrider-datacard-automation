@@ -111,6 +111,37 @@ missing (iOS kills the app otherwise). Each photo is laid out 8.5 in wide at
 200 DPI so it reaches registration at the scanner's scale; before that fix every
 photographed page was refused.
 
+## Our own scanner
+
+`Tally/Scanner` is the camera the capture screen opens first. Apple's document
+camera stops every 24 pages, so ours exists for no limit, hands-free capture and
+warnings while there is still time to act on them. It answers the keystone
+objection the same way Apple's does: Vision finds the four corners and Core
+Image pulls the page square, then `CapturedPages.pdf` lays it out as for Apple's
+camera. Pages are on disk from the moment they are taken, and survive the app
+being closed, until they have become a PDF.
+
+**Apple's camera stays as the backup** ("Use Apple's camera instead", and it is
+still what "add cards" and "retake page" open) until the same real cards have
+been read through both and ours is at least as accurate.
+
+What is checked while scanning, and what is not. Position comes from the corners
+alone: `ruleOverlap` and the banner check need a page fitted to the template
+inside the JavaScript engine, which has no one-page entry point, and a page that
+does not fit takes every retry before it is refused. Those still run when the
+pages are read, and a refused page still gets its retake. Blur, page change and
+front/back use thresholds set from the printed blanks in `assets/reference`;
+they have never seen a real photograph.
+
+The simulator has no camera, so it runs on a drawn card. `DataCardsTests` runs
+the logic and pushes the printed blanks through the flatten step, with no app
+or camera:
+
+```
+xcodebuild test -project SurfriderDataCards.xcodeproj -scheme DataCardsTests \
+  -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0'
+```
+
 ## The share sheet
 
 **Data Cards is a destination in the iOS share sheet.** Share a scan from Files,
