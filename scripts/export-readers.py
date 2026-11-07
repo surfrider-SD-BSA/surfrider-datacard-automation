@@ -31,9 +31,9 @@ rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
                                                 is false
     python scripts/export-readers.py --tally    only the two tally readers (2 x 123 MB)
     python scripts/export-readers.py --check    only trocr-check
-    python scripts/export-readers.py --mix      only the mix on doubtful boxes: out/models/trocr-nfresh-all as
-                                                trocr-ours, trocr-marks-all and trocr-rain3kn-all
-                                                (out/exp/fake/train_wreal.py) as trocr-marks and trocr-rain
+    python scripts/export-readers.py --mix      only the voting mix: trocr-ours, trocr-marks and
+                                                trocr-rain, from out/models/trocr-nfresh-all,
+                                                trocr-marks-all and trocr-rain3kn-all
 """
 
 from __future__ import annotations
@@ -156,7 +156,12 @@ def easyocr(tmp: pathlib.Path) -> None:
 
 
 def trocr(
-    tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False, only_check: bool = False, only_mix: bool = False) -> None:
+    tmp: pathlib.Path,
+    only_ours: bool = False,
+    only_tally: bool = False,
+    only_check: bool = False,
+    only_mix: bool = False,
+) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
     models = [
