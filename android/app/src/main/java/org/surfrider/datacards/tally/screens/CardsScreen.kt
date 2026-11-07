@@ -17,7 +17,7 @@
 //  composed afresh (see `KeptPlace` below), so the number is simply right.
 //
 
-package com.mateobesse.surfriderdatacards.tally.screens
+package org.surfrider.datacards.tally.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,17 +41,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mateobesse.surfriderdatacards.tally.ChromeButton
-import com.mateobesse.surfriderdatacards.tally.FlatCell
-import com.mateobesse.surfriderdatacards.tally.NavBar
-import com.mateobesse.surfriderdatacards.tally.Nocturne
-import com.mateobesse.surfriderdatacards.tally.PrimaryButton
-import com.mateobesse.surfriderdatacards.tally.RowButton
-import com.mateobesse.surfriderdatacards.tally.Screen
-import com.mateobesse.surfriderdatacards.tally.ScreenBody
-import com.mateobesse.surfriderdatacards.tally.TallyModel
-import com.mateobesse.surfriderdatacards.tally.WithPinnedActions
-import com.mateobesse.surfriderdatacards.tally.pageMargin
+import org.surfrider.datacards.tally.ChromeButton
+import org.surfrider.datacards.tally.FlatCell
+import org.surfrider.datacards.tally.NavBar
+import org.surfrider.datacards.tally.Nocturne
+import org.surfrider.datacards.tally.PrimaryButton
+import org.surfrider.datacards.tally.RowButton
+import org.surfrider.datacards.tally.Screen
+import org.surfrider.datacards.tally.ScreenBody
+import org.surfrider.datacards.tally.TallyModel
+import org.surfrider.datacards.tally.WithPinnedActions
+import org.surfrider.datacards.tally.pageMargin
 
 @Composable
 fun CardsScreen(model: TallyModel) {

@@ -14,7 +14,7 @@
 //  tally/Theme.kt, transcribed from the same handoff as Theme.swift.
 //
 
-package com.mateobesse.surfriderdatacards
+package org.surfrider.datacards
 
 import android.content.Intent
 import android.graphics.Color
@@ -26,8 +26,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.content.IntentCompat
-import com.mateobesse.surfriderdatacards.tally.TallyApp
-import com.mateobesse.surfriderdatacards.tally.TallyModel
+import org.surfrider.datacards.tally.TallyApp
+import org.surfrider.datacards.tally.TallyModel
 
 class MainActivity : ComponentActivity() {
 

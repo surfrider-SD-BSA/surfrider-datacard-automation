@@ -9,3 +9,11 @@
 // Optional: a clone without the local file builds exactly as before, with no
 // Drive button and no network call (DriveConfig).
 #include? "Drive.local.xcconfig"
+
+// The app ID and Apple team are not in the repository either. A clone without
+// ios/Private.xcconfig builds for the simulator under this placeholder ID; a real
+// iPhone or TestFlight build needs the file (ios/README.md). The second include
+// lets a git worktree use the main checkout's copy.
+APP_BUNDLE_ID = org.surfrider.datacards.dev
+#include? "Private.xcconfig"
+#include? "../../../../ios/Private.xcconfig"

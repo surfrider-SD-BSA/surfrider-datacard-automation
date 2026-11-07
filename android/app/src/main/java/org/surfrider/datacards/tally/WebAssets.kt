@@ -22,7 +22,7 @@
 //  network would refuse it anyway; this is the second lock on the same door.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import android.content.res.AssetManager
 import android.net.Uri

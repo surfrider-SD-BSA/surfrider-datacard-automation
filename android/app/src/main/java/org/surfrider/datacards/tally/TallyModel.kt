@@ -13,7 +13,7 @@
 //  this model owns. There is no text field in the path.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import android.app.Application
 import android.net.Uri
