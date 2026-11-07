@@ -1,11 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { unzipSync } from "fflate";
-import { TAXONOMY } from "/Users/mateobesse/surfrider-datacard-web/src/lib/taxonomy.ts";
+import { TAXONOMY } from "../src/lib/taxonomy.ts";
 import { cropCell, decodeGray, inkFraction, loadPng, referenceTarget, registerBestSide }
-  from "/Users/mateobesse/surfrider-datacard-web/scripts/lib/cardvision.mjs";
+  from "./lib/cardvision.mjs";
 
-const REF="/Users/mateobesse/surfrider-datacard-web/assets/reference";
+const REF=new URL("../assets/reference", import.meta.url).pathname;
 const INK=0.025;
 const colName=(i)=>{let n=i,s="";while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;};
 

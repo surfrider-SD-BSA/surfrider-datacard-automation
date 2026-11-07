@@ -18,7 +18,7 @@
 //  volunteer picks. The scan is never offered to another app.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import android.content.ClipData
 import android.content.Context

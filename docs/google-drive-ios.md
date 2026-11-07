@@ -53,7 +53,7 @@ steps 1 to 3 there (project, APIs, consent screen) are shared. Then:
 **APIs & Services → Credentials → Create credentials → OAuth client ID → iOS.**
 
 - **Bundle ID** must match the app's exactly. For this chapter's build that is
-  `com.mateobesse.surfriderdatacards`; check `APP_BUNDLE_ID` in the Xcode project
+  `<app id>`; check `APP_BUNDLE_ID` in the Xcode project
   if you are not sure.
 - Copy the **client ID**. There is no secret to copy — that is expected.
 

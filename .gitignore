@@ -110,3 +110,4 @@ android/captures/
 
 # The chapter's Google settings, written from ios/.env.local by ios/sync-web.sh.
 ios/Drive.local.xcconfig
+ios/Private.xcconfig

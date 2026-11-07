@@ -222,7 +222,7 @@ xcodebuild -project ios/SurfriderDataCards.xcodeproj -scheme "Data Cards" \
   -sdk iphonesimulator -derivedDataPath ios/build-adhoc \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" build
 xcrun simctl install booted "ios/build-adhoc/Build/Products/Debug-iphonesimulator/Data Cards.app"
-xcrun simctl get_app_container booted com.mateobesse.surfriderdatacards group.com.mateobesse.surfriderdatacards
+xcrun simctl get_app_container booted "$APP_ID" "group.$APP_ID"  # APP_ID from ios/Private.xcconfig
 ```
 
 The last line prints the drawer. Dropping a file into its `Inbox/` named
@@ -341,6 +341,22 @@ of its own, "App Check" (an iPhone 17 on iOS 27.0), made the first time and
 kept, because other sessions on the same Mac boot and shut down simulators of
 their own. The Android counterpart is `scripts/app-check/android.py`.
 
+
+## The private settings file
+
+The app ID and Apple team are not in the repository. They live in the gitignored
+`ios/Private.xcconfig`:
+
+```
+APP_BUNDLE_ID = <app id>
+DEVELOPMENT_TEAM = <team id>
+```
+
+Without it the app still builds for the simulator, under the placeholder ID in
+`Drive.xcconfig`. A real iPhone or TestFlight build needs it, and the ID must stay
+exactly the same or the build becomes a new app. A git worktree uses the main
+checkout's copy.
+
 ## Getting it onto a phone
 
 There are two routes and they are not the same amount of work.
@@ -354,7 +370,7 @@ fine for looking at it and useless for a volunteer at a cleanup.
 Open `ios/SurfriderDataCards.xcodeproj`, select the target, Signing &
 Capabilities, add your Apple ID under Team, plug in the phone and press Run.
 
-This has been done: a personal team signs `com.mateobesse.surfriderdatacards`, and the app
+This has been done: a personal team signs `<app id>`, and the app
 installs and launches on a physical iPhone. The same thing from the command line,
 with the phone plugged in, unlocked and trusted:
 
@@ -378,9 +394,9 @@ Settings -> General -> VPN & Device Management.
 `ios/testflight.sh` does the whole build and upload.
 
 **This is set up and in use.** The chapter has an Apple Developer Program
-membership, an `Apple Distribution` certificate on team `P45J6R7ZHD`, and an app
-record — *Data Cards*, Apple ID `6807599166`, bundle
-`com.mateobesse.surfriderdatacards`. Builds archive, sign, upload and reach
+membership, an `Apple Distribution` certificate on team `<team id>`, and an app
+record — *Data Cards*, Apple ID `<app record id>`, bundle
+`<app id>`. Builds archive, sign, upload and reach
 testers; there is an external group with a public link, and volunteers have
 installed from it. The paragraph that used to stand here said none of that was
 possible, which was true when it was written in August and stopped being true on
@@ -401,11 +417,11 @@ What you have to do once, with what is already done marked:
 1. ~~**Apple Developer Program membership**, $99/year.~~ **Done.** TestFlight is
    not available on a free account.
 2. ~~**Pick a bundle identifier you own** and register an App ID for it.~~
-   **Done**, as `com.mateobesse.surfriderdatacards`. It is still a personal
+   **Done**, as `<app id>`. It is still a personal
    identifier rather than one the chapter controls, and moving it later means a
    new app record and a new install for every tester, not an update.
 3. ~~**Create the app record** in App Store Connect with that bundle ID.~~
-   **Done** — Apple ID `6807599166`.
+   **Done** — Apple ID `<app record id>`.
 4. **Generate an App Store Connect API key** with the App Manager role, and put
    the `AuthKey_XXXXXXXX.p8` in `~/.appstoreconnect/private_keys/`. Do not
    commit it. Nothing in this repository should ever contain it. **This is the

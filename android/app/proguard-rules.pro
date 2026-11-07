@@ -4,7 +4,7 @@
 # The fallback bridge, for WebViews too old for a WebMessageListener. R8 cannot
 # see JavaScript call it, and a renamed method is a bridge that silently drops
 # every answer.
--keepclassmembers class com.mateobesse.surfriderdatacards.tally.Engine$LegacyBridge {
+-keepclassmembers class org.surfrider.datacards.tally.Engine$LegacyBridge {
     @android.webkit.JavascriptInterface <methods>;
 }
 

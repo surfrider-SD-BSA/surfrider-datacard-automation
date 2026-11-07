@@ -14,7 +14,7 @@
 //  is scan it again, so that is what it says.
 //
 
-package com.mateobesse.surfriderdatacards.tally.screens
+package org.surfrider.datacards.tally.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -39,19 +39,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.mateobesse.surfriderdatacards.tally.BottomClearance
-import com.mateobesse.surfriderdatacards.tally.ButtonIcon
-import com.mateobesse.surfriderdatacards.tally.Kicker
-import com.mateobesse.surfriderdatacards.tally.NavBar
-import com.mateobesse.surfriderdatacards.tally.Nocturne
-import com.mateobesse.surfriderdatacards.tally.PrimaryButton
-import com.mateobesse.surfriderdatacards.tally.ScanPage
-import com.mateobesse.surfriderdatacards.tally.Screen
-import com.mateobesse.surfriderdatacards.tally.ScreenBody
-import com.mateobesse.surfriderdatacards.tally.SecondaryButton
-import com.mateobesse.surfriderdatacards.tally.TallyModel
-import com.mateobesse.surfriderdatacards.tally.WithPinnedActions
-import com.mateobesse.surfriderdatacards.tally.pageMargin
+import org.surfrider.datacards.tally.BottomClearance
+import org.surfrider.datacards.tally.ButtonIcon
+import org.surfrider.datacards.tally.Kicker
+import org.surfrider.datacards.tally.NavBar
+import org.surfrider.datacards.tally.Nocturne
+import org.surfrider.datacards.tally.PrimaryButton
+import org.surfrider.datacards.tally.ScanPage
+import org.surfrider.datacards.tally.Screen
+import org.surfrider.datacards.tally.ScreenBody
+import org.surfrider.datacards.tally.SecondaryButton
+import org.surfrider.datacards.tally.TallyModel
+import org.surfrider.datacards.tally.WithPinnedActions
+import org.surfrider.datacards.tally.pageMargin
 import java.util.Locale
 
 /**

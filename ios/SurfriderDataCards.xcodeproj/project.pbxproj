@@ -468,7 +468,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = AA00000000000000000003F0 /* Drive.xcconfig */;
 			buildSettings = {
-				APP_BUNDLE_ID = com.mateobesse.surfriderdatacards;
 				APP_GROUP_ID = "group.$(APP_BUNDLE_ID)";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -491,7 +490,6 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEVELOPMENT_TEAM = P45J6R7ZHD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -515,7 +513,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = AA00000000000000000003F0 /* Drive.xcconfig */;
 			buildSettings = {
-				APP_BUNDLE_ID = com.mateobesse.surfriderdatacards;
 				APP_GROUP_ID = "group.$(APP_BUNDLE_ID)";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -538,7 +535,6 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEVELOPMENT_TEAM = P45J6R7ZHD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
