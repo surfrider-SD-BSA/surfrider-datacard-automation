@@ -620,6 +620,11 @@ export function mainReading(
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
 
+/** A reading of a box nobody wrote in is a reading of nothing: empty (noink.ts). */
+export function emptyWhereNoInk(r: Reading, noInk: boolean | undefined): Reading {
+  return noInk && r.value !== 0 ? { ...r, value: 0, confidence: X_EMPTY } : r;
+}
+
 /** How sure a box the tuned reader read as an X is to be empty (`mainReading`). */
 export const X_EMPTY = 0.6;
 
