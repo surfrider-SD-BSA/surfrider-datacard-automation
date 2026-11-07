@@ -152,9 +152,10 @@ enum OtherReaders {
     /// machine-labelled extra boxes, and `readers/trocr-rev4`, with heavier
     /// picture noise; each trained on half the scans) for the written boxes the
     /// engine still doubts (`middleReading` in src/lib/prefill.ts), then two
-    /// that vote on our tuned reader's text there (`readers/trocr-vote1` and
-    /// `readers/trocr-vote2`, `votedTuned`).
-    static let middleNames = ["trocr-rev2", "trocr-rev4", "trocr-vote1", "trocr-vote2"]
+    /// that vote on our tuned reader's text there (`readers/trocr-marks`, also
+    /// taught X and crossed-out zero marks, and `readers/trocr-rain`, also taught
+    /// handwritten rainfall numbers; `votedTuned`).
+    static let middleNames = ["trocr-rev2", "trocr-rev4", "trocr-marks", "trocr-rain"]
 
     /// Each doubtful box's text from each of `middleNames`, nil where a reader
     /// is missing or read nothing. No time limit (about 92 boxes a scan, four
