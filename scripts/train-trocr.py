@@ -78,7 +78,13 @@ def main() -> None:
     args = parser.parse_args()
     torch.manual_seed(0)
     random.seed(0)
-    dev = "mps" if torch.backends.mps.is_available() else "cpu"
+    dev = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
 
     index = json.loads((BOXES / "index.json").read_text())
     scans = sorted({e["key"].split(":")[0] for e in index})
