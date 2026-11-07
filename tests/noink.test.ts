@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { noInk, type BlankForms } from "../src/lib/noink";
-import { emptyWhereNoInk } from "../src/lib/prefill";
+import { emptyWhereNoInk, restoredHundreds } from "../src/lib/prefill";
 import type { Reading } from "../src/lib/reading";
 
 const tw = 50;
@@ -45,5 +45,22 @@ describe("emptyWhereNoInk", () => {
   it("leaves the rest alone", () => {
     expect(emptyWhereNoInk(r, false)).toBe(r);
     expect(emptyWhereNoInk(r, undefined)).toBe(r);
+  });
+});
+
+describe("restoredHundreds", () => {
+  const r = { value: 28, confidence: 0.4, source: "digits" } as Reading;
+  it("takes the 3-digit number two readers agree on", () => {
+    expect(restoredHundreds(r, ["128", "12", "128", null]).value).toBe(128);
+  });
+  it("needs two readers to agree", () => {
+    expect(restoredHundreds(r, ["128", "228", "12"])).toBe(r);
+  });
+  it("needs the number to end in ours", () => {
+    expect(restoredHundreds(r, ["132", "132"])).toBe(r);
+  });
+  it("leaves sure readings, and empty ones, alone", () => {
+    expect(restoredHundreds({ ...r, confidence: 0.9 }, ["128", "128"]).value).toBe(28);
+    expect(restoredHundreds({ ...r, value: 0 }, ["100", "100"]).value).toBe(0);
   });
 });

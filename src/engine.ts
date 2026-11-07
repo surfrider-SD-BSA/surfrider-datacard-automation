@@ -48,6 +48,7 @@ import {
   middleReading,
   votedTuned,
   emptyWhereNoInk,
+  restoredHundreds,
   numberFromReader,
   prefillFor,
   tallyFromReaders,
@@ -208,7 +209,8 @@ function rankedCells() {
       const tuned = votedTuned(state.tuned.get(key), more?.slice(2));
       const main = counted && mainReading(counted, tuned, state.second.get(key), state.check.get(key));
       const middle = main && middleReading(main, more?.slice(0, 2), state.second.get(key));
-      return { card, cell, read, prefill: middle && emptyWhereNoInk(middle, cell.noInk) };
+      const restored = middle && restoredHundreds(middle, [state.tuned.get(key), ...(more ?? [])]);
+      return { card, cell, read, prefill: restored && emptyWhereNoInk(restored, cell.noInk) };
     }),
   );
   const accepted = autoAcceptedInScan(

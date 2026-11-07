@@ -620,6 +620,26 @@ export function mainReading(
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
 
+/**
+ * The dropped leading digit: a doubtful number under 100 where at least two of
+ * the tuned readers (`texts`) read the same 3-digit number ending in it, "128"
+ * where ours has "28". A clear stroke beside the box's edge is read as the edge.
+ * Measured 6 November 2026 with nobody checking, 3 runs over 402 cards, 3-5
+ * boxes a run: total off about 9,142 -> 8,808, all boxes right 92.04% -> 92.07%,
+ * written numbers right 93.88% -> 93.93%. All of the gain is on half B of the
+ * scans; half A did not change.
+ */
+export function restoredHundreds(r: Reading, texts: readonly (string | null | undefined)[]): Reading {
+  if (r.source !== "digits" || r.value <= 0 || r.value >= 100 || r.confidence > MIDDLE_DOUBT) return r;
+  const seen = new Map<string, number>();
+  for (const text of texts) {
+    const t = (text ?? "").trim();
+    if (/^[1-9]\d\d$/.test(t) && t.endsWith(String(r.value))) seen.set(t, (seen.get(t) ?? 0) + 1);
+  }
+  const top = [...seen].sort((a, b) => b[1] - a[1])[0];
+  return top && top[1] >= 2 ? { ...r, value: Number(top[0]), confidence: TUNED_DISAGREES } : r;
+}
+
 /** A reading of a box nobody wrote in is a reading of nothing: empty (noink.ts). */
 export function emptyWhereNoInk(r: Reading, noInk: boolean | undefined): Reading {
   return noInk && r.value !== 0 ? { ...r, value: 0, confidence: X_EMPTY } : r;
