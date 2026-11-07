@@ -41,7 +41,7 @@ from targets import parse
 ROOT = Path(__file__).resolve().parents[2]
 SDK = Path(os.environ.get("ANDROID_HOME", Path.home() / "Library" / "Android" / "sdk"))
 ADB = str(SDK / "platform-tools" / "adb")
-PACKAGE = "com.mateobesse.surfriderdatacards"
+PACKAGE = "org.surfrider.datacards"
 KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "Delete"]
 
 

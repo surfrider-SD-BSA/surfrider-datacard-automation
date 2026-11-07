@@ -74,7 +74,9 @@ export DEVELOPER_DIR
 name="App Check"
 device_type="${DEVICE_TYPE:-com.apple.CoreSimulator.SimDeviceType.iPhone-17}"
 runtime="${RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-27-0}"
-bundle=com.mateobesse.surfriderdatacards
+# From the project's settings: the real ID is not in the repository.
+bundle="$(xcodebuild -project ios/SurfriderDataCards.xcodeproj -showBuildSettings 2>/dev/null \
+  | awk '$1 == "APP_BUNDLE_ID" { print $3; exit }')"
 
 # Matched on the device type as well as the name, so DEVICE_TYPE is honoured
 # when an "App Check" of another type already exists: each type gets its own.

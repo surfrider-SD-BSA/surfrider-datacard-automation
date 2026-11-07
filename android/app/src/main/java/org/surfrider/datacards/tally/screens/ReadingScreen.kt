@@ -28,7 +28,7 @@
 //  equivalent of here, since hiding the back button there also stops the swipe.
 //
 
-package com.mateobesse.surfriderdatacards.tally.screens
+package org.surfrider.datacards.tally.screens
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -57,16 +57,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mateobesse.surfriderdatacards.tally.Nocturne
-import com.mateobesse.surfriderdatacards.tally.Panel
-import com.mateobesse.surfriderdatacards.tally.PrimaryButton
-import com.mateobesse.surfriderdatacards.tally.ProgressLine
-import com.mateobesse.surfriderdatacards.tally.ScanResult
-import com.mateobesse.surfriderdatacards.tally.Screen
-import com.mateobesse.surfriderdatacards.tally.ScreenBody
-import com.mateobesse.surfriderdatacards.tally.SecondaryButton
-import com.mateobesse.surfriderdatacards.tally.TallyModel
-import com.mateobesse.surfriderdatacards.tally.pageMargin
+import org.surfrider.datacards.tally.Nocturne
+import org.surfrider.datacards.tally.Panel
+import org.surfrider.datacards.tally.PrimaryButton
+import org.surfrider.datacards.tally.ProgressLine
+import org.surfrider.datacards.tally.ScanResult
+import org.surfrider.datacards.tally.Screen
+import org.surfrider.datacards.tally.ScreenBody
+import org.surfrider.datacards.tally.SecondaryButton
+import org.surfrider.datacards.tally.TallyModel
+import org.surfrider.datacards.tally.pageMargin
 
 @Composable
 fun ReadingScreen(model: TallyModel) {

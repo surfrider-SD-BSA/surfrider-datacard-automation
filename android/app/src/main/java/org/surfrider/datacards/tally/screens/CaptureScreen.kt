@@ -31,7 +31,7 @@
 //  a page registers.
 //
 
-package com.mateobesse.surfriderdatacards.tally.screens
+package org.surfrider.datacards.tally.screens
 
 import android.app.Activity
 import androidx.activity.compose.LocalActivity
@@ -75,17 +75,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
-import com.mateobesse.surfriderdatacards.BuildConfig
-import com.mateobesse.surfriderdatacards.tally.ButtonIcon
-import com.mateobesse.surfriderdatacards.tally.CapturedPages
-import com.mateobesse.surfriderdatacards.tally.ChromeButton
-import com.mateobesse.surfriderdatacards.tally.Nocturne
-import com.mateobesse.surfriderdatacards.tally.PrimaryButton
-import com.mateobesse.surfriderdatacards.tally.ScreenBody
-import com.mateobesse.surfriderdatacards.tally.SecondaryButton
-import com.mateobesse.surfriderdatacards.tally.Tag
-import com.mateobesse.surfriderdatacards.tally.TallyModel
-import com.mateobesse.surfriderdatacards.tally.pageMargin
+import org.surfrider.datacards.BuildConfig
+import org.surfrider.datacards.tally.ButtonIcon
+import org.surfrider.datacards.tally.CapturedPages
+import org.surfrider.datacards.tally.ChromeButton
+import org.surfrider.datacards.tally.Nocturne
+import org.surfrider.datacards.tally.PrimaryButton
+import org.surfrider.datacards.tally.ScreenBody
+import org.surfrider.datacards.tally.SecondaryButton
+import org.surfrider.datacards.tally.Tag
+import org.surfrider.datacards.tally.TallyModel
+import org.surfrider.datacards.tally.pageMargin
 
 /**
  * What is here to be tried rather than relied on.

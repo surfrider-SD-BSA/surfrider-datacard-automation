@@ -38,10 +38,13 @@ set -eu
 : "${TEAM_ID:?set TEAM_ID to your Apple Developer team identifier}"
 : "${ASC_KEY_ID:?set ASC_KEY_ID to your App Store Connect API key id}"
 : "${ASC_ISSUER_ID:?set ASC_ISSUER_ID to your App Store Connect issuer id}"
-BUNDLE_ID="${BUNDLE_ID:-com.mateobesse.surfriderdatacards}"
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+
+# The app ID is not in the repository: it comes from ios/Private.xcconfig.
+BUNDLE_ID="${BUNDLE_ID:-$(sed -n 's/^APP_BUNDLE_ID *= *//p' ios/Private.xcconfig 2>/dev/null)}"
+: "${BUNDLE_ID:?set BUNDLE_ID, or put APP_BUNDLE_ID in ios/Private.xcconfig}"
 
 # This chapter's Google settings. Forgetting them produces an app with no Drive
 # button and no error at any point in the build, which is a slow thing to notice.

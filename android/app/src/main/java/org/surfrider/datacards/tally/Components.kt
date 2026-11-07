@@ -8,7 +8,7 @@
 //  pressed state and passes `indication = null`.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import android.os.Build
 import android.view.HapticFeedbackConstants

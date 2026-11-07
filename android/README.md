@@ -169,7 +169,7 @@ Onto an emulator or a phone with USB debugging on:
 
 ```sh
 ./gradlew installDebug
-adb shell am start -n com.mateobesse.surfriderdatacards/.MainActivity
+adb shell am start -n org.surfrider.datacards/.MainActivity
 ```
 
 A debug build lets Chrome's inspector (`chrome://inspect`) into the engine's
@@ -212,7 +212,7 @@ of which exists yet:
    a person's.
 2. **An application id you are happy to keep.** It is set in
    `gradle.properties` as `tally.applicationId`, and matches the iOS bundle
-   identifier: `com.mateobesse.surfriderdatacards`. The same warning applies —
+   identifier: `org.surfrider.datacards`. The same warning applies —
    it is personal, and changing it after release means a new listing and a
    fresh install for everybody.
 3. **An upload key**, kept out of this repository (`*.jks` and `*.keystore` are

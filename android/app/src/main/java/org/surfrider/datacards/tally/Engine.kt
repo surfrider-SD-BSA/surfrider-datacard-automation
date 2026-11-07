@@ -25,7 +25,7 @@
 //  nothing. iOS plants its WKWebView for the same reason.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -52,7 +52,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
-import com.mateobesse.surfriderdatacards.BuildConfig
+import org.surfrider.datacards.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
