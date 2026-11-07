@@ -11,7 +11,7 @@
 //  thing that can do all of that.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -37,14 +37,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.mateobesse.surfriderdatacards.tally.screens.CaptureScreen
-import com.mateobesse.surfriderdatacards.tally.screens.CardsScreen
-import com.mateobesse.surfriderdatacards.tally.screens.CleanupsScreen
-import com.mateobesse.surfriderdatacards.tally.screens.EventScreen
-import com.mateobesse.surfriderdatacards.tally.screens.FinishScreen
-import com.mateobesse.surfriderdatacards.tally.screens.ReadingScreen
-import com.mateobesse.surfriderdatacards.tally.screens.RefusedScreen
-import com.mateobesse.surfriderdatacards.tally.screens.ReviewScreen
+import org.surfrider.datacards.tally.screens.CaptureScreen
+import org.surfrider.datacards.tally.screens.CardsScreen
+import org.surfrider.datacards.tally.screens.CleanupsScreen
+import org.surfrider.datacards.tally.screens.EventScreen
+import org.surfrider.datacards.tally.screens.FinishScreen
+import org.surfrider.datacards.tally.screens.ReadingScreen
+import org.surfrider.datacards.tally.screens.RefusedScreen
+import org.surfrider.datacards.tally.screens.ReviewScreen
 
 /**
  * Material components are used in two places -- the date picker and the

@@ -20,7 +20,7 @@
 //  two buttons stay where a thumb expects them.
 //
 
-package com.mateobesse.surfriderdatacards.tally.screens
+package org.surfrider.datacards.tally.screens
 
 import android.content.Context
 import androidx.compose.animation.core.Spring
@@ -72,23 +72,23 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mateobesse.surfriderdatacards.tally.ButtonIcon
-import com.mateobesse.surfriderdatacards.tally.ChromeButton
-import com.mateobesse.surfriderdatacards.tally.CropCache
-import com.mateobesse.surfriderdatacards.tally.FlatCell
-import com.mateobesse.surfriderdatacards.tally.Haptics
-import com.mateobesse.surfriderdatacards.tally.NavBar
-import com.mateobesse.surfriderdatacards.tally.Nocturne
-import com.mateobesse.surfriderdatacards.tally.PrimaryButton
-import com.mateobesse.surfriderdatacards.tally.ProgressLine
-import com.mateobesse.surfriderdatacards.tally.Screen
-import com.mateobesse.surfriderdatacards.tally.ScreenBody
-import com.mateobesse.surfriderdatacards.tally.SecondaryButton
-import com.mateobesse.surfriderdatacards.tally.Tag
-import com.mateobesse.surfriderdatacards.tally.TallyModel
-import com.mateobesse.surfriderdatacards.tally.TextAction
-import com.mateobesse.surfriderdatacards.tally.TintedPanel
-import com.mateobesse.surfriderdatacards.tally.pageMargin
+import org.surfrider.datacards.tally.ButtonIcon
+import org.surfrider.datacards.tally.ChromeButton
+import org.surfrider.datacards.tally.CropCache
+import org.surfrider.datacards.tally.FlatCell
+import org.surfrider.datacards.tally.Haptics
+import org.surfrider.datacards.tally.NavBar
+import org.surfrider.datacards.tally.Nocturne
+import org.surfrider.datacards.tally.PrimaryButton
+import org.surfrider.datacards.tally.ProgressLine
+import org.surfrider.datacards.tally.Screen
+import org.surfrider.datacards.tally.ScreenBody
+import org.surfrider.datacards.tally.SecondaryButton
+import org.surfrider.datacards.tally.Tag
+import org.surfrider.datacards.tally.TallyModel
+import org.surfrider.datacards.tally.TextAction
+import org.surfrider.datacards.tally.TintedPanel
+import org.surfrider.datacards.tally.pageMargin
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first

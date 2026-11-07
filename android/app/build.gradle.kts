@@ -10,7 +10,7 @@ val appId = providers.gradleProperty("tally.applicationId").get()
 val beta = providers.gradleProperty("tally.beta").map { it.toBoolean() }.getOrElse(false)
 
 android {
-    namespace = "com.mateobesse.surfriderdatacards"
+    namespace = "org.surfrider.datacards"
     compileSdk = 37
 
     defaultConfig {

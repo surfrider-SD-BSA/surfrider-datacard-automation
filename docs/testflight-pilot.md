@@ -27,8 +27,8 @@ the plan, corrected where it was wrong.
 
 | | |
 | --- | --- |
-| Membership | active, `Apple Distribution` on team `P45J6R7ZHD` |
-| App record | *Data Cards*, Apple ID `6807599166`, `com.mateobesse.surfriderdatacards` |
+| Membership | active, `Apple Distribution` on team `<team id>` |
+| App record | *Data Cards*, Apple ID `<app record id>`, `<app id>` |
 | Internal group | **Chapter internal** |
 | External group | **Chapter volunteers**, with a public link |
 | Live build | `1788893453`, with the Drive picker |
@@ -38,7 +38,7 @@ the plan, corrected where it was wrong.
 
 1. ~~Apple Developer Program membership.~~ Done.
 2. ~~A bundle identifier the chapter controls.~~ Settled by #49 as
-   `com.mateobesse.surfriderdatacards` — three disagreeing identifiers were
+   `<app id>` — three disagreeing identifiers were
    written down at the time, which is a thing to check before an App ID is
    registered, because the App Group and the share extension's bundle are both
    derived from it and a rename after testers are installed is a new app rather

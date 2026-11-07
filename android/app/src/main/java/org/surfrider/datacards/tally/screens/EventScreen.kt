@@ -14,7 +14,7 @@
 //  can end up underneath it.
 //
 
-package com.mateobesse.surfriderdatacards.tally.screens
+package org.surfrider.datacards.tally.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -44,18 +44,18 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.mateobesse.surfriderdatacards.tally.ButtonIcon
-import com.mateobesse.surfriderdatacards.tally.Field
-import com.mateobesse.surfriderdatacards.tally.FieldInput
-import com.mateobesse.surfriderdatacards.tally.NavBar
-import com.mateobesse.surfriderdatacards.tally.Nocturne
-import com.mateobesse.surfriderdatacards.tally.PrimaryButton
-import com.mateobesse.surfriderdatacards.tally.Screen
-import com.mateobesse.surfriderdatacards.tally.ScreenBody
-import com.mateobesse.surfriderdatacards.tally.BottomClearance
-import com.mateobesse.surfriderdatacards.tally.TallyModel
-import com.mateobesse.surfriderdatacards.tally.WithPinnedActions
-import com.mateobesse.surfriderdatacards.tally.pageMargin
+import org.surfrider.datacards.tally.ButtonIcon
+import org.surfrider.datacards.tally.Field
+import org.surfrider.datacards.tally.FieldInput
+import org.surfrider.datacards.tally.NavBar
+import org.surfrider.datacards.tally.Nocturne
+import org.surfrider.datacards.tally.PrimaryButton
+import org.surfrider.datacards.tally.Screen
+import org.surfrider.datacards.tally.ScreenBody
+import org.surfrider.datacards.tally.BottomClearance
+import org.surfrider.datacards.tally.TallyModel
+import org.surfrider.datacards.tally.WithPinnedActions
+import org.surfrider.datacards.tally.pageMargin
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset

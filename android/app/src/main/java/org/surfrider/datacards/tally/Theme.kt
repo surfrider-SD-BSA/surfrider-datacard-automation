@@ -19,7 +19,7 @@
 //  iOS takes below iOS 26. Glass.swift has no counterpart and needs none.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward

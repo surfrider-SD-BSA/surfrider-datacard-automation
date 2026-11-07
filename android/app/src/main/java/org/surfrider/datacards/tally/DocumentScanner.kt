@@ -19,7 +19,7 @@
 //  `Beta.cameraCapture` in CaptureScreen.kt.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import android.content.Context
 import android.graphics.ImageDecoder

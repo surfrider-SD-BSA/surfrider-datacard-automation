@@ -14,6 +14,10 @@ import XCTest
 /// every text on the review screen: the tag ("counted: check it"), the number in the
 /// box, which cell of how many. A box that is not on the list -- taken as read, or
 /// never offered -- is logged as NOT ON THE LIST.
+// This test bundle's ID is the app's plus ".HarnessUITests" (ios_harness.py).
+private let appBundleID = Bundle(for: HarnessUITests.self).bundleIdentifier!
+    .replacingOccurrences(of: ".HarnessUITests", with: "")
+
 final class HarnessUITests: XCTestCase {
     /// The app refuses a beach and date already sent, so each run names its
     /// own: the time it started.
@@ -82,7 +86,7 @@ final class HarnessUITests: XCTestCase {
         }
         XCTAssertFalse(targets.isEmpty, "no targets")
 
-        let app = XCUIApplication(bundleIdentifier: "com.mateobesse.surfriderdatacards")
+        let app = XCUIApplication(bundleIdentifier: appBundleID)
         app.launch()
 
         // Screen 2: the waiting scan starts a cleanup. The date defaults to today; a beach is needed.
@@ -211,7 +215,7 @@ final class HarnessUITests: XCTestCase {
     func testDriveFolder() throws {
         let env = ProcessInfo.processInfo.environment
         guard env["DRIVE"] == "1" else { return }
-        let app = XCUIApplication(bundleIdentifier: "com.mateobesse.surfriderdatacards")
+        let app = XCUIApplication(bundleIdentifier: appBundleID)
         app.launch()
 
         let beach = app.textFields.element(boundBy: 0)
@@ -251,7 +255,7 @@ final class HarnessUITests: XCTestCase {
     func testWorkflow() throws {
         let env = ProcessInfo.processInfo.environment
         guard env["WORKFLOW"] == "1" else { return }
-        let app = XCUIApplication(bundleIdentifier: "com.mateobesse.surfriderdatacards")
+        let app = XCUIApplication(bundleIdentifier: appBundleID)
         app.launch()
 
         let beach = app.textFields.element(boundBy: 0)
@@ -368,7 +372,7 @@ final class HarnessUITests: XCTestCase {
                 return (c, p[1], p[2], v)
             }
         XCTAssertEqual(expected.count, 3, "run WORKFLOW=1 first")
-        let app = XCUIApplication(bundleIdentifier: "com.mateobesse.surfriderdatacards")
+        let app = XCUIApplication(bundleIdentifier: appBundleID)
         app.launch()
 
         // The shared PDF opens a new cleanup; the draft waits on screen 1.

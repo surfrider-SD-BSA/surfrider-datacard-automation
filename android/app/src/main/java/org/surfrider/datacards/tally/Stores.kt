@@ -9,7 +9,7 @@
 //  does. What is kept is what somebody typed.
 //
 
-package com.mateobesse.surfriderdatacards.tally
+package org.surfrider.datacards.tally
 
 import android.content.Context
 import android.util.AtomicFile
