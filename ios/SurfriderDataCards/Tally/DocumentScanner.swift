@@ -1,7 +1,11 @@
 //
-//  Photographing the cards.
+//  Photographing the cards with Apple's document camera, and binding pages
+//  from either camera into a PDF.
 //
-//  WHY THIS IS VISIONKIT AND NOT A CAMERA.
+//  Our own scanner is in Tally/Scanner and is what the capture screen opens
+//  first. This one stays as the backup until a comparison on real cards.
+//
+//  WHY THIS IS VISIONKIT AND NOT A PLAIN CAMERA.
 //
 //  Image input was removed from this app once before, deliberately, and the
 //  reason is in ios/README.md: "a photograph held at an angle keystones, and
@@ -73,7 +77,7 @@ struct DocumentScanner: UIViewControllerRepresentable {
 // MARK: -
 
 enum CapturedPages {
-    /// Is there a camera to scan with? False on a simulator, and on any device
+    /// Is Apple's document camera there to scan with? False on a simulator, and on any device
     /// where the scanner is unavailable -- the button says so rather than
     /// presenting a controller that will not come up.
     static var scanningAvailable: Bool { VNDocumentCameraViewController.isSupported }

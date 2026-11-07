@@ -8,9 +8,14 @@
 //  THE CAMERA CAME BACK, AND HOW. Image input was removed from this app once,
 //  deliberately -- ios/README.md: "a photograph held at an angle keystones, and
 //  registration corrects rotation and scale but not that." That is right about
-//  a plain camera, which is why this is not one. VisionKit's document scanner
-//  finds the page's corners and rectifies the perspective before handing the
-//  image over, so the pipeline gets a flat page. See DocumentScanner.swift.
+//  a plain camera, which is why this is not one. Our scanner (Tally/Scanner)
+//  and Apple's document camera both find the page's corners and rectify the
+//  perspective, so the pipeline gets a flat page.
+//
+//  TWO CAMERAS. Ours has no page limit, takes the picture by itself and warns
+//  while scanning. Apple's stops at 24 pages and stays here as the backup until
+//  the same real cards have been read through both and ours is at least as
+//  accurate. See the test list in ios/README.md.
 //
 //  RESOLUTION. The pipeline expects 200 DPI on the card's short edge.
 //  Registration searches +/-6% around that scale first, and only a page that
@@ -50,7 +55,13 @@ struct CaptureScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var picking = false
     @ObservedObject private var drive = DriveFlow.shared
+    /// Our scanner.
     @State private var scanning = false
+    /// Apple's document camera, the backup.
+    @State private var scanningWithApple = false
+    /// Pages our scanner holds that have not become a round yet: put by earlier,
+    /// or left when the app was last closed.
+    @State private var pagesInProgress = ScanPageStore.shared.count
     @State private var problem: String?
     /// How many photographed pages are being bound into a PDF, while they are.
     @State private var preparing: Int?
@@ -58,9 +69,10 @@ struct CaptureScreen: View {
     /// Set by the tips' "Start scanning", so the camera opens once the sheet
     /// has gone: presenting it while the sheet is still dismissing drops it.
     @State private var scanAfterTips = false
-    /// Camera rounds bound into PDFs and not read yet. The document camera
-    /// stops at 24 pages, so a pile of more than twelve cards is several
-    /// rounds, read together as one cleanup. See `CapturedPages.merge`.
+    /// Camera rounds bound into PDFs and not read yet. Apple's document camera
+    /// stops at 24 pages, so with it a pile of more than twelve cards is several
+    /// rounds, read together as one cleanup; ours can also take a break between
+    /// rounds. See `CapturedPages.merge`.
     @State private var rounds: [Round] = []
     @State private var openingDriveLink = false
 
@@ -95,11 +107,14 @@ struct CaptureScreen: View {
             .padding(.top, 26)
             .padding(.bottom, 10)
 
-            viewfinder
-                .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: Nocturne.Radius.viewfinder))
-                .pageMargin()
-                .padding(.top, 6)
+            // Advice for before the first picture, and the room is needed after.
+            if rounds.isEmpty {
+                viewfinder
+                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: Nocturne.Radius.viewfinder))
+                    .pageMargin()
+                    .padding(.top, 6)
+            }
 
             Spacer(minLength: 0)
 
@@ -142,7 +157,14 @@ struct CaptureScreen: View {
                                 .buttonStyle(SecondaryButtonStyle(minHeight: 52, size: 16))
                         }
                     }
-                    .disabled(!CapturedPages.scanningAvailable || preparing != nil)
+                    .disabled(!CardScanner.available || preparing != nil)
+
+                    // The backup, until ours is proven on real cards.
+                    if CapturedPages.scanningAvailable {
+                        Button("Use Apple's camera instead") { scanningWithApple = true }
+                            .buttonStyle(TextButtonStyle(size: 13))
+                            .disabled(preparing != nil)
+                    }
                 }
 
                 // Secondary beside the camera, primary when it is the only way
@@ -254,9 +276,19 @@ struct CaptureScreen: View {
                 showingTips = false
             }
         }
-        .fullScreenCover(isPresented: $scanning) {
-            DocumentScanner { scan in
+        .fullScreenCover(isPresented: $scanning, onDismiss: {
+            pagesInProgress = ScanPageStore.shared.count
+        }) {
+            CardScanScreen {
                 scanning = false
+                prepareScannedPages()
+            } onClose: {
+                scanning = false
+            }
+        }
+        .fullScreenCover(isPresented: $scanningWithApple) {
+            DocumentScanner { scan in
+                scanningWithApple = false
                 guard scan.pageCount > 0 else { return }
                 preparing = scan.pageCount
                 problem = nil
@@ -279,21 +311,50 @@ struct CaptureScreen: View {
                     }
                 }
             } onCancel: {
-                scanning = false
+                scanningWithApple = false
             }
             .ignoresSafeArea()
+        }
+    }
+
+    /// Our scanner's pages become a round like any other. They leave the store
+    /// only once the PDF exists, so a failure here loses nothing.
+    private func prepareScannedPages() {
+        let store = ScanPageStore.shared
+        let pages = store.count
+        guard pages > 0 else { return }
+        preparing = pages
+        problem = nil
+        Task.detached(priority: .userInitiated) {
+            let result: Result<URL, Error>
+            do { result = .success(try await store.pdf()) } catch { result = .failure(error) }
+            await MainActor.run {
+                preparing = nil
+                switch result {
+                case .success(let pdf):
+                    store.clear()
+                    pagesInProgress = 0
+                    rounds.append(Round(file: pdf, pages: pages))
+                case .failure(let error):
+                    problem = "Those pictures could not be prepared: \(error.localizedDescription)"
+                }
+            }
         }
     }
 
     private var cameraLabel: some View {
         HStack(spacing: 9) {
             Image(systemName: Nocturne.Icon.capture)
-            Text(rounds.isEmpty ? "Take pictures of the cards" : "Scan more cards")
+            if pagesInProgress > 0 {
+                Text("Carry on scanning (\(pagesInProgress) \(pagesInProgress == 1 ? "page" : "pages") so far)")
+            } else {
+                Text(rounds.isEmpty ? "Take pictures of the cards" : "Scan more cards")
+            }
         }
     }
 
     private func openCamera() {
-        if rounds.isEmpty {
+        if rounds.isEmpty, pagesInProgress == 0 {
             // Every time, on purpose: whoever is holding the phone may not be
             // whoever read it last time.
             showingTips = true
@@ -327,7 +388,7 @@ struct CaptureScreen: View {
         let pages = roundPages
         var text = "\(pages) \(pages == 1 ? "page" : "pages") so far"
         if rounds.count > 1 { text += ", in \(rounds.count) rounds" }
-        text += ". The camera takes 24 pages (12 cards) at a time: scan the rest of the pile, carrying on in card order, then read them all together."
+        text += ". Scan the rest of the pile, carrying on in card order, then read them all together."
         if !pages.isMultiple(of: 2) {
             text += " That is an odd number of pages, so a card is missing a side."
         }
@@ -346,7 +407,7 @@ struct CaptureScreen: View {
         guard Camera.offered else {
             return "Both sides of every card, in card order, from the chapter's scanner. The reading wants 200 DPI, which is what it produces."
         }
-        if !CapturedPages.scanningAvailable {
+        if !CardScanner.available {
             return "This device has no document scanner, so the cards have to come from a PDF. Scanned front-and-back, in card order."
         }
         return "Photograph each card front, then back, in card order. Lay it flat in good light, with no shadow across the totals column."
