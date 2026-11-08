@@ -386,6 +386,18 @@ describe("registerAgainstBestSide", () => {
     expect(r.side).toBe("front");
   });
 
+  it("levels a hand-held page tilted far past the scanner's few degrees", () => {
+    const r = registerAgainstBestSide(scanOf(CARD, { dy: 10, skew: 12 }), targets, 7);
+    expect(r.trusted).toBe(true);
+    expect(r.quarterTurns).toBe(0);
+  });
+
+  it("recovers a page that is upside down and tilted as well", () => {
+    const r = registerAgainstBestSide(quarterTurn(scanOf(CARD, { dy: 10, skew: 7 }), 2), targets, 8);
+    expect(r.trusted).toBe(true);
+    expect(r.quarterTurns).toBe(2);
+  });
+
   it("does not turn a page that is already the right way up", () => {
     // The rotation retry must be reachable only from failure. If it could
     // improve on a good fit it would sometimes "recover" an upright page into

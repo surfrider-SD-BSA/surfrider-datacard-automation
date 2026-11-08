@@ -311,6 +311,9 @@ export function classifyPage(img: GrayImage) {
  */
 const WIDE_SEARCH = { maxScaleDeviation: 0.3, maxOffset: 640 };
 
+/** How far a hand-held page is levelled before the last search, in degrees. */
+const MAX_HAND_TILT = 20;
+
 /**
  * Level a page and fit it onto one reference.
  *
@@ -535,6 +538,28 @@ export function registerAgainstBestSide(
           side = candidate;
           quarterTurns = turns;
           fit = attempt;
+        }
+      }
+    }
+  }
+
+  // Still nothing: held in the hand. A phone photo can be tilted far past the
+  // few degrees the searches above level, and upside down as well. Level it
+  // roughly first (up to MAX_HAND_TILT, in half degrees), then search wide, in
+  // each of the four ways up. Measured on 4 real pages: tilted 8 or 15 degrees,
+  // or upside down and tilted 6, none lined up before this.
+  if (!placed(fit)) {
+    hand: for (const turns of [0, 2, 1, 3]) {
+      const turned = turns ? quarterTurn(img, turns) : img;
+      const tilt = estimateSkew(turned, MAX_HAND_TILT, 0.5);
+      const levelled = Math.abs(tilt) >= 1 ? rotate(turned, tilt) : turned;
+      for (const candidate of [side, side === "front" ? "back" : "front"] as const) {
+        const attempt = registerPage(levelled, targets[candidate], { wide: true });
+        if (better(attempt, fit)) {
+          side = candidate;
+          quarterTurns = turns;
+          fit = { ...attempt, skewDegrees: attempt.skewDegrees + tilt };
+          if (placed(fit)) break hand;
         }
       }
     }
