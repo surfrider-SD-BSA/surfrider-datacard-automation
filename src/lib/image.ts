@@ -499,3 +499,118 @@ export function cropToCanvas(
   }
   return canvas;
 }
+
+/** Size of the squares the paper's brightness is measured in, in pixels. */
+const LIGHT_BLOCK = 16;
+
+/**
+ * How much darker than the brightest paper some part of the page may be before
+ * it counts as a shadow. Scanner pages light their paper within a few levels;
+ * a phone or a hand held over the card puts 30-100 levels of shadow on it.
+ */
+const SHADOW_DEPTH = 18;
+
+/**
+ * Takes shadows off a page: each part of the page is brightened by as much as
+ * its own paper is darker than the page's brightest paper, so a shadow across
+ * the card no longer reads as ink, and banners and boxes in it stand out from
+ * their paper as they do everywhere else.
+ *
+ * The paper is found as the bright end of each 16px square, then closed over
+ * five squares, so a square that is all banner or all writing takes its paper
+ * from beside it; a shadow is far larger than that and keeps its edges.
+ *
+ * A page lit evenly -- every scanner page -- is returned as it is, the same
+ * object, so nothing measured on those pages moves.
+ */
+export function evenLighting(img: GrayImage): GrayImage {
+  const { width, height, data } = img;
+  const bw = Math.ceil(width / LIGHT_BLOCK);
+  const bh = Math.ceil(height / LIGHT_BLOCK);
+  if (bw < 3 || bh < 3) return img;
+
+  // The bright end (90th percentile) of each square.
+  const level = new Float64Array(bw * bh);
+  const hist = new Uint32Array(256);
+  for (let by = 0; by < bh; by++) {
+    for (let bx = 0; bx < bw; bx++) {
+      hist.fill(0);
+      const x0 = bx * LIGHT_BLOCK, x1 = Math.min(width, x0 + LIGHT_BLOCK);
+      const y0 = by * LIGHT_BLOCK, y1 = Math.min(height, y0 + LIGHT_BLOCK);
+      for (let y = y0; y < y1; y++) {
+        const off = y * width;
+        for (let x = x0; x < x1; x++) hist[data[off + x]!]!++;
+      }
+      const limit = (x1 - x0) * (y1 - y0) * 0.9;
+      let seen = 0, v = 0;
+      for (; v < 255; v++) if ((seen += hist[v]!) > limit) break;
+      level[by * bw + bx] = v;
+    }
+  }
+
+  // Brightest square within two, then darkest within two (a "closing"): a
+  // square that is all ink borrows paper from beside it, while a shadow, far
+  // larger than five squares, keeps its edge where it was.
+  const near = (src: Float64Array, pick: (a: number, b: number) => number, start: number) => {
+    const next = new Float64Array(bw * bh);
+    for (let by = 0; by < bh; by++) {
+      for (let bx = 0; bx < bw; bx++) {
+        let best = start;
+        for (let dy = -2; dy <= 2; dy++) {
+          const yy = by + dy;
+          if (yy < 0 || yy >= bh) continue;
+          for (let dx = -2; dx <= 2; dx++) {
+            const xx = bx + dx;
+            if (xx >= 0 && xx < bw) best = pick(best, src[yy * bw + xx]!);
+          }
+        }
+        next[by * bw + bx] = best;
+      }
+    }
+    return next;
+  };
+  const paper = near(near(level, Math.max, 0), Math.min, 255);
+
+  // Smooth it (3x3 mean), so the correction has no steps at square edges.
+  const smooth = new Float64Array(bw * bh);
+  for (let by = 0; by < bh; by++) {
+    for (let bx = 0; bx < bw; bx++) {
+      let sum = 0, n = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = by + dy;
+        if (yy < 0 || yy >= bh) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = bx + dx;
+          if (xx >= 0 && xx < bw) { sum += paper[yy * bw + xx]!; n++; }
+        }
+      }
+      smooth[by * bw + bx] = sum / n;
+    }
+  }
+
+  // The brightest paper on the page, ignoring the odd glare spot.
+  const sorted = Array.from(smooth).sort((a, b) => a - b);
+  const top = sorted[Math.floor(sorted.length * 0.95)]!;
+  const darkest = sorted[Math.floor(sorted.length * 0.02)]!;
+  if (top - darkest < SHADOW_DEPTH || top < 40) return img;
+
+  const out = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const fy = Math.min(bh - 1, Math.max(0, (y + 0.5) / LIGHT_BLOCK - 0.5));
+    const y0 = Math.floor(fy), y1 = Math.min(bh - 1, y0 + 1), ty = fy - y0;
+    const off = y * width;
+    for (let x = 0; x < width; x++) {
+      const fx = Math.min(bw - 1, Math.max(0, (x + 0.5) / LIGHT_BLOCK - 0.5));
+      const x0 = Math.floor(fx), x1 = Math.min(bw - 1, x0 + 1), tx = fx - x0;
+      const bg =
+        smooth[y0 * bw + x0]! * (1 - tx) * (1 - ty) +
+        smooth[y0 * bw + x1]! * tx * (1 - ty) +
+        smooth[y1 * bw + x0]! * (1 - tx) * ty +
+        smooth[y1 * bw + x1]! * tx * ty;
+      // Never darken: only shadowed paper is lifted.
+      const gain = bg < top ? top / Math.max(bg, 1) : 1;
+      out[off + x] = Math.min(255, Math.round(data[off + x]! * gain));
+    }
+  }
+  return { width, height, data: out };
+}
