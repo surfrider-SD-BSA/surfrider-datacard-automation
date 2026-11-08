@@ -344,7 +344,8 @@ final class HarnessUITests: XCTestCase {
         // The three, for the second run (WORKFLOW=2). Beside the run's own directory,
         // which ios.sh empties at the start of every run.
         let expect = out.deletingLastPathComponent().appendingPathComponent("workflow-expect.txt")
-        try? expected.map { "\($0.card)|\($0.item)|\($0.section)|\($0.value)" }
+        // One line each: an item name can hold a line break ("Large Plastic Fragments\nlarger than a dime").
+        try? expected.map { "\($0.card)|\($0.item.replacingOccurrences(of: "\n", with: "\\n"))|\($0.section)|\($0.value)" }
             .joined(separator: "\n").write(to: expect, atomically: true, encoding: .utf8)
 
         // Quit mid-review, as a phone does to a backgrounded app.
@@ -369,7 +370,7 @@ final class HarnessUITests: XCTestCase {
             ((try? String(contentsOf: expect, encoding: .utf8)) ?? "").split(separator: "\n").compactMap {
                 let p = $0.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
                 guard p.count == 4, let c = Int(p[0]), let v = Int(p[3]) else { return nil }
-                return (c, p[1], p[2], v)
+                return (c, p[1].replacingOccurrences(of: "\\n", with: "\n"), p[2], v)
             }
         XCTAssertEqual(expected.count, 3, "run WORKFLOW=1 first")
         let app = XCUIApplication(bundleIdentifier: appBundleID)
@@ -430,7 +431,12 @@ final class HarnessUITests: XCTestCase {
             // A row is one button labelled "C4, Cigarette Butts, Common & Priority Items, 4".
             // Item names hold commas of their own, so the label is matched from the front,
             // section included: the six "Other" rows differ only in theirs.
-            for b in visible where b.elementType == .button && b.label.hasPrefix("\(tag), \(item), \(section), ") {
+            // Brackets and line breaks are evened out (oneLine).
+            // The review screen adds a note under some names ("larger than a dime",
+            // card-labels.ts) that the list may leave out: either form is the row.
+            let short = item.split(separator: "\n").first.map(String.init) ?? item
+            let wants = [item, short].map { oneLine("\(tag), \($0), \(section), ") }
+            for b in visible where b.elementType == .button && wants.contains(where: oneLine(b.label).hasPrefix) {
                 return (b.label, CGPoint(x: b.frame.midX, y: b.frame.midY))
             }
             let seen = visible.filter { $0.elementType == .staticText }.map(\.label).joined(separator: "|")
@@ -439,6 +445,12 @@ final class HarnessUITests: XCTestCase {
             list.swipeUp(velocity: 1200)
         }
         return nil
+    }
+
+    /// The review screen shows "Large Plastic Fragments (larger than a dime)" as
+    /// "Large Plastic Fragments\nlarger than a dime"; the list keeps the brackets.
+    private func oneLine(_ s: String) -> String {
+        s.filter { $0 != "(" && $0 != ")" }.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
     private func scrollToTop(_ app: XCUIApplication) {

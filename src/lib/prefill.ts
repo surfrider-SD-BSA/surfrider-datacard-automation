@@ -620,19 +620,44 @@ export function mainReading(
   return { ...r, value: t, confidence: TUNED_DISAGREES };
 }
 
+/**
+ * The dropped leading digit: a doubtful number under 100 where at least two of
+ * the tuned readers (`texts`) read the same 3-digit number ending in it, "128"
+ * where ours has "28". A clear stroke beside the box's edge is read as the edge.
+ * Measured 6 November 2026 with nobody checking, 3 runs over 402 cards, 3-5
+ * boxes a run: total off about 9,142 -> 8,808, all boxes right 92.04% -> 92.07%,
+ * written numbers right 93.88% -> 93.93%. All of the gain is on half B of the
+ * scans; half A did not change.
+ */
+export function restoredHundreds(r: Reading, texts: readonly (string | null | undefined)[]): Reading {
+  if (r.source !== "digits" || r.value <= 0 || r.value >= 100 || r.confidence > MIDDLE_DOUBT) return r;
+  const seen = new Map<string, number>();
+  for (const text of texts) {
+    const t = (text ?? "").trim();
+    if (/^[1-9]\d\d$/.test(t) && t.endsWith(String(r.value))) seen.set(t, (seen.get(t) ?? 0) + 1);
+  }
+  const top = [...seen].sort((a, b) => b[1] - a[1])[0];
+  return top && top[1] >= 2 ? { ...r, value: Number(top[0]), confidence: TUNED_DISAGREES } : r;
+}
+
+/** A reading of a box nobody wrote in is a reading of nothing: empty (noink.ts). */
+export function emptyWhereNoInk(r: Reading, noInk: boolean | undefined): Reading {
+  return noInk && r.value !== 0 ? { ...r, value: 0, confidence: X_EMPTY } : r;
+}
+
 /** How sure a box the tuned reader read as an X is to be empty (`mainReading`). */
 export const X_EMPTY = 0.6;
 
 /**
  * Our tuned reader's text for a doubtful written box, voted with two more
- * TrOCR-base readers trained another way (`votes`: readers/trocr-vote1 on the
- * spreadsheet's numbers read right, readers/trocr-vote2 on by-eye answers, X
- * and slashed zeros as 0): the number two of the three give, else the middle
- * one, where all three read a number; else ours. Measured 27 October 2026 with
- * nobody checking (out/exp/fake/complete.mjs, the corrected answer key), each
- * reader trained on the other half of the scans: total off 8,476 -> 8,344,
- * 8,427 -> 8,195, 8,560 -> 8,425 on three seeds; only boxes `MIDDLE_DOUBT`
- * doubtful are read twice more.
+ * TrOCR-base readers trained further on other marks (`votes`: readers/trocr-marks
+ * on X, crossed-out zeros, dashes and scribbles as 0, readers/trocr-rain on
+ * handwritten rainfall numbers with the dots removed): the number two of the
+ * three give, else the middle one, where all three read a number; else ours.
+ * Measured 6 November 2026 with nobody checking, each reader trained on the
+ * other half of the scans: run 1 total off 9,245 -> 9,118; on all three runs
+ * 91.62% -> 91.71% of all boxes and 93.90% -> 93.96% of written numbers exactly
+ * right. Only boxes `MIDDLE_DOUBT` doubtful are read twice more.
  */
 export function votedTuned(tuned: string | undefined, votes: (string | null)[] | undefined): string | undefined {
   if (tuned === undefined || !votes || votes.length < 2) return tuned;

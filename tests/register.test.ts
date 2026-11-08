@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import type { CellMap } from "../src/lib/cells";
 import {
   bannerRows,
+  evenLighting,
   fitAxis,
   maskOverlap,
   paperLevel,
@@ -384,6 +385,46 @@ describe("registerAgainstBestSide", () => {
     const r = registerAgainstBestSide(page, targets, 6);
     expect(r.trusted).toBe(true);
     expect(r.side).toBe("front");
+  });
+
+  it("levels a hand-held page tilted far past the scanner's few degrees", () => {
+    const r = registerAgainstBestSide(scanOf(CARD, { dy: 10, skew: 12 }), targets, 7);
+    expect(r.trusted).toBe(true);
+    expect(r.quarterTurns).toBe(0);
+  });
+
+  it("recovers a page that is upside down and tilted as well", () => {
+    const r = registerAgainstBestSide(quarterTurn(scanOf(CARD, { dy: 10, skew: 7 }), 2), targets, 8);
+    expect(r.trusted).toBe(true);
+    expect(r.quarterTurns).toBe(2);
+  });
+
+  it.each([
+    ["fading out", (x: number) => Math.min(1, Math.max(0, (x - 150) / 200))],
+    ["with a sharp edge", (x: number, y: number) => (x < 250 && y > 200 ? 0 : 1)],
+  ])("reads through a shadow across part of the page, %s", (_name, shade) => {
+    // A phone or a hand over the card: part of it far darker than the rest.
+    const page = scanOf(CARD, { dy: 8 });
+    const shaded = new Uint8Array(page.data);
+    for (let y = 0; y < page.height; y++) {
+      for (let x = 0; x < page.width; x++) {
+        const k = shade(x, y);
+        shaded[y * page.width + x] = Math.round(page.data[y * page.width + x]! * (0.4 + 0.6 * k));
+      }
+    }
+    const shadowed = { ...page, data: shaded };
+    const even = evenLighting(shadowed);
+    expect(even).not.toBe(shadowed);
+    // The shaded paper is back near the lit paper.
+    expect(even.data[400 * page.width + 20]!).toBeGreaterThan(230);
+    const r = registerAgainstBestSide(even, targets, 9);
+    expect(r.trusted).toBe(true);
+    expect(r.quarterTurns).toBe(0);
+  });
+
+  it("leaves an evenly lit page exactly as it is", () => {
+    const page = scanOf(CARD, { dy: 8 });
+    expect(evenLighting(page)).toBe(page);
   });
 
   it("does not turn a page that is already the right way up", () => {

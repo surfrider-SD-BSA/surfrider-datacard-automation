@@ -31,6 +31,7 @@
 import { loadCellMap, type CellMap } from "./lib/cells";
 import { CARD_LABELS } from "./lib/card-labels";
 import { decodeModel, type DigitModel } from "./lib/digits";
+import type { BlankForms } from "./lib/noink";
 import {
   assembleCard,
   cellsForSide,
@@ -46,6 +47,8 @@ import {
   MIDDLE_DOUBT,
   middleReading,
   votedTuned,
+  emptyWhereNoInk,
+  restoredHundreds,
   numberFromReader,
   prefillFor,
   tallyFromReaders,
@@ -136,22 +139,35 @@ async function loadDigitModel(): Promise<DigitModel | null> {
   }
 }
 
+/** The blank form per row (noink.ts). Like the digits: without it the app does a little less. */
+async function loadBlankForms(): Promise<BlankForms | null> {
+  try {
+    const [meta, data] = await Promise.all([fetch("reference/ink-blank.json"), fetch("reference/ink-blank.bin")]);
+    if (!meta.ok || !data.ok) return null;
+    return { ...(await meta.json()), data: new Uint8Array(await data.arrayBuffer()) };
+  } catch {
+    return null;
+  }
+}
+
 let referencesPromise: Promise<{
   images: { front: GrayImage; back: GrayImage };
   maps: { front: CellMap; back: CellMap };
   digits: DigitModel | null;
+  forms: BlankForms | null;
 }> | null = null;
 
 function loadReferences() {
   referencesPromise ??= (async () => {
-    const [front, back, frontMap, backMap, digits] = await Promise.all([
+    const [front, back, frontMap, backMap, digits, forms] = await Promise.all([
       loadReferenceImage("reference/blank-front.png"),
       loadReferenceImage("reference/blank-back.png"),
       loadCellMap("front", async (u) => (await fetch(u)).json()),
       loadCellMap("back", async (u) => (await fetch(u)).json()),
       loadDigitModel(),
+      loadBlankForms(),
     ]);
-    return { images: { front, back }, maps: { front: frontMap, back: backMap }, digits };
+    return { images: { front, back }, maps: { front: frontMap, back: backMap }, digits, forms };
   })();
   return referencesPromise;
 }
@@ -192,7 +208,9 @@ function rankedCells() {
       const more = state.middle.get(key);
       const tuned = votedTuned(state.tuned.get(key), more?.slice(2));
       const main = counted && mainReading(counted, tuned, state.second.get(key), state.check.get(key));
-      return { card, cell, read, prefill: main && middleReading(main, more?.slice(0, 2), state.second.get(key)) };
+      const middle = main && middleReading(main, more?.slice(0, 2), state.second.get(key));
+      const restored = middle && restoredHundreds(middle, [state.tuned.get(key), ...(more ?? [])]);
+      return { card, cell, read, prefill: restored && emptyWhereNoInk(restored, cell.noInk) };
     }),
   );
   const accepted = autoAcceptedInScan(
@@ -269,7 +287,7 @@ function readPool(refs: Awaited<ReturnType<typeof loadReferences>>): Promise<Poo
           return new Promise<Worker>((ready, fail) => {
             w.onmessage = (e) => (e.data?.type === "ready" ? ready(w) : fail(new Error("read worker did not start")));
             w.onerror = (e) => fail(e.error ?? new Error(e.message));
-            w.postMessage({ type: "init", images: refs.images, maps: refs.maps, digits: refs.digits });
+            w.postMessage({ type: "init", images: refs.images, maps: refs.maps, digits: refs.digits, forms: refs.forms });
           });
         }),
       );
@@ -366,7 +384,7 @@ async function process(params: ProcessParams) {
       bannerOverlap: registered.bannerOverlap,
       ruleOverlap: registered.ruleOverlap,
       cells: registered.trusted
-        ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side, refs.digits)
+        ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side, refs.digits, refs.forms)
         : [],
     });
   });

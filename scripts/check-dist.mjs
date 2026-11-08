@@ -65,6 +65,11 @@ const ALLOWED_FILES = new Set([
   "reference/cells.back.json",
   "template/data-entry-template.xlsx",
 
+  // The printed form per row: the median over many cards, darkened, so no
+  // handwriting survives in it (checked by eye). See src/lib/noink.ts.
+  "reference/ink-blank.bin",
+  "reference/ink-blank.json",
+
   "reference/cells-overrides.json",
   "reference/labels-pacific-beach.json",
 

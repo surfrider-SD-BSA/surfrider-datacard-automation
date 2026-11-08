@@ -12,6 +12,7 @@
 import type { CellMap } from "./cells";
 import type { DigitModel } from "./digits";
 import { cellsForSide } from "./extract";
+import type { BlankForms } from "./noink";
 import type { GrayImage } from "./image";
 import { referenceTargets, registerAgainstBestSide } from "./register";
 
@@ -20,15 +21,16 @@ type Init = {
   images: { front: GrayImage; back: GrayImage };
   maps: { front: CellMap; back: CellMap };
   digits: DigitModel | null;
+  forms: BlankForms | null;
 };
 type Page = { type: "page"; pageNumber: number; image: GrayImage };
 
-let refs: { targets: ReturnType<typeof referenceTargets>; maps: Init["maps"]; digits: DigitModel | null } | null = null;
+let refs: { targets: ReturnType<typeof referenceTargets>; maps: Init["maps"]; digits: DigitModel | null; forms: BlankForms | null } | null = null;
 
 self.onmessage = (e: MessageEvent<Init | Page>) => {
   const msg = e.data;
   if (msg.type === "init") {
-    refs = { targets: referenceTargets(msg.images, msg.maps), maps: msg.maps, digits: msg.digits };
+    refs = { targets: referenceTargets(msg.images, msg.maps), maps: msg.maps, digits: msg.digits, forms: msg.forms };
     self.postMessage({ type: "ready" });
     return;
   }
@@ -45,7 +47,7 @@ self.onmessage = (e: MessageEvent<Init | Page>) => {
         bannerOverlap: registered.bannerOverlap,
         ruleOverlap: registered.ruleOverlap,
         cells: registered.trusted
-          ? cellsForSide(registered.image, msg.pageNumber, refs.maps[registered.side], registered.side, refs.digits)
+          ? cellsForSide(registered.image, msg.pageNumber, refs.maps[registered.side], registered.side, refs.digits, refs.forms)
           : [],
       },
     });

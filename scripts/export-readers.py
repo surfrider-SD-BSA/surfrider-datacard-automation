@@ -31,6 +31,9 @@ rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
                                                 is false
     python scripts/export-readers.py --tally    only the two tally readers (2 x 123 MB)
     python scripts/export-readers.py --check    only trocr-check
+    python scripts/export-readers.py --mix      only the voting mix: trocr-ours, trocr-marks and
+                                                trocr-rain, from out/models/trocr-nfresh-all,
+                                                trocr-marks-all and trocr-rain3kn-all
 """
 
 from __future__ import annotations
@@ -153,7 +156,11 @@ def easyocr(tmp: pathlib.Path) -> None:
 
 
 def trocr(
-    tmp: pathlib.Path, only_ours: bool = False, only_tally: bool = False, only_check: bool = False
+    tmp: pathlib.Path,
+    only_ours: bool = False,
+    only_tally: bool = False,
+    only_check: bool = False,
+    only_mix: bool = False,
 ) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
@@ -185,6 +192,15 @@ def trocr(
         models = [m for m in models if m[1].startswith("tally-")]
     if only_check:
         models = [m for m in models if m[1] == "trocr-check"]
+    if only_mix:
+        models = [
+            (str(ROOT / "out" / "models" / src), folder)
+            for src, folder in [
+                ("trocr-nfresh-all", "trocr-ours"),
+                ("trocr-marks-all", "trocr-marks"),
+                ("trocr-rain3kn-all", "trocr-rain"),
+            ]
+        ]
     for name, folder in models:
         proc = TrOCRProcessor.from_pretrained(name)
         model = VisionEncoderDecoderModel.from_pretrained(name).eval()
@@ -256,6 +272,10 @@ def main() -> None:
         sys.exit("no out/models/trocr-ours: run scripts/train-trocr.py first")
     with tempfile.TemporaryDirectory() as t:
         tmp = pathlib.Path(t)
+        if "--mix" in sys.argv[1:]:
+            trocr(tmp, only_ours=True, only_mix=True)
+            print(f"wrote {OUT}")
+            return
         if "--check" in sys.argv[1:]:
             trocr(tmp, only_ours=True, only_check=True)
             print(f"wrote {OUT}")
