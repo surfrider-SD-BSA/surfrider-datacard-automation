@@ -40,7 +40,8 @@ jobs:
 
   test:
     name: Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: on Ubuntu 26.04 setup-python has no 3.9 (15 November 2026).
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

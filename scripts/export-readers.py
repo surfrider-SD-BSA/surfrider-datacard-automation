@@ -220,7 +220,10 @@ def trocr(
         models = [] if only_large else models
         models += [
             (str(ROOT / "out" / "models" / f"{src}{half}"), folder)
-            for src, folder in [("trocr-largemarks7", "trocr-largemarks"), ("trocr-largerain", "trocr-largerain")]
+            for src, folder in [
+                ("trocr-largemarks7", "trocr-largemarks"),
+                ("trocr-largerain", "trocr-largerain"),
+            ]
         ]
     for name, folder in models:
         proc = TrOCRProcessor.from_pretrained(name)
@@ -281,7 +284,9 @@ def trocr(
             },
         )
         if folder in LARGE:
-            quantize_dynamic(str(enc), str(dst / "encoder.onnx"), weight_type=QuantType.QInt8, per_channel=True)
+            quantize_dynamic(
+                str(enc), str(dst / "encoder.onnx"), weight_type=QuantType.QInt8, per_channel=True
+            )
         else:
             shutil.copy(enc, dst / "encoder.onnx")  # at half precision the CPU runs it 2.4x slower
         quantize_dynamic(str(dec), str(dst / "decoder.onnx"), weight_type=QuantType.QInt8)
@@ -297,7 +302,8 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as t:
         tmp = pathlib.Path(t)
         if "--mix" in sys.argv[1:] or "--large" in sys.argv[1:]:
-            trocr(tmp, only_ours=True, only_mix="--mix" in sys.argv[1:], only_large="--large" in sys.argv[1:])
+            mix, large = "--mix" in sys.argv[1:], "--large" in sys.argv[1:]
+            trocr(tmp, only_ours=True, only_mix=mix, only_large=large)
             print(f"wrote {OUT}")
             return
         if "--check" in sys.argv[1:]:
