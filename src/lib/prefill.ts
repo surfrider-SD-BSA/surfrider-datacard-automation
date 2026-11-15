@@ -623,7 +623,7 @@ export function mainReading(
 /**
  * The dropped leading digit: a written number under 100, or a 0, where at least
  * `RESTORED_AGREE` of the readers (`texts`: our tuned reader, the two large
- * readers and the marks and rainfall readers) read the same 3-digit number:
+ * readers and the rainfall reader) read the same 3-digit number:
  * "128" where ours has "28" or "0". A clear stroke beside the box's edge is read
  * as the edge, and a crossed-out 100 as an X. Only doubtful boxes have the other
  * readers' texts, so only they are changed.

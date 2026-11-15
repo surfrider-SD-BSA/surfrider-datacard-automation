@@ -154,9 +154,9 @@ enum OtherReaders {
     /// large readers `readers/trocr-largerain` (TrOCR-large also taught
     /// handwritten rainfall numbers) and `readers/trocr-largemarks` (also taught
     /// X, crossed-out zeros, dashes and scribbles as 0), then the base
-    /// `readers/trocr-marks` and `readers/trocr-rain`. The large two vote on our
-    /// tuned reader's text (`votedTuned`); see src/lib/prefill.ts for the rest.
-    static let middleNames = ["trocr-rev4", "trocr-largerain", "trocr-largemarks", "trocr-marks", "trocr-rain"]
+    /// `readers/trocr-rain`. The large two vote on our tuned reader's text
+    /// (`votedTuned`); see src/lib/prefill.ts for the rest.
+    static let middleNames = ["trocr-rev4", "trocr-largerain", "trocr-largemarks", "trocr-rain"]
 
     /// Each doubtful box's text from each of `middleNames`, nil where a reader
     /// is missing or read nothing. No time limit (about 92 boxes a scan, four

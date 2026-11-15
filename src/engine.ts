@@ -206,15 +206,15 @@ function rankedCells() {
       const read = prefillFor(cell);
       const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
       // A doubtful box's more readers (OtherReaders.middleNames): rev4, large rainfall, large marks,
-      // marks, rainfall. The two large ones vote on the tuned text; rev4 and large rainfall go into
+      // rainfall. The two large ones vote on the tuned text; rev4 and large rainfall go into
       // middleReading; all but rev4 into restoredHundreds; large rainfall reads the never-read boxes.
       const more = state.middle.get(key);
-      const [rev4, largeRain, largeMarks, marks, rain] = more ?? [];
+      const [rev4, largeRain, largeMarks, rain] = more ?? [];
       const tuned = votedTuned(state.tuned.get(key), more && [largeMarks ?? null, largeRain ?? null]);
       const main = counted && mainReading(counted, tuned, state.second.get(key), state.check.get(key));
       const middle = main && middleReading(main, more && [rev4 ?? null, largeRain ?? null], state.second.get(key));
       const restored =
-        middle && (more ? restoredHundreds(middle, [state.tuned.get(key), largeMarks, largeRain, marks, rain]) : middle);
+        middle && (more ? restoredHundreds(middle, [state.tuned.get(key), largeMarks, largeRain, rain]) : middle);
       const placed = restored && (more ? placeholderFromReaders(restored, [state.tuned.get(key), largeRain]) : restored);
       return { card, cell, read, prefill: placed && emptyWhereNoInk(placed, cell.noInk) };
     }),

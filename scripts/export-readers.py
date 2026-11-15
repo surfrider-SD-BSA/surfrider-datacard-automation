@@ -31,9 +31,9 @@ rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
                                                 is false
     python scripts/export-readers.py --tally    only the two tally readers (2 x 123 MB)
     python scripts/export-readers.py --check    only trocr-check
-    python scripts/export-readers.py --mix      only the voting mix: trocr-ours, trocr-marks and
-                                                trocr-rain, from out/models/trocr-nfresh-all,
-                                                trocr-marks-all and trocr-rain3kn-all, plus the two
+    python scripts/export-readers.py --mix      only the voting mix: trocr-ours and trocr-rain,
+                                                from out/models/trocr-nfresh-all and
+                                                trocr-rain3kn-all, plus the two
                                                 large readers trocr-largemarks and trocr-largerain
                                                 from trocr-largemarks7-all and trocr-largerain-all
                                                 (LARGE_HALF=1: their -h1 halves instead, for a size
@@ -212,7 +212,6 @@ def trocr(
             (str(ROOT / "out" / "models" / src), folder)
             for src, folder in [
                 ("trocr-nfresh-all", "trocr-ours"),
-                ("trocr-marks-all", "trocr-marks"),
                 ("trocr-rain3kn-all", "trocr-rain"),
             ]
         ]
