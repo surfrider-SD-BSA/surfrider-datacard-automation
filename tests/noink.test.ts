@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { noInk, type BlankForms } from "../src/lib/noink";
-import { emptyWhereNoInk, restoredHundreds } from "../src/lib/prefill";
+import { emptyWhereNoInk, placeholderFromReaders, restoredHundreds } from "../src/lib/prefill";
 import type { Reading } from "../src/lib/reading";
 
 const tw = 50;
@@ -50,17 +50,34 @@ describe("emptyWhereNoInk", () => {
 
 describe("restoredHundreds", () => {
   const r = { value: 28, confidence: 0.4, source: "digits" } as Reading;
-  it("takes the 3-digit number two readers agree on", () => {
-    expect(restoredHundreds(r, ["128", "12", "128", null]).value).toBe(128);
+  it("takes the 3-digit number three readers agree on", () => {
+    expect(restoredHundreds(r, ["128", "12", "128", null, "128"]).value).toBe(128);
   });
-  it("needs two readers to agree", () => {
-    expect(restoredHundreds(r, ["128", "228", "12"])).toBe(r);
+  it("needs three readers to agree", () => {
+    expect(restoredHundreds(r, ["128", "128", "12"])).toBe(r);
   });
-  it("needs the number to end in ours", () => {
-    expect(restoredHundreds(r, ["132", "132"])).toBe(r);
+  it("takes any 3-digit number, and fills a 0", () => {
+    expect(restoredHundreds(r, ["132", "132", "132"]).value).toBe(132);
+    expect(restoredHundreds({ ...r, value: 0 }, ["100", "100", "100"]).value).toBe(100);
   });
-  it("leaves sure readings, and empty ones, alone", () => {
-    expect(restoredHundreds({ ...r, confidence: 0.9 }, ["128", "128"]).value).toBe(28);
-    expect(restoredHundreds({ ...r, value: 0 }, ["100", "100"]).value).toBe(0);
+  it("leaves numbers of 100 or more, and other sources, alone", () => {
+    expect(restoredHundreds({ ...r, value: 150 }, ["128", "128", "128"]).value).toBe(150);
+    expect(restoredHundreds({ ...r, source: "tally" }, ["128", "128", "128"]).value).toBe(28);
+  });
+});
+
+describe("placeholderFromReaders", () => {
+  const p = { value: 1, confidence: 0, source: "placeholder" } as Reading;
+  it("takes the number both readers read, still a placeholder", () => {
+    expect(placeholderFromReaders(p, ["14", "14"])).toEqual({ ...p, value: 14 });
+  });
+  it("needs both to read the same short number", () => {
+    expect(placeholderFromReaders(p, ["14", "4"])).toBe(p);
+    expect(placeholderFromReaders(p, ["1400", "1400"])).toBe(p);
+    expect(placeholderFromReaders(p, ["14", null])).toBe(p);
+  });
+  it("leaves read boxes alone", () => {
+    const r = { value: 28, confidence: 0.4, source: "digits" } as Reading;
+    expect(placeholderFromReaders(r, ["14", "14"])).toBe(r);
   });
 });

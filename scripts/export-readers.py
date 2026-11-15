@@ -33,7 +33,17 @@ rapidocr-onnxruntime, onnx, onnxruntime and onnxconverter-common:
     python scripts/export-readers.py --check    only trocr-check
     python scripts/export-readers.py --mix      only the voting mix: trocr-ours, trocr-marks and
                                                 trocr-rain, from out/models/trocr-nfresh-all,
-                                                trocr-marks-all and trocr-rain3kn-all
+                                                trocr-marks-all and trocr-rain3kn-all, plus the two
+                                                large readers trocr-largemarks and trocr-largerain
+                                                from trocr-largemarks7-all and trocr-largerain-all
+                                                (LARGE_HALF=1: their -h1 halves instead, for a size
+                                                and speed check before the all-card ones exist)
+    python scripts/export-readers.py --large    only the two large readers
+
+The large readers' encoders are stored as 8-bit weights, one scale per channel:
+615 MB a reader instead of 1.5 GB, 2.5x faster on a CPU, and the same reading on
+395 and 399 of 400 held-out boxes (out/exp/fake/shrink_check.py, 15 November
+2026). The base readers stay at full precision: at 8-bit, 45 of 400 changed.
 """
 
 from __future__ import annotations
@@ -155,12 +165,17 @@ def easyocr(tmp: pathlib.Path) -> None:
     (OUT / "easyocr-rec.vocab.json").write_text(json.dumps(list(reader.converter.character)))
 
 
+# Large readers: 8-bit encoders (see the top of this file).
+LARGE = {"trocr-largemarks", "trocr-largerain"}
+
+
 def trocr(
     tmp: pathlib.Path,
     only_ours: bool = False,
     only_tally: bool = False,
     only_check: bool = False,
     only_mix: bool = False,
+    only_large: bool = False,
 ) -> None:
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
@@ -200,6 +215,13 @@ def trocr(
                 ("trocr-marks-all", "trocr-marks"),
                 ("trocr-rain3kn-all", "trocr-rain"),
             ]
+        ]
+    if only_mix or only_large:
+        half = "-h1" if os.environ.get("LARGE_HALF") else "-all"
+        models = [] if only_large else models
+        models += [
+            (str(ROOT / "out" / "models" / f"{src}{half}"), folder)
+            for src, folder in [("trocr-largemarks7", "trocr-largemarks"), ("trocr-largerain", "trocr-largerain")]
         ]
     for name, folder in models:
         proc = TrOCRProcessor.from_pretrained(name)
@@ -259,7 +281,10 @@ def trocr(
                 "logits": {0: "b", 1: "t"},
             },
         )
-        shutil.copy(enc, dst / "encoder.onnx")  # at half precision the CPU runs it 2.4x slower
+        if folder in LARGE:
+            quantize_dynamic(str(enc), str(dst / "encoder.onnx"), weight_type=QuantType.QInt8, per_channel=True)
+        else:
+            shutil.copy(enc, dst / "encoder.onnx")  # at half precision the CPU runs it 2.4x slower
         quantize_dynamic(str(dec), str(dst / "decoder.onnx"), weight_type=QuantType.QInt8)
         tokens = proc.tokenizer.convert_ids_to_tokens(list(range(len(proc.tokenizer))))
         (dst / "vocab.json").write_text(json.dumps({"tokens": tokens, "start": start, "eos": eos}))
@@ -272,8 +297,8 @@ def main() -> None:
         sys.exit("no out/models/trocr-ours: run scripts/train-trocr.py first")
     with tempfile.TemporaryDirectory() as t:
         tmp = pathlib.Path(t)
-        if "--mix" in sys.argv[1:]:
-            trocr(tmp, only_ours=True, only_mix=True)
+        if "--mix" in sys.argv[1:] or "--large" in sys.argv[1:]:
+            trocr(tmp, only_ours=True, only_mix="--mix" in sys.argv[1:], only_large="--large" in sys.argv[1:])
             print(f"wrote {OUT}")
             return
         if "--check" in sys.argv[1:]:

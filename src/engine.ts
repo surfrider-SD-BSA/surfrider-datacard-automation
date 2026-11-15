@@ -49,6 +49,7 @@ import {
   votedTuned,
   emptyWhereNoInk,
   restoredHundreds,
+  placeholderFromReaders,
   numberFromReader,
   prefillFor,
   tallyFromReaders,
@@ -204,13 +205,18 @@ function rankedCells() {
       const key = `${card.cardNumber}:${cell.row}`;
       const read = prefillFor(cell);
       const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
-      // A doubtful box's more readers: two for middleReading, then two that vote on the tuned text.
+      // A doubtful box's more readers (OtherReaders.middleNames): rev4, large rainfall, large marks,
+      // marks, rainfall. The two large ones vote on the tuned text; rev4 and large rainfall go into
+      // middleReading; all but rev4 into restoredHundreds; large rainfall reads the never-read boxes.
       const more = state.middle.get(key);
-      const tuned = votedTuned(state.tuned.get(key), more?.slice(2));
+      const [rev4, largeRain, largeMarks, marks, rain] = more ?? [];
+      const tuned = votedTuned(state.tuned.get(key), more && [largeMarks ?? null, largeRain ?? null]);
       const main = counted && mainReading(counted, tuned, state.second.get(key), state.check.get(key));
-      const middle = main && middleReading(main, more?.slice(0, 2), state.second.get(key));
-      const restored = middle && restoredHundreds(middle, [state.tuned.get(key), ...(more ?? [])]);
-      return { card, cell, read, prefill: restored && emptyWhereNoInk(restored, cell.noInk) };
+      const middle = main && middleReading(main, more && [rev4 ?? null, largeRain ?? null], state.second.get(key));
+      const restored =
+        middle && (more ? restoredHundreds(middle, [state.tuned.get(key), largeMarks, largeRain, marks, rain]) : middle);
+      const placed = restored && (more ? placeholderFromReaders(restored, [state.tuned.get(key), largeRain]) : restored);
+      return { card, cell, read, prefill: placed && emptyWhereNoInk(placed, cell.noInk) };
     }),
   );
   const accepted = autoAcceptedInScan(
@@ -532,7 +538,9 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
  */
 function secondOpinionBoxes() {
   return rankedCells()
-    .filter((x) => x.read?.source === "digits")
+    // Never-read boxes too: our tuned reader and the large rainfall reader may agree on them
+    // (placeholderFromReaders).
+    .filter((x) => x.read?.source === "digits" || x.read?.source === "placeholder")
     .map(({ card, cell, read }) => {
       const r = cell.rect, m = 4;
       const canvas = cropToCanvas(cell.image, r.x - m, r.y - m, r.width + 2 * m, r.height + 2 * m, 1);
@@ -612,7 +620,10 @@ function secondOpinions(params: {
     ]),
     // The written boxes doubtful enough for more readers (middleReading), as [card, row].
     doubtful: ranked
-      .filter(({ prefill }) => prefill?.source === "digits" && prefill.confidence <= MIDDLE_DOUBT)
+      .filter(
+        ({ prefill }) =>
+          (prefill?.source === "digits" && prefill.confidence <= MIDDLE_DOUBT) || prefill?.source === "placeholder",
+      )
       .map(({ card, cell }) => [card.cardNumber, cell.row]),
   };
 }

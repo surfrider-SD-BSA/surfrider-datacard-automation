@@ -621,23 +621,42 @@ export function mainReading(
 }
 
 /**
- * The dropped leading digit: a doubtful number under 100 where at least two of
- * the tuned readers (`texts`) read the same 3-digit number ending in it, "128"
- * where ours has "28". A clear stroke beside the box's edge is read as the edge.
- * Measured 6 November 2026 with nobody checking, 3 runs over 402 cards, 3-5
- * boxes a run: total off about 9,142 -> 8,808, all boxes right 92.04% -> 92.07%,
- * written numbers right 93.88% -> 93.93%. All of the gain is on half B of the
- * scans; half A did not change.
+ * The dropped leading digit: a written number under 100, or a 0, where at least
+ * `RESTORED_AGREE` of the readers (`texts`: our tuned reader, the two large
+ * readers and the marks and rainfall readers) read the same 3-digit number:
+ * "128" where ours has "28" or "0". A clear stroke beside the box's edge is read
+ * as the edge, and a crossed-out 100 as an X. Only doubtful boxes have the other
+ * readers' texts, so only they are changed.
+ * First measured 6 November 2026 (two readers, ending in ours, doubtful under
+ * 100): total off about 9,142 -> 8,808. Three readers, any 3-digit number and
+ * 0 too: part of the 15 November 2026 phone set (see `placeholderFromReaders`).
  */
 export function restoredHundreds(r: Reading, texts: readonly (string | null | undefined)[]): Reading {
-  if (r.source !== "digits" || r.value <= 0 || r.value >= 100 || r.confidence > MIDDLE_DOUBT) return r;
+  if (r.source !== "digits" || r.value < 0 || r.value >= 100) return r;
   const seen = new Map<string, number>();
   for (const text of texts) {
     const t = (text ?? "").trim();
-    if (/^[1-9]\d\d$/.test(t) && t.endsWith(String(r.value))) seen.set(t, (seen.get(t) ?? 0) + 1);
+    if (/^[1-9]\d\d$/.test(t)) seen.set(t, (seen.get(t) ?? 0) + 1);
   }
   const top = [...seen].sort((a, b) => b[1] - a[1])[0];
-  return top && top[1] >= 2 ? { ...r, value: Number(top[0]), confidence: TUNED_DISAGREES } : r;
+  return top && top[1] >= RESTORED_AGREE ? { ...r, value: Number(top[0]), confidence: TUNED_DISAGREES } : r;
+}
+
+/** How many readers must read the same 3-digit number (`restoredHundreds`). */
+export const RESTORED_AGREE = 3;
+
+/**
+ * A box shown as "nothing read" where our tuned reader and the large rainfall
+ * reader (`texts`) read the same number of one to three digits: that number,
+ * still a placeholder at confidence 0, so a person still sees it, but most
+ * often with the right number already in. Measured 14 November 2026 with
+ * nobody checking, 3 runs over 402 cards: total off 7,900 -> 7,660 on the PC's
+ * best readers. Phone set measured 15 November 2026: see the PR.
+ */
+export function placeholderFromReaders(r: Reading, texts: readonly (string | null | undefined)[]): Reading {
+  if (r.source !== "placeholder" || texts.length < 2) return r;
+  const n = texts.map((t) => (t ?? "").trim());
+  return /^\d{1,3}$/.test(n[0]!) && n.every((t) => t === n[0]) ? { ...r, value: Number(n[0]) } : r;
 }
 
 /** A reading of a box nobody wrote in is a reading of nothing: empty (noink.ts). */
