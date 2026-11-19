@@ -148,13 +148,15 @@ enum OtherReaders {
         return texts
     }
 
-    /// Two more tuned readers (TrOCR-base revisions: `readers/trocr-rev2`, with
-    /// machine-labelled extra boxes, and `readers/trocr-rev4`, with heavier
-    /// picture noise; each trained on half the scans) for the written boxes the
-    /// engine still doubts (`middleReading` in src/lib/prefill.ts), then two
-    /// that vote on our tuned reader's text there (`readers/trocr-vote1` and
-    /// `readers/trocr-vote2`, `votedTuned`).
-    static let middleNames = ["trocr-rev2", "trocr-rev4", "trocr-vote1", "trocr-vote2"]
+    /// More tuned readers for the written boxes the engine still doubts and the
+    /// boxes it read nothing in (src/engine.ts, `rankedCells`), in this order:
+    /// `readers/trocr-rev4` (TrOCR-base with heavier picture noise), the two
+    /// large readers `readers/trocr-largerain` (TrOCR-large also taught
+    /// handwritten rainfall numbers) and `readers/trocr-largemarks` (also taught
+    /// X, crossed-out zeros, dashes and scribbles as 0), then the base
+    /// `readers/trocr-rain`. The large two vote on our tuned reader's text
+    /// (`votedTuned`); see src/lib/prefill.ts for the rest.
+    static let middleNames = ["trocr-rev4", "trocr-largerain", "trocr-largemarks", "trocr-rain"]
 
     /// Each doubtful box's text from each of `middleNames`, nil where a reader
     /// is missing or read nothing. No time limit (about 92 boxes a scan, four

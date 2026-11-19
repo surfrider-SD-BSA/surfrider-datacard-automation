@@ -7,7 +7,7 @@
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-import { toGray, type GrayImage } from "./image";
+import { evenLighting, toGray, type GrayImage } from "./image";
 import { scannedPage } from "./scanpage";
 
 /**
@@ -104,7 +104,7 @@ export async function rasterizePdf(
     try {
       // A scanned page is taken as the scanner's pixels; anything else is drawn.
       const scanned = await scannedPage(page, viewport, pdfjs);
-      if (scanned) return scanned;
+      if (scanned) return evenLighting(scanned);
 
       canvas.width = Math.round(viewport.width);
       canvas.height = Math.round(viewport.height);
@@ -116,7 +116,7 @@ export async function rasterizePdf(
 
       await page.render({ canvasContext: ctx, viewport }).promise;
       const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      return toGray(rgba, canvas.width, canvas.height);
+      return evenLighting(toGray(rgba, canvas.width, canvas.height));
     } finally {
       page.cleanup();
     }

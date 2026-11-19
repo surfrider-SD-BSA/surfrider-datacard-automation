@@ -31,6 +31,7 @@
 import { loadCellMap, type CellMap } from "./lib/cells";
 import { CARD_LABELS } from "./lib/card-labels";
 import { decodeModel, type DigitModel } from "./lib/digits";
+import type { BlankForms } from "./lib/noink";
 import {
   assembleCard,
   cellsForSide,
@@ -46,6 +47,9 @@ import {
   MIDDLE_DOUBT,
   middleReading,
   votedTuned,
+  emptyWhereNoInk,
+  restoredHundreds,
+  placeholderFromReaders,
   numberFromReader,
   prefillFor,
   tallyFromReaders,
@@ -136,22 +140,35 @@ async function loadDigitModel(): Promise<DigitModel | null> {
   }
 }
 
+/** The blank form per row (noink.ts). Like the digits: without it the app does a little less. */
+async function loadBlankForms(): Promise<BlankForms | null> {
+  try {
+    const [meta, data] = await Promise.all([fetch("reference/ink-blank.json"), fetch("reference/ink-blank.bin")]);
+    if (!meta.ok || !data.ok) return null;
+    return { ...(await meta.json()), data: new Uint8Array(await data.arrayBuffer()) };
+  } catch {
+    return null;
+  }
+}
+
 let referencesPromise: Promise<{
   images: { front: GrayImage; back: GrayImage };
   maps: { front: CellMap; back: CellMap };
   digits: DigitModel | null;
+  forms: BlankForms | null;
 }> | null = null;
 
 function loadReferences() {
   referencesPromise ??= (async () => {
-    const [front, back, frontMap, backMap, digits] = await Promise.all([
+    const [front, back, frontMap, backMap, digits, forms] = await Promise.all([
       loadReferenceImage("reference/blank-front.png"),
       loadReferenceImage("reference/blank-back.png"),
       loadCellMap("front", async (u) => (await fetch(u)).json()),
       loadCellMap("back", async (u) => (await fetch(u)).json()),
       loadDigitModel(),
+      loadBlankForms(),
     ]);
-    return { images: { front, back }, maps: { front: frontMap, back: backMap }, digits };
+    return { images: { front, back }, maps: { front: frontMap, back: backMap }, digits, forms };
   })();
   return referencesPromise;
 }
@@ -188,11 +205,18 @@ function rankedCells() {
       const key = `${card.cardNumber}:${cell.row}`;
       const read = prefillFor(cell);
       const counted = read && cell.tallyOnly ? tallyFromReaders(read, state.tally.get(key)) : read;
-      // A doubtful box's more readers: two for middleReading, then two that vote on the tuned text.
+      // A doubtful box's more readers (OtherReaders.middleNames): rev4, large rainfall, large marks,
+      // rainfall. The two large ones vote on the tuned text; rev4 and large rainfall go into
+      // middleReading; all but rev4 into restoredHundreds; large rainfall reads the never-read boxes.
       const more = state.middle.get(key);
-      const tuned = votedTuned(state.tuned.get(key), more?.slice(2));
+      const [rev4, largeRain, largeMarks, rain] = more ?? [];
+      const tuned = votedTuned(state.tuned.get(key), more && [largeMarks ?? null, largeRain ?? null]);
       const main = counted && mainReading(counted, tuned, state.second.get(key), state.check.get(key));
-      return { card, cell, read, prefill: main && middleReading(main, more?.slice(0, 2), state.second.get(key)) };
+      const middle = main && middleReading(main, more && [rev4 ?? null, largeRain ?? null], state.second.get(key));
+      const restored =
+        middle && (more ? restoredHundreds(middle, [state.tuned.get(key), largeMarks, largeRain, rain]) : middle);
+      const placed = restored && (more ? placeholderFromReaders(restored, [state.tuned.get(key), largeRain]) : restored);
+      return { card, cell, read, prefill: placed && emptyWhereNoInk(placed, cell.noInk) };
     }),
   );
   const accepted = autoAcceptedInScan(
@@ -269,7 +293,7 @@ function readPool(refs: Awaited<ReturnType<typeof loadReferences>>): Promise<Poo
           return new Promise<Worker>((ready, fail) => {
             w.onmessage = (e) => (e.data?.type === "ready" ? ready(w) : fail(new Error("read worker did not start")));
             w.onerror = (e) => fail(e.error ?? new Error(e.message));
-            w.postMessage({ type: "init", images: refs.images, maps: refs.maps, digits: refs.digits });
+            w.postMessage({ type: "init", images: refs.images, maps: refs.maps, digits: refs.digits, forms: refs.forms });
           });
         }),
       );
@@ -366,7 +390,7 @@ async function process(params: ProcessParams) {
       bannerOverlap: registered.bannerOverlap,
       ruleOverlap: registered.ruleOverlap,
       cells: registered.trusted
-        ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side, refs.digits)
+        ? cellsForSide(registered.image, pageNumber, refs.maps[registered.side], registered.side, refs.digits, refs.forms)
         : [],
     });
   });
@@ -514,7 +538,9 @@ function crop(params: { cardNumber: number; row: number; kind: CropKind }) {
  */
 function secondOpinionBoxes() {
   return rankedCells()
-    .filter((x) => x.read?.source === "digits")
+    // Never-read boxes too: our tuned reader and the large rainfall reader may agree on them
+    // (placeholderFromReaders).
+    .filter((x) => x.read?.source === "digits" || x.read?.source === "placeholder")
     .map(({ card, cell, read }) => {
       const r = cell.rect, m = 4;
       const canvas = cropToCanvas(cell.image, r.x - m, r.y - m, r.width + 2 * m, r.height + 2 * m, 1);
@@ -594,7 +620,10 @@ function secondOpinions(params: {
     ]),
     // The written boxes doubtful enough for more readers (middleReading), as [card, row].
     doubtful: ranked
-      .filter(({ prefill }) => prefill?.source === "digits" && prefill.confidence <= MIDDLE_DOUBT)
+      .filter(
+        ({ prefill }) =>
+          (prefill?.source === "digits" && prefill.confidence <= MIDDLE_DOUBT) || prefill?.source === "placeholder",
+      )
       .map(({ card, cell }) => [card.cardNumber, cell.row]),
   };
 }

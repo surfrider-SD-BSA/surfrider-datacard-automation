@@ -11,6 +11,7 @@
 import type { CellMap, Rect } from "./cells";
 import { inkThreshold, OVERSEGMENTED_CONFIDENCE, readDigits, type DigitBox, type DigitModel } from "./digits";
 import { inkFraction, type GrayImage } from "./image";
+import { noInk, type BlankForms } from "./noink";
 import { boxMarked, cropGray, marksIn, stripMarked, tallestMark } from "./marks";
 import { countBoxTally, countTally, salvageCount, TWO_UPRIGHTS } from "./tally";
 import type { CardPages, PageForPairing } from "./register";
@@ -59,6 +60,8 @@ export interface ExtractedCell {
   ink: number;
   /** Ink coverage of the tally area to its left. */
   tallyInk: number;
+  /** True when the blank form shows nobody added anything to the box or strip (noink.ts). */
+  noInk?: boolean;
   /** True when the TOTAL box looks written in. */
   hasValue: boolean;
   /** True when there are tally marks but no numeric total. */
@@ -485,6 +488,8 @@ export function cellsForSide(
    * cost.
    */
   model: DigitModel | null = null,
+  /** The blank form per row, or null to leave `noInk` false (see noink.ts). */
+  forms: BlankForms | null = null,
 ): ExtractedCell[] {
   const out: ExtractedCell[] = [];
 
@@ -686,6 +691,7 @@ export function cellsForSide(
 
     const region = cropRegion(cell.total, cell.tally, image);
     out.push({
+      noInk: noInk(image, cell.row, cell.total, cell.tally, forms),
       row: cell.row,
       itemName: item.name,
       section: item.section,

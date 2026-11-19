@@ -11,6 +11,11 @@
 # history is searched rather than the first-parent line, because android/main
 # used to take ios/main (now main) by merge and its first parents were merges.
 #
+# A build from a branch with an open pull request shows that pull request's
+# number instead, so a test build on a phone names the PR it is testing. Once
+# merged, the squash commit carries the same number. Without `gh` or a network
+# it falls back to the history.
+#
 # "dev" when there is no pull request in the history at all, which is a fresh
 # fork. The commit is there for whoever needs to know exactly which one.
 #
@@ -24,6 +29,12 @@ cd "$root"
 pr=$(git log --format=%s 2>/dev/null |
   sed -n -E 's/.*\(#([0-9]+)\)$/\1/p; s/^Merge pull request #([0-9]+) .*/\1/p' |
   sort -n | tail -1)
+if command -v gh >/dev/null 2>&1; then
+  open=$(gh pr view --json number,state -q 'select(.state == "OPEN") | .number' 2>/dev/null || true)
+  if [ -n "$open" ]; then
+    pr="$open"
+  fi
+fi
 commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 if [ -n "$pr" ]; then
