@@ -69,12 +69,16 @@ struct CleanupsScreen: View {
                 // button stays exactly where it was and the number reads as a
                 // footnote rather than part of the action. This screen only.
                 .overlay(alignment: .bottom) {
-                    if let version = AppVersion.label {
-                        Text("Version \(version)")
+                    // Tapping it opens the credits the readers' licences ask for.
+                    Button {
+                        model.path.append(.credits)
+                    } label: {
+                        Text(AppVersion.label.map { "Version \($0) · Credits" } ?? "Credits")
                             .font(Nocturne.Face.label(11))
                             .foregroundStyle(Nocturne.text(40))
                             .padding(.bottom, 4)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }

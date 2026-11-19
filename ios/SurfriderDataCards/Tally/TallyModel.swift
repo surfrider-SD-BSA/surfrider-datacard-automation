@@ -74,6 +74,7 @@ enum Screen: Hashable {
     case review
     case cards
     case finish
+    case credits
 }
 
 // MARK: -

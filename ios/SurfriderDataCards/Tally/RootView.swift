@@ -28,6 +28,7 @@ struct RootView: View {
                     case .review: ReviewScreen(model: model)
                     case .cards: CardsScreen(model: model)
                     case .finish: FinishScreen(model: model)
+                    case .credits: CreditsScreen()
                     }
                 }
         }
